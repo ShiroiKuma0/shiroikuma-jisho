@@ -3993,7 +3993,7 @@ class _PlayerSourcePageState extends BaseSourcePageState<PlayerSourcePage>
     );
 
     appModel.isProcessingEmbeddedSubtitles = true;
-    final OcrEngine engine = MlkitOcrEngine();
+    final OcrEngine engine = PpOcrEngine();
     try {
       tracker.step('Extracting ${track.label}...');
       // The demux pass over a large file takes minutes on its own —

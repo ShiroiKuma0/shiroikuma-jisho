@@ -141,6 +141,18 @@ class ZipFileWriter {
           }
         } on ZipException catch (ex) {
           sendPort.send(IsolateResponse(message.id, null, ex.message));
+        } catch (ex) {
+          // Local change (2026-09-09). Upstream catches ZipException
+          // ONLY, so anything else — a file that vanished between
+          // being listed and being written, an allocation failure, a
+          // type error — escapes this loop, becomes an unhandled async
+          // error and kills the isolate. No reply is ever sent, and the
+          // caller waits forever. That is what stalled an export for
+          // six and a half hours on artifact 2264 of 2265.
+          //
+          // Reporting it keeps the worker alive and, far more usefully,
+          // names the real cause instead of leaving a corpse.
+          sendPort.send(IsolateResponse(message.id, null, '$ex'));
         }
       }
     }
@@ -160,8 +172,11 @@ ZipHandle _create(File file, int compressionLevel) {
 
 void _writeFile(ZipHandle handle, String name, File file, bool compress) {
   var level = 0;
-  if (!compress) {
-    level = zipSetLevel(handle, 0);
+  // Absent in the bundled C library; when it is missing the entry is
+  // simply written at the archive's own level instead of stored.
+  final setLevel = zipSetLevel;
+  if (!compress && setLevel != null) {
+    level = setLevel(handle, 0);
   }
 
   try {
@@ -183,16 +198,19 @@ void _writeFile(ZipHandle handle, String name, File file, bool compress) {
 
     zipEntryClose(handle);
   } finally {
-    if (!compress) {
-      zipSetLevel(handle, level);
+    if (!compress && setLevel != null) {
+      setLevel(handle, level);
     }
   }
 }
 
 void _writeData(ZipHandle handle, String name, Uint8List data, bool compress) {
   var level = 0;
-  if (!compress) {
-    level = zipSetLevel(handle, 0);
+  // Absent in the bundled C library; when it is missing the entry is
+  // simply written at the archive's own level instead of stored.
+  final setLevel = zipSetLevel;
+  if (!compress && setLevel != null) {
+    level = setLevel(handle, 0);
   }
 
   try {
@@ -217,8 +235,8 @@ void _writeData(ZipHandle handle, String name, Uint8List data, bool compress) {
 
     zipEntryClose(handle);
   } finally {
-    if (!compress) {
-      zipSetLevel(handle, level);
+    if (!compress && setLevel != null) {
+      setLevel(handle, level);
     }
   }
 }

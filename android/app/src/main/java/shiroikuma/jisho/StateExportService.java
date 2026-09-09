@@ -53,6 +53,8 @@ public class StateExportService extends Service {
 
     private FlutterEngine engine;
     private PowerManager.WakeLock wakeLock;
+    /** Re-acquires the wakelock when the platform force-releases it. */
+    private WakeLockKeeper wakeKeeper;
     private final AtomicBoolean replied = new AtomicBoolean(false);
     private long lastProgressAt = 0;
     private volatile boolean cancelled = false;
@@ -98,6 +100,7 @@ public class StateExportService extends Service {
         wakeLock = powerManager.newWakeLock(
             PowerManager.PARTIAL_WAKE_LOCK, "shiroikuma.jisho:stateExport");
         wakeLock.setReferenceCounted(false);
+        wakeKeeper = new WakeLockKeeper(wakeLock);
     }
 
     private void notifyProgress(String text) {
@@ -115,9 +118,11 @@ public class StateExportService extends Service {
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
         notifyProgress("Starting…");
-        if (!wakeLock.isHeld()) {
-            wakeLock.acquire(90 * 60 * 1000L);
-        }
+        // Not a bare acquire(): EMUI force-releases this lock a couple
+        // of minutes in, and everything after that ran unprotected —
+        // which is what left an export stuck in uninterruptible I/O
+        // whenever the phone came off the charger.
+        wakeKeeper.start();
 
         final String pathExtra = intent.getStringExtra("path");
         final String items = intent.getStringExtra("items");
@@ -169,7 +174,13 @@ public class StateExportService extends Service {
                         progress.addFlags(Intent.FLAG_INCLUDE_STOPPED_PACKAGES);
                         progress.putExtra("reply_id", replyId);
                         progress.putExtra("app", "白い熊 辞書");
-                        progress.putExtra("text", text);
+                        // 応用管理 reads a progress line's label from EXTRA_RESULT, not
+        // from "text" — the terminal reply always used "result" but the
+        // progress path diverged, so every phase label we emitted was
+        // silently discarded on arrival. Both keys are sent: "result"
+        // is the one that is read, "text" stays for older receivers.
+        progress.putExtra("result", text);
+        progress.putExtra("text", text);
                         progress.putExtra("current",
                             current == null ? 0L : current.longValue());
                         progress.putExtra("total",
@@ -220,8 +231,8 @@ public class StateExportService extends Service {
             engine.destroy();
             engine = null;
         }
-        if (wakeLock != null && wakeLock.isHeld()) {
-            wakeLock.release();
+        if (wakeKeeper != null) {
+            wakeKeeper.stop();
         }
         super.onDestroy();
     }

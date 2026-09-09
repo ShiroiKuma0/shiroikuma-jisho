@@ -920,16 +920,17 @@ class _ExportImportPanelState extends State<_ExportImportPanel> {
   Color get _accent => Color(ui.textColor);
   Color get _border => Color(ui.borderColor);
 
-  static const String _categoryAppData = 'app_data';
+  static const String _categoryAppData = StateExport.appDataId;
 
   /// Selection by state-export id; settings + artifact children all on,
   /// the heavyweight cross-device bundle deliberately OFF by default.
-  late final Set<String> _selected = {...StateExport.allIds};
+  /// `app_data` is subtracted explicitly: it joined
+  /// [StateExport.allIds] so the automation door can advertise it, but
+  /// building the bundle here is slow and stays opt-in.
+  late final Set<String> _selected = {...StateExport.allIds}
+    ..remove(_categoryAppData);
 
-  List<String> get _allSelectable => [
-        ...StateExport.allIds,
-        _categoryAppData,
-      ];
+  List<String> get _allSelectable => [...StateExport.allIds];
 
   bool get _allSelected => _selected.length == _allSelectable.length;
 
@@ -1042,7 +1043,11 @@ class _ExportImportPanelState extends State<_ExportImportPanel> {
                 },
               ),
               for (final category in StateExport.categories)
-                if (category.id == 'artifacts')
+                if (category.id == _categoryAppData)
+                  // Rendered explicitly below, with its own wording
+                  // about what the in-app bundle costs.
+                  const SizedBox.shrink()
+                else if (category.id == 'artifacts')
                   // Parent header row: toggles all three children.
                   _checkboxRow(
                     label: category.label,

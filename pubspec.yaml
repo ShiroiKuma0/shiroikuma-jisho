@@ -1,7 +1,7 @@
 name: shiroikumanojisho
 description: A full-featured immersion language learning suite for mobile.
 publish_to: 'none'
-version: 1.5.0+025
+version: 1.5.0+057
 environment:
   sdk: ">=3.12.0 <4.0.0"
   flutter: "^3.44.0"
@@ -81,7 +81,6 @@ dependencies:
   google_fonts: ^8.2.0
   # Un-vendored: the new toolchain satisfies the hosted constraints
   # (Dart >=3.8, AGP 8+, compileSdk 35+).
-  google_mlkit_text_recognition: ^0.16.0
   hive: ^2.0.6
   hive_flutter: ^1.1.0
   html: ^0.15.2
@@ -183,6 +182,8 @@ dependency_overrides:
   record_mp3_plus: ^1.2.0 # Retest then drop (toolchain migration)
 
 dev_dependencies:
+  flutter_test:
+    sdk: flutter
   build_runner: ^2.3.3
   dart_mappable_builder: ^4.0.0-dev.2
   dependency_validator: ^5.0.5

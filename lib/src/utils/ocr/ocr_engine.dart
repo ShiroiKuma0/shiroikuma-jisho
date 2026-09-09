@@ -1,7 +1,4 @@
-import 'dart:typed_data';
-import 'dart:ui';
-
-import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
+import 'package:flutter/services.dart';
 
 /// One recognised line of text within an [OcrBlock].
 class OcrLine {
@@ -20,12 +17,15 @@ class OcrLine {
 
 /// One block of recognised text — roughly a paragraph or text box.
 class OcrBlock {
-  /// Initialise a block.
+  /// Initialise a block. [isVertical] is supplied by the engine, which
+  /// decides orientation by a vote across the whole block; the aspect
+  /// heuristic is only the fallback when it says nothing.
   OcrBlock({
     required this.text,
     required this.rect,
     required this.lines,
-  });
+    bool? isVertical,
+  }) : isVertical = isVertical ?? (rect.height > rect.width * 1.5);
 
   /// The recognised text of the whole block.
   final String text;
@@ -36,10 +36,14 @@ class OcrBlock {
   /// The lines making up the block.
   final List<OcrLine> lines;
 
-  /// Heuristic for vertically-set (tategaki) text: a column is much
-  /// taller than wide. Used for reading-order sorting and for the
-  /// `writing-mode` styling of generated overlays.
-  bool get isVertical => rect.height > rect.width * 1.5;
+  /// Whether the block is vertically set (tategaki). Used for
+  /// reading-order sorting and for the `writing-mode` styling of
+  /// generated overlays.
+  ///
+  /// Not an aspect test on this rectangle: a bubble of four short
+  /// columns is wider than it is tall, yet still tategaki. The engine
+  /// votes across the block's own lines instead.
+  final bool isVertical;
 }
 
 /// The result of recognising one image.
@@ -60,9 +64,9 @@ class OcrResult {
 
 /// The pluggable OCR seam. All in-app OCR (subtitle bitmaps, scanned PDF
 /// pages, the home-menu smoke test) goes through this interface so the
-/// backing engine can be swapped — ML Kit today, potentially MangaOCR
-/// (on-device ONNX or a desktop pipeline) later, without touching the
-/// pipelines that consume it.
+/// backing engine can be swapped — PP-OCRv6 today, potentially MangaOCR
+/// (a manga-specialised recogniser behind the same detector) later,
+/// without touching the pipelines that consume it.
 abstract class OcrEngine {
   /// Recognise text in an image file on disk (any format the engine's
   /// platform decoder accepts — JPEG/PNG/WebP/BMP).
@@ -81,19 +85,38 @@ abstract class OcrEngine {
   Future<void> dispose();
 }
 
-/// [OcrEngine] backed by Google ML Kit text recognition v2 with the
-/// bundled Japanese model. One native recognizer is held open across the
-/// engine's lifetime — batch users (subtitle OCR, PDF import) create one
-/// engine, feed it every image, then [dispose].
-class MlkitOcrEngine implements OcrEngine {
-  final TextRecognizer _recognizer =
-      TextRecognizer(script: TextRecognitionScript.japanese);
+/// [OcrEngine] backed by PP-OCRv6 (small tier) running on-device under
+/// ONNX Runtime, via the `shiroikuma.jisho/ocr` channel. The models,
+/// the detection/recognition pipeline and the tategaki handling all
+/// live in `OcrBridge.java`; this is only the seam.
+///
+/// This replaced Google ML Kit in 1.5.0+028. ML Kit was the app's sole
+/// tracker — it merged `MlKitInitProvider` and
+/// `MlKitComponentDiscoveryService` into the manifest, both of which
+/// start themselves at process launch. PP-OCRv6 is Apache-2.0 for code
+/// and weights alike and registers no manifest components.
+///
+/// The native side holds one detector and one recogniser session open
+/// for the engine's lifetime — batch users (subtitle OCR, PDF import)
+/// create one engine, feed it every image, then [dispose].
+class PpOcrEngine implements OcrEngine {
+  /// Initialise an engine. [maxSide] caps the long edge of the
+  /// detector's input; 960 is PaddleOCR's default and measured best
+  /// here (a 1400x2000 tategaki page scored 1.3% CER at 960 and no
+  /// better at 1280 or 1600, for half the time).
+  PpOcrEngine({this.maxSide = 960});
+
+  /// Long-edge cap in pixels for the detector's input.
+  final int maxSide;
+
+  static const MethodChannel _channel = MethodChannel('shiroikuma.jisho/ocr');
 
   @override
   Future<OcrResult> recognizeFile(String path) async {
-    return _toResult(
-      await _recognizer.processImage(InputImage.fromFilePath(path)),
-    );
+    return _toResult(await _channel.invokeMapMethod<String, dynamic>(
+      'recognizeFile',
+      {'path': path, 'maxSide': maxSide},
+    ));
   }
 
   @override
@@ -102,35 +125,58 @@ class MlkitOcrEngine implements OcrEngine {
     required int width,
     required int height,
   }) async {
-    return _toResult(
-      await _recognizer.processImage(
-        InputImage.fromBitmap(bitmap: rgba, width: width, height: height),
-      ),
-    );
+    return _toResult(await _channel.invokeMapMethod<String, dynamic>(
+      'recognizeBitmap',
+      {
+        'rgba': rgba,
+        'width': width,
+        'height': height,
+        'maxSide': maxSide,
+      },
+    ));
   }
 
   @override
-  Future<void> dispose() => _recognizer.close();
+  Future<void> dispose() => _channel.invokeMethod<void>('dispose');
 
-  OcrResult _toResult(RecognizedText recognized) {
+  OcrResult _toResult(Map<String, dynamic>? payload) {
+    if (payload == null) {
+      return OcrResult(text: '', blocks: const []);
+    }
+    final blocks = <OcrBlock>[];
+    for (final raw in (payload['blocks'] as List? ?? const [])) {
+      final block = Map<String, dynamic>.from(raw as Map);
+      final lines = <OcrLine>[];
+      for (final rawLine in (block['lines'] as List? ?? const [])) {
+        final line = Map<String, dynamic>.from(rawLine as Map);
+        lines.add(
+          OcrLine(
+            text: line['text'] as String? ?? '',
+            rect: _rectOf(line),
+          ),
+        );
+      }
+      blocks.add(
+        OcrBlock(
+          text: block['text'] as String? ?? '',
+          rect: _rectOf(block),
+          lines: lines,
+          isVertical: block['vertical'] as bool?,
+        ),
+      );
+    }
     return OcrResult(
-      text: recognized.text,
-      blocks: recognized.blocks
-          .map(
-            (block) => OcrBlock(
-              text: block.text,
-              rect: block.boundingBox,
-              lines: block.lines
-                  .map(
-                    (line) => OcrLine(
-                      text: line.text,
-                      rect: line.boundingBox,
-                    ),
-                  )
-                  .toList(),
-            ),
-          )
-          .toList(),
+      text: payload['text'] as String? ?? '',
+      blocks: blocks,
+    );
+  }
+
+  static Rect _rectOf(Map<String, dynamic> map) {
+    return Rect.fromLTRB(
+      (map['l'] as num? ?? 0).toDouble(),
+      (map['t'] as num? ?? 0).toDouble(),
+      (map['r'] as num? ?? 0).toDouble(),
+      (map['b'] as num? ?? 0).toDouble(),
     );
   }
 }

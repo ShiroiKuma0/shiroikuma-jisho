@@ -4,6 +4,321 @@ All notable user-visible changes to **白い熊の辞書 (shiroikumanojisho)** a
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- **The app now has no trackers at all.** Text recognition was provided
+  by Google ML Kit, which merged two components into the app's manifest
+  — `MlKitInitProvider` and `MlKitComponentDiscoveryService` — that
+  started themselves every time the app launched, whether or not you
+  ever used OCR. It has been replaced by PP-OCRv6, which is Apache-2.0
+  for both code and model weights and registers nothing in the manifest.
+  A tracker scan of this build reports zero.
+- **OCR is now noticeably better on vertical Japanese.** The new engine
+  runs entirely on-device, like the old one, and covers the same three
+  places: OCR of image-based (PGS) subtitle tracks in the player, the
+  one-time import of a scanned PDF, and the "OCR test (image)" item in
+  the settings menu. Recognition of 縦書き improved most — the engine
+  is told which blocks are vertical rather than guessing from their
+  shape, so a wide speech bubble of several short columns is no longer
+  mistaken for horizontal text, and a trailing 「。」 that the detector
+  cuts loose from its column is rejoined instead of being read on its
+  own. Reading order within a block now runs right-to-left for tategaki.
+- **Fixed backups that could not be read back at all.** Every backup
+  this app has ever written was unreadable on Android, and a restore
+  failed within seconds of starting. The archive's index was written
+  with a 64-bit trailer that only belongs in archives too large for the
+  ordinary 32-bit one; Android's zip reader ignores that trailer unless
+  the ordinary index says to look for it, and then finds the index 76
+  bytes from where it expected. The trailer is now written only when it
+  is genuinely needed, so an archive of any size opens. Desktop tools
+  always accepted these archives, which is why the fault took so long
+  to find — it was only ever visible to the reader on the phone.
+  **A backup taken with an earlier build cannot be restored; take a
+  fresh one with this build.**
+- **The font you set for a book is now used after a restore.** An
+  imported font needs two things on the phone: the file, and a small
+  index recording which font family that file provides. The per-book
+  setting stores the family name — "Source Han Serif JP" — while the
+  file on disk is named something else entirely, so the index is the
+  only link between the two. Neither the file nor the index was ever
+  backed up, and restoring only the file was not enough: the font sat
+  on the phone unused while the setting still named it, which looked
+  exactly like the font not having been restored at all. Both now
+  travel, and so do the fonts imported from the settings page for the
+  app's own interface, which are kept separately. Fonts that ship with
+  the app were never affected, so only imported ones showed the fault.
+  Carried both by 白い熊 応用管理, under the existing "Imported fonts"
+  item so nothing needs re-selecting, and by the in-app cross-device
+  export, which had never included fonts at all.
+- **Book covers are restored.** Each book's cover is kept as a file on
+  the phone, in a folder no backup included, so a restored library
+  showed its books with no covers until a library scan happened to
+  rebuild them. Those files are now part of the backup.
+- **A cover image you chose by hand is no longer lost.** Replacing a
+  media item's thumbnail with your own picture stored that picture in a
+  folder no backup included, while the matching renamed title — being a
+  setting — was preserved. A restored library therefore kept every
+  rename and silently reverted every custom cover. Those images are now
+  part of both the backup and the in-app cross-device export.
+- **Restored books now open, and keep their pictures.** The backup
+  saved each book's text and cover but silently threw away every image
+  and font embedded inside it, because those are held in a form that
+  vanishes when converted to text. What was written in their place was
+  worse than nothing: the reader tried to build a picture out of an
+  empty placeholder, gave up, and showed a blank page instead of the
+  book. Books restored from an older backup will now open too — minus
+  the pictures, which that backup never contained. Take a fresh backup
+  to get those back.
+- **Restoring a library no longer loses the first language's books.**
+  The restore began writing books as soon as the reader's page had
+  loaded, which is a few seconds before the reader has finished
+  preparing its own storage. Every book for the first language went
+  into a store that did not exist yet and was lost, while later
+  languages — by then writing into a warm reader — restored normally.
+  That is why a restore could come back with the German books present
+  and the Japanese ones missing. The restore now waits for the reader
+  to be genuinely ready, and says so in its log if it never is.
+- **A failed backup or restore now leaves a log you can retrieve.**
+  The log was written to shared storage, and when that is not
+  permitted — which is exactly the case during a restore, since the
+  app has never been opened to grant anything — it fell back to a
+  private folder no tool can reach. It now falls back to the app's own
+  folder under `Android/data`, which needs no permission and can be
+  pulled off the phone.
+- **Backups are now readable by any zip tool, not just a seeking one.**
+  A second fault in the same writer recorded every entry's uncompressed
+  size as zero in the small record that follows the entry's data, by
+  writing that record in the 64-bit layout for entries that need the
+  32-bit one. Our own restore never noticed, because it takes sizes
+  from the archive's index instead — but a tool that reads an archive
+  straight through, rather than jumping to the index, would reject the
+  backup as corrupt. The sizes there now agree with the index.
+- **The restore no longer unpacks the archive one file at a time.** It
+  now extracts in a single pass, skipping anything not being restored,
+  and then moves each restored folder into place with one operation
+  instead of copying its files individually. A real restore was making
+  over ten thousand separate extractions, and that machinery is where
+  every failure today happened — it crashed on one archive, then sat
+  motionless on a 4 GB file, then on a 1.7 GB one, each time with the
+  app idle and unable to say why. The extractor now used has not failed
+  once at any size. Restores should be dramatically faster as well as
+  more reliable.
+- Progress now shows the exact byte count with thousands separators
+  rather than a rounded size. "1.57 GB" stays on screen unchanged for
+  minutes during a large step, which looks exactly like being stuck; a
+  digit moving anywhere in `1,209,620,352` proves it is not.
+- **The progress line keeps moving, and says something when it repeats.**
+  Extraction now reports its own percentage as it goes, so the long
+  silences that 白い熊 応用管理 filled with "waiting for the app" have
+  nowhere to appear; and when a step genuinely has nothing new to say,
+  the line carries the elapsed time rather than repeating itself.
+- **A stalled backup or restore now reports itself in time to be
+  heard.** The guard meant to turn a stuck archive operation into a
+  clear error was set to thirty minutes, but 白い熊 応用管理 gives up on
+  a silent job after ten — so the app was always killed twenty minutes
+  before it could say anything, and every stall looked identical from
+  the outside. The guard is now four minutes, comfortably inside that
+  window, and it names the file it was working on.
+- **Backup and restore are faster over large libraries.** Both asked
+  whether the operation had been cancelled once per file — over ten
+  thousand round trips in a single restore, each one waiting on the
+  other side with no time limit of its own. They now ask a few times a
+  second at most, and give up asking rather than waiting forever if no
+  answer comes. A cancel is honoured just as promptly.
+- **A restore can no longer hang forever on one book.** Restoring
+  books drives a hidden browser page, and if one of those writes never
+  came back the restore simply waited — at a fraction of a percent of
+  CPU, with no error and no end. The guard that looked like it covered
+  this was watching the wrong thing and never interrupted anything. Now
+  every step has a real limit: a minute and a half for the page to
+  load, three minutes for any single write, fifteen for one language.
+  A book that will not import is reported and skipped, and the restore
+  carries on with the rest instead of stopping dead.
+- **Fixed a restore that did all its work and then reported failure.**
+  The scratch directory was being cleared before the restored database
+  was moved into place — and the database was sitting inside that very
+  directory. Everything came across correctly, and then the last step
+  went looking for a file that had just been deleted and failed with
+  "No such file or directory". Cleanup now runs after the database is
+  in place, and a failure to tidy up can no longer fail a restore whose
+  data is already home.
+- **A restore no longer needs any storage permission.** It is driven by
+  白い熊 応用管理 on an app that has never once been opened — 応用管理
+  installs it and hands it the data directly — so there is no
+  opportunity to grant anything, and the restore now touches nothing
+  outside the app's own directories. It also no longer stages its work
+  in the cache, which Android is free to clear at any moment: doing so
+  cost a restore at 10,050 of 10,325 files on a nearly full phone. The
+  backup was staging there too and is moved for the same reason.
+- **Progress messages now actually arrive.** Every phase label the app
+  sent during a backup or restore was being discarded on receipt,
+  because it was travelling under the wrong name — the counts got
+  through, the words never did. So the log now says what the app is
+  doing, including which file it is on, rather than only how far along
+  it is.
+- The progress line no longer appears to restart every few seconds
+  during a restore. Two parts of the app were reporting at once on
+  different scales; the one doing the work now has it to itself.
+- **Fixed a restore that failed on a freshly installed phone.** The
+  restore staged its extraction in shared storage, which needs the
+  "All files access" permission — and a restore driven from 白い熊
+  応用管理 runs with no window, so it cannot ask for it. On a phone
+  where that permission had never been granted the restore died at the
+  very last step, after streaming in 1.26 GB and unpacking the whole
+  1.7 GB bundle, with nothing more helpful than "Operation not
+  permitted". It now stages inside the app's own storage, which needs
+  no permission at all and is markedly faster besides.
+- **The app now checks for "All files access" every time it starts** and
+  asks for it immediately when it is missing, instead of only at first
+  setup. If it is still refused it says so plainly rather than carrying
+  on: without it a backup or restore cannot work, and a restore has no
+  way to ask for itself.
+- The export and import logs now fall back to the app's own storage
+  when shared storage cannot be written. Previously the log was lost in
+  exactly the situation where it was most needed — the failure above
+  produced no log at all, because writing one failed for the same
+  reason the restore did.
+- **Fixed the actual cause of the failing backup.** The archive writer
+  was asked to store one entry without compressing it — the app-data
+  bundle, which is already a compressed file — and the routine for that
+  does not exist in the compression library this app bundles. The call
+  failed with `undefined symbol: zip_set_level`, which killed the
+  worker outright. It lay hidden because that path is only taken when a
+  backup actually contains app data, which the automation door never
+  did until this release. The whole archive is now written without
+  compression instead, which is both correct and considerably faster:
+  everything large inside it — the bundle, page images, subtitle
+  bitmaps, fonts — is already compressed, so deflating it again bought
+  a couple of percent for many minutes of work.
+- **A backup can no longer hang forever without saying so.** One run
+  stopped dead for six and a half hours while writing artifact file
+  2264 of 2265 — every thread asleep, no CPU, no error, nothing in the
+  log. The cause was in the ZIP library this app vendors: it starts its
+  worker without any way of learning that it died, and waits on each
+  request with no time limit, so a dead worker means waiting forever.
+  It is now told when the worker exits or crashes, and no single step
+  may exceed thirty minutes; either way the backup **fails and can be
+  retried** instead of sitting there.
+
+  A second round found why the worker was dying at all: it caught only
+  one kind of error, so anything else — a file that disappeared between
+  being listed and being written, for instance — killed it outright
+  instead of being reported. It now survives any error and passes the
+  real reason back, and a failure names the entry that caused it. So a
+  backup that goes wrong now says which file and why, rather than only
+  that something did.
+- A cancel from 白い熊 応用管理 is now honoured during the long
+  data-export phase as well, not only while the outer archive is being
+  written. This matters because once 応用管理 gives up on a job it
+  deletes the file underneath us while our handle stays valid — so
+  everything written after that point vanishes silently, and stopping
+  promptly is the only thing that makes a cancel mean anything.
+- Handing the finished archive over no longer blocks the app. It was
+  being copied on the main thread, which at 1.7 GB meant nothing else
+  in the app could run — including the progress reporting — for the
+  whole transfer. It now runs on its own thread and reports the bytes
+  as they go.
+- **A backup or restore no longer stalls the moment the phone comes off
+  the charger.** The app took its wakelock once when the job started and
+  never looked at it again — and this phone's power framework
+  force-releases it about three minutes in (`Force Released WakeLocks`
+  in `dumpsys power`, naming our own tag). Everything after that ran
+  unprotected, so on battery the process ended up in uninterruptible I/O
+  with its CPU counters frozen, and only moved again when the cable went
+  back in. The lock is now re-armed every fifteen seconds by a watchdog
+  on its own thread — its own thread specifically because during those
+  stalls the main thread is itself blocked, so anything scheduled there
+  would have been stuck alongside the work it was meant to protect. The
+  log records how many times the lock had to be taken back.
+- **The backup is dramatically faster.** It was re-serialising every
+  dictionary entry into text: 9,739,165 rows at ~953 bytes each, which
+  is 9.3 GB and about 90 minutes for that one table before anything was
+  compressed. It now copies the database file itself, which Isar
+  documents as the way to back one up and which takes the same time
+  whether there are a thousand rows or ten million. Three things
+  changed together:
+  - The database is copied, not rewritten row by row. The copy also
+    carries every collection, including one the old path silently never
+    exported at all.
+  - Staging moved off shared storage. `/storage/emulated/0` is a FUSE
+    filesystem, so every write went through a userspace daemon; from a
+    backgrounded app a single 4 MB flush there could stall for minutes,
+    which is what produced the long "Waiting for the app" gaps.
+  - The row-by-row format, still used as a fallback, is far more
+    compact: short field names and empty fields omitted. Bundles written
+    before this remain importable.
+
+  While that copy runs, the platform-side byte counter is the only
+  thing reporting: the app's own coarse heartbeat is held back for the
+  duration, because two counters on different scales made the progress
+  appear to restart every few seconds.
+
+  While the database file is being copied the progress line shows the
+  bytes written against the expected total. That copy blocks the app's
+  own worker outright, so nothing inside it can report — the platform
+  side watches the file grow instead, which is why the figure keeps
+  moving through a step that used to be a blank minute.
+
+  A file copy only restores onto a matching architecture, Isar version
+  and database schema, so the bundle records all three and a restore
+  that does not match **refuses outright** rather than half-opening a
+  database it cannot read.
+- The backup now reports the row counts as it works — dictionaries,
+  entries, media items and the rest — instead of a step number that sat
+  on `2/6` for the whole database dump. The counters were already being
+  formatted into the text; they simply were not being sent as numbers,
+  which is what 白い熊 応用管理 builds its progress line from. Phases
+  that genuinely cannot report mid-way now repeat their last figure
+  every five seconds, so the log no longer falls to "Waiting for the
+  app" for half a minute at a time.
+- The backup's progress line shows real numbers instead of `0/0`.
+  白い熊 応用管理 builds that line from the count and unit, not from the
+  text, so the app has to send them; it now reports per-file counts
+  while copying dictionary resources, a percentage while compressing
+  and extracting, and per-language counts while restoring books,
+  falling back to the coarse step number (`2/6`) between them rather
+  than to zero.
+- The backup's own result line now says whether the library is in the
+  archive — `app data included`, or a plain warning that it is not.
+  A backup that silently omitted it read exactly like a good one, which
+  is what made the previous build's failure invisible until a restore
+  came up empty.
+- **⚠️ A backup taken through 白い熊 応用管理 now actually contains your
+  library, and restores it onto another phone.** Until this build it
+  contained neither — dictionaries, books, videos, reading progress and
+  the TTU library were absent by construction, and the restore had no
+  code to put them back. The archive carried only the six settings
+  categories and the three generated-artifact folders, which is why a
+  1.10 GB backup could restore to an empty app: the size was the
+  scanned-PDF and subtitle-OCR folders, not the library. The door now
+  runs the very same cross-device export the in-app Export panel runs,
+  and the restore replays it — structured records rewritten through the
+  app's own write paths, which is what makes an archive valid on a
+  *different* device rather than only the one it came from.
+  **Backups taken with any earlier build do not contain your library and
+  cannot be made to — take a fresh one.**
+  Two notes on the restore: it runs last and replaces dictionaries,
+  books, progress and preferences wholesale, so it wins over any
+  settings in the same archive; and where a book's audio file cannot be
+  found at its old path, those items are left for the in-app remapper
+  rather than being dropped.
+- **A restore driven from 白い熊 応用管理 now reports its progress.**
+  The export side always did; the import side said nothing at all, so a
+  1.10 GB archive left the operation log blank for the whole unpack and
+  only 応用管理's own five-second heartbeat filled the silence. The
+  import now reports each settings category as it lands, then a running
+  byte count across the artifact entries, with a five-second ticker
+  covering the single long extractions that cannot be subdivided. This
+  is not only cosmetic: 応用管理 abandons a transfer that is both silent
+  and idle for ten minutes, so until now the restore was surviving on
+  its CPU usage alone. A cancel from 応用管理 is also honoured now, at
+  entry boundaries.
+- The download is about 31 MB larger (216 MB to 248 MB): the OCR
+  models and their runtime are carried in the package now, where ML
+  Kit's were smaller and partly supplied by Google Play services.
+
 ## [1.5.0+025] - 2026-09-04
 
 ### Changed

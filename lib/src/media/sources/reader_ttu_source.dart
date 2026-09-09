@@ -923,14 +923,25 @@ indexedDB.databases().then((databases) => {
     var dataJson = JSON.stringify([]);
     var lastItemJson = JSON.stringify([]);
 
+    // onerror/onabort are load-bearing, not defensive padding: with
+    // only onload wired, a failed read leaves this promise pending
+    // forever and the Promise.all below never settles, so the whole
+    // language exports nothing when the export's timeout fires. That
+    // was survivable while this ran once per book for the cover; it
+    // now runs once per blob, so a single unreadable image would take
+    // the entire library with it.
     var blobToBase64 = function(blob) {
-      return new Promise(resolve => {
-        let reader = new FileReader();
-        reader.onload = function() {
-          let dataUrl = reader.result;
-          resolve(dataUrl);
-        };
-        reader.readAsDataURL(blob);
+      return new Promise((resolve, reject) => {
+        try {
+          let reader = new FileReader();
+          reader.onload = function() {
+            let dataUrl = reader.result;
+            resolve(dataUrl);
+          };
+          reader.onerror = function() { reject(reader.error); };
+          reader.onabort = function() { reject(Error('aborted')); };
+          reader.readAsDataURL(blob);
+        } catch (e) { reject(e); }
       });
     }
 
@@ -984,6 +995,28 @@ indexedDB.databases().then((databases) => {
         await Promise.all(items.map(async (item) => {
           try {
             item["coverImage"] = await blobToBase64(item["coverImage"]);
+          } catch (e) {}
+          // Every value in `blobs` is a Blob -- the images and fonts the
+          // book's own HTML references. JSON.stringify turns a Blob into
+          // `{}`, so leaving this alone dropped every in-book image from
+          // the export and wrote a map of empty objects back on import.
+          // TTU hands those to URL.createObjectURL, which throws, and
+          // the book then opens as an empty frame rather than merely
+          // losing a picture. Confirmed 2026-09-09 by reading a real
+          // 2.83 GB backup: every record carried
+          // `blobs: {cover.jpeg: {}, ...}`.
+          try {
+            var blobs = item["blobs"];
+            if (blobs && typeof blobs === "object") {
+              var encoded = {};
+              var keys = Object.keys(blobs);
+              for (var i = 0; i < keys.length; i++) {
+                try {
+                  encoded[keys[i]] = await blobToBase64(blobs[keys[i]]);
+                } catch (e) {}
+              }
+              item["blobs"] = encoded;
+            }
           } catch (e) {}
         }));
         
@@ -1046,6 +1079,54 @@ return await new Promise((resolve, reject) => {
 });
 ''';
 
+  /// Body for `controller.callAsyncJavaScript` — resolve once TTU has
+  /// created its own IndexedDB schema, or false if it never does.
+  ///
+  /// `onLoadStop` means the page's HTML has loaded, NOT that TTU has
+  /// finished bootstrapping and created the `data` object store. On a
+  /// fresh install those are seconds apart, and the import used to
+  /// start clearing and inserting immediately: `clearStoresJsBody`
+  /// quietly succeeds (it filters to stores that exist -- none), and
+  /// then every single `putBookJsBody` rejects with "data store
+  /// missing". The first language imported therefore lost its whole
+  /// library while later ones, running against a warm WebView,
+  /// succeeded -- which is exactly the asymmetry seen on 2026-09-09,
+  /// where Japanese restored zero books and German restored two.
+  ///
+  /// Deliberately does NOT call `indexedDB.open("books")` until the
+  /// database is known to exist: an unversioned open CREATES it at
+  /// version 1 with no stores, which is the very state we are waiting
+  /// for TTU to get past.
+  static const String awaitDataStoreJsBody = '''
+const deadline = Date.now() + 60000;
+while (Date.now() < deadline) {
+  let present = false;
+  try {
+    const dbs = await indexedDB.databases();
+    present = dbs.some((d) => d.name === "books");
+  } catch (e) { present = false; }
+  if (present) {
+    const ready = await new Promise((resolve) => {
+      let req;
+      try { req = indexedDB.open("books"); } catch (e) { resolve(false); return; }
+      req.onsuccess = () => {
+        let ok = false;
+        try {
+          ok = req.result.objectStoreNames.contains("data");
+          req.result.close();
+        } catch (e) { ok = false; }
+        resolve(ok);
+      };
+      req.onerror = () => resolve(false);
+      req.onblocked = () => resolve(false);
+    });
+    if (ready) return true;
+  }
+  await new Promise((r) => setTimeout(r, 500));
+}
+return false;
+''';
+
   /// Body for `controller.callAsyncJavaScript` — insert one book
   /// record into the `data` store. Pass `book` as a Map. The
   /// `coverImage` field, if present as a base64 data URL, is
@@ -1058,6 +1139,27 @@ if (book && book.coverImage && typeof book.coverImage === "string"
     const r = await fetch(book.coverImage);
     book.coverImage = await r.blob();
   } catch (e) { delete book.coverImage; }
+}
+// Mirror of the export's blobs handling above. A value that is neither a
+// data URL nor already a Blob is DROPPED rather than written: an entry of
+// `{}` is worse than a missing one, because TTU passes it straight to
+// URL.createObjectURL and the whole book fails to render instead of
+// rendering without that one image. This also repairs a book restored
+// from a bundle written before the export was fixed.
+if (book && book.blobs && typeof book.blobs === "object") {
+  const bkeys = Object.keys(book.blobs);
+  for (let i = 0; i < bkeys.length; i++) {
+    const k = bkeys[i];
+    const v = book.blobs[k];
+    if (typeof v === "string" && v.indexOf("data:") === 0) {
+      try {
+        const r2 = await fetch(v);
+        book.blobs[k] = await r2.blob();
+      } catch (e) { delete book.blobs[k]; }
+    } else if (!(v instanceof Blob)) {
+      delete book.blobs[k];
+    }
+  }
 }
 return await new Promise((resolve, reject) => {
   const req = indexedDB.open("books");

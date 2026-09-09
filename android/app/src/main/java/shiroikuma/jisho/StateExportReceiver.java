@@ -37,6 +37,15 @@ public class StateExportReceiver extends BroadcastReceiver {
      * Mirror of the Dart StateExport.categories table (id, label,
      * optional parent). Kept in Java so LIST_CATEGORIES needs no
      * engine spin-up; the Dart side is the source of truth for ids.
+     *
+     * <p><b>Adding a category means editing BOTH tables.</b> A caller
+     * asks what we have, then sends back the ids it was told about — so
+     * an id missing here is an id that never arrives in {@code items},
+     * and the Dart side quietly exports nothing for it. That is exactly
+     * how 1.5.0+031 shipped: {@code app_data} was added to the Dart
+     * table only, so 応用管理 was never offered it, never asked for it,
+     * and produced a backup with no library in it that restored without
+     * a single error.
      */
     static final String CATEGORIES_LISTING =
         "ui_theme\tUI theme (colours · fonts · shapes)\n" +
@@ -48,7 +57,8 @@ public class StateExportReceiver extends BroadcastReceiver {
         "artifacts\tGenerated artifacts\n" +
         "artifacts.pdf\tScanned-PDF OCR volumes\tartifacts\n" +
         "artifacts.ocr\tSubtitle OCR bitmaps\tartifacts\n" +
-        "artifacts.fonts\tImported fonts\tartifacts";
+        "artifacts.fonts\tImported fonts\tartifacts\n" +
+        "app_data\tApp data (dictionaries · books · reading progress)";
 
     /**
      * The human labels of the top-level categories, for the

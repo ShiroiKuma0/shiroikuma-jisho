@@ -22,6 +22,8 @@ import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.HashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -69,8 +71,11 @@ public class AutomationDataService extends Service {
 
     private FlutterEngine engine;
     private PowerManager.WakeLock wakeLock;
+    /** Re-acquires the wakelock when the platform force-releases it. */
+    private WakeLockKeeper wakeKeeper;
     private final AtomicBoolean replied = new AtomicBoolean(false);
-    private long lastProgressAt = 0;
+    /** Written from the channel handler and the completion thread. */
+    private volatile long lastProgressAt = 0;
 
     private String jobId;
     private ParcelFileDescriptor descriptor;
@@ -133,6 +138,7 @@ public class AutomationDataService extends Service {
         wakeLock = powerManager.newWakeLock(
             PowerManager.PARTIAL_WAKE_LOCK, "shiroikuma.jisho:automationData");
         wakeLock.setReferenceCounted(false);
+        wakeKeeper = new WakeLockKeeper(wakeLock);
     }
 
     private void notifyProgress(String text) {
@@ -192,9 +198,11 @@ public class AutomationDataService extends Service {
         progressAction = intent.getStringExtra("progress_action");
 
         notifyProgress(importing ? "取り込み中…" : "書き出し中…");
-        if (!wakeLock.isHeld()) {
-            wakeLock.acquire(90 * 60 * 1000L);
-        }
+        // Not a bare acquire(): EMUI force-releases this lock a couple
+        // of minutes in, and everything after that ran unprotected —
+        // which is what left an export stuck in uninterruptible I/O
+        // whenever the phone came off the charger.
+        wakeKeeper.start();
 
         if (descriptor == null) {
             finish("ERROR:no descriptor");
@@ -250,37 +258,46 @@ public class AutomationDataService extends Service {
                     break;
                 }
                 case "progress": {
-                    long now = System.currentTimeMillis();
-                    String text = call.argument("text");
                     Number current = call.argument("current");
                     Number total = call.argument("total");
-                    String unit = call.argument("unit");
                     Boolean isFinal = call.argument("final");
-                    if (Boolean.TRUE.equals(isFinal)
-                        || now - lastProgressAt >= PROGRESS_THROTTLE_MS) {
-                        lastProgressAt = now;
-                        if (text != null) {
-                            notifyProgress(text);
-                        }
-                        if (progressAction != null && replyPackage != null) {
-                            Intent progress = new Intent(progressAction);
-                            progress.setPackage(replyPackage);
-                            progress.addFlags(Intent.FLAG_INCLUDE_STOPPED_PACKAGES);
-                            // Both keys carry the same value: 応用管理
-                            // was handed this id as OK:<job_id> and may
-                            // correlate on either.
-                            progress.putExtra("job_id", jobId);
-                            progress.putExtra("reply_id", jobId);
-                            progress.putExtra("app", "白い熊 辞書");
-                            progress.putExtra("text", text);
-                            progress.putExtra("current",
-                                current == null ? 0L : current.longValue());
-                            progress.putExtra("total",
-                                total == null ? 0L : total.longValue());
-                            progress.putExtra("unit", unit);
-                            sendBroadcast(progress);
-                        }
+                    // A file watch owns the progress line for as long as
+                    // it runs. Dart keeps its own coarse heartbeat going
+                    // underneath (step 2 of 6), and letting both through
+                    // makes the count lurch from 3,625,988,096/4,322,062,336
+                    // back to 2/6 every few seconds — which 応用管理 reads,
+                    // correctly, as the app having restarted its count.
+                    if (watchTask != null && !Boolean.TRUE.equals(isFinal)) {
+                        result.success(null);
+                        break;
                     }
+                    emitProgress(
+                        call.argument("text"),
+                        current == null ? 0L : current.longValue(),
+                        total == null ? 0L : total.longValue(),
+                        call.argument("unit"),
+                        Boolean.TRUE.equals(isFinal));
+                    result.success(null);
+                    break;
+                }
+                case "watchFile": {
+                    // Dart asks us to report a file's growth because it
+                    // cannot report it itself: Isar's copyToFile blocks
+                    // the Dart isolate for its whole duration, so timers
+                    // there are frozen and a multi-GB copy would look
+                    // completely silent. Polling from here is immune to
+                    // that.
+                    final String watchPath = call.argument("path");
+                    final Number watchTotal = call.argument("total");
+                    final String watchLabel = call.argument("label");
+                    startFileWatch(watchPath,
+                        watchTotal == null ? 0L : watchTotal.longValue(),
+                        watchLabel == null ? "Copying" : watchLabel);
+                    result.success(null);
+                    break;
+                }
+                case "stopWatchFile": {
+                    stopFileWatch();
                     result.success(null);
                     break;
                 }
@@ -288,7 +305,8 @@ public class AutomationDataService extends Service {
                     String line = call.argument("result");
                     result.success(null);
                     new Handler(Looper.getMainLooper())
-                        .post(() -> complete(line));
+                        .post(() -> completionExecutor.execute(
+                            () -> complete(line)));
                     break;
                 }
                 default:
@@ -305,6 +323,105 @@ public class AutomationDataService extends Service {
                     .findAppBundlePath(),
                 "automationDataMain"));
         return START_NOT_STICKY;
+    }
+
+    private void emitProgress(String text, long current, long total,
+                              String unit, boolean isFinal) {
+        long now = System.currentTimeMillis();
+        if (!isFinal && now - lastProgressAt < PROGRESS_THROTTLE_MS) {
+            return;
+        }
+        lastProgressAt = now;
+        if (text != null) {
+            notifyProgress(text);
+        }
+        if (progressAction == null || replyPackage == null) {
+            return;
+        }
+        Intent progress = new Intent(progressAction);
+        progress.setPackage(replyPackage);
+        progress.addFlags(Intent.FLAG_INCLUDE_STOPPED_PACKAGES);
+        // Both keys carry the same value: 応用管理 was handed this id as
+        // OK:<job_id> and may correlate on either.
+        progress.putExtra("job_id", jobId);
+        progress.putExtra("reply_id", jobId);
+        progress.putExtra("app", "白い熊 辞書");
+        // 応用管理 reads a progress line's label from EXTRA_RESULT, not
+        // from "text" — the terminal reply always used "result" but the
+        // progress path diverged, so every phase label we emitted was
+        // silently discarded on arrival. Both keys are sent: "result"
+        // is the one that is read, "text" stays for older receivers.
+        progress.putExtra("result", text);
+        progress.putExtra("text", text);
+        progress.putExtra("current", current);
+        progress.putExtra("total", total);
+        progress.putExtra("unit", unit);
+        sendBroadcast(progress);
+    }
+
+    /** How often a watched file's size is sampled. */
+    private static final long FILE_WATCH_INTERVAL_MS = 2000;
+
+    /**
+     * Where the finished archive is streamed to the caller. Emphatically
+     * NOT the main looper: the payload is now measured in gigabytes
+     * (1.69 GB on the run of 2026-09-09), and copying that on the looper
+     * blocks every platform channel — the app cannot even report
+     * progress while it happens, which is precisely what a stalled
+     * hand-off looked like.
+     */
+    private final ExecutorService completionExecutor =
+        Executors.newSingleThreadExecutor();
+
+    private final Handler watchHandler = new Handler(Looper.getMainLooper());
+    private Runnable watchTask;
+
+    /**
+     * Report the growth of {@code path} until {@link #stopFileWatch()}.
+     * {@code total} is the expected final size; it may be an
+     * over-estimate (a compacted database copy is smaller than the live
+     * instance), so the reported figure is clamped rather than allowed
+     * to exceed it.
+     */
+    private void startFileWatch(String path, long total, String label) {
+        stopFileWatch();
+        if (path == null) {
+            return;
+        }
+        final File watched = new File(path);
+        watchTask = new Runnable() {
+            @Override
+            public void run() {
+                long current = watched.exists() ? watched.length() : 0L;
+                if (total > 0 && current > total) {
+                    current = total;
+                }
+                emitProgress(label + " " + human(current)
+                        + (total > 0 ? "/" + human(total) : ""),
+                    current, total, "bytes", false);
+                watchHandler.postDelayed(this, FILE_WATCH_INTERVAL_MS);
+            }
+        };
+        watchHandler.post(watchTask);
+    }
+
+    private void stopFileWatch() {
+        if (watchTask != null) {
+            watchHandler.removeCallbacks(watchTask);
+            watchTask = null;
+        }
+    }
+
+    /**
+     * Full byte count with thousands separators — 1,685,691,651.
+     *
+     * Progress lines carry this rather than a rounded size. "1.57 GB"
+     * stays on screen unchanged for minutes during a multi-gigabyte
+     * step, which is indistinguishable from being stuck; a digit moving
+     * anywhere in the number is proof of life.
+     */
+    private static String human(long bytes) {
+        return String.format(java.util.Locale.US, "%,d", bytes);
     }
 
     /**
@@ -335,6 +452,8 @@ public class AutomationDataService extends Service {
             return;
         }
         long copied = 0;
+        final long total = produced.length();
+        long lastReportAt = 0;
         try (InputStream in = new FileInputStream(produced);
              OutputStream out =
                  new FileOutputStream(descriptor.getFileDescriptor())) {
@@ -342,13 +461,30 @@ public class AutomationDataService extends Service {
             int read;
             while ((read = in.read(buffer)) > 0) {
                 if (AutomationJobs.isCancelled(jobId)) {
+                    // 応用管理 unlinks its staging file when it gives up,
+                    // and our descriptor keeps accepting writes that go
+                    // nowhere — so stopping here is the only thing that
+                    // makes a cancel mean anything.
                     finish("ERROR:cancelled");
                     return;
                 }
                 out.write(buffer, 0, read);
                 copied += read;
+                // The receiver's own liveness probe watches our CPU and
+                // does not need this; the log does. Without it a
+                // multi-gigabyte hand-off is a blank stretch at the very
+                // end of a job that already took twenty minutes.
+                long now = System.currentTimeMillis();
+                if (now - lastReportAt >= PROGRESS_THROTTLE_MS) {
+                    lastReportAt = now;
+                    emitProgress(
+                        "受け渡し " + human(copied) + "/" + human(total),
+                        copied, total, "bytes", false);
+                }
             }
             out.flush();
+            emitProgress("受け渡し完了 " + human(copied),
+                copied, total, "bytes", true);
         } catch (Exception e) {
             finish("ERROR:" + e.getMessage());
             return;
@@ -413,8 +549,10 @@ public class AutomationDataService extends Service {
             engine.destroy();
             engine = null;
         }
-        if (wakeLock != null && wakeLock.isHeld()) {
-            wakeLock.release();
+        stopFileWatch();
+        completionExecutor.shutdownNow();
+        if (wakeKeeper != null) {
+            wakeKeeper.stop();
         }
         super.onDestroy();
     }

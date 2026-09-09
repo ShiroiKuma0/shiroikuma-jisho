@@ -1031,9 +1031,27 @@ static int _zip_entry_open(struct zip_t *zip, const char *entryname,
 
   // ZIP64 header with NULL sizes (sizes will be in the data descriptor, just
   // after file data)
-  extra_size = mz_zip_writer_create_zip64_extra_data(
-      extra_data, NULL, NULL,
-      (local_dir_header_ofs >= MZ_UINT32_MAX) ? &local_dir_header_ofs : NULL);
+  //
+  // Local change (2026-09-09). mz_zip_writer_create_zip64_extra_data
+  // ALWAYS writes the 4-byte field header, then appends only the values
+  // it is given — so with nothing to record it emits `01 00 00 00`: a
+  // ZIP64 extended-information field of length zero. That is malformed.
+  // The field exists to carry the 64-bit values that the fixed fields
+  // set to 0xFFFFFFFF, so an empty one describes nothing.
+  //
+  // Desktop OpenJDK tolerates it; ANDROID'S java.util.zip DOES NOT, and
+  // rejects the whole archive with "invalid CEN header (bad signature)".
+  // Every entry of a 2.8 GB backup carried this field, which is why no
+  // restore could open one — and why changing the compression level
+  // made no difference.
+  //
+  // Only emit the field when there is genuinely something to put in it.
+  if (local_dir_header_ofs >= MZ_UINT32_MAX) {
+    extra_size = mz_zip_writer_create_zip64_extra_data(
+        extra_data, NULL, NULL, &local_dir_header_ofs);
+  } else {
+    extra_size = 0;
+  }
 
   if (!mz_zip_writer_create_local_dir_header(
           pzip, zip->entry.header, entrylen, (mz_uint16)extra_size, 0, 0, 0,
@@ -1199,7 +1217,9 @@ int zip_entry_close(struct zip_t *zip) {
   mz_uint32 extra_size = 0;
   mz_uint8 extra_data[MZ_ZIP64_MAX_CENTRAL_EXTRA_FIELD_SIZE];
   mz_uint8 local_dir_footer[MZ_ZIP_DATA_DESCRIPTER_SIZE64];
-  mz_uint32 local_dir_footer_size = MZ_ZIP_DATA_DESCRIPTER_SIZE64;
+  /* Local change (2026-09-09): 32-bit form by default -- see the data
+   * descriptor comment below. Upstream hardcoded the ZIP64 form here. */
+  mz_uint32 local_dir_footer_size = MZ_ZIP_DATA_DESCRIPTER_SIZE32;
 
   if (!zip) {
     // zip_t handler is not initialized
@@ -1230,10 +1250,49 @@ int zip_entry_close(struct zip_t *zip) {
   mz_zip_time_t_to_dos_time(zip->entry.m_time, &dos_time, &dos_date);
 #endif
 
+  /* Local change (2026-09-09): write the 64-bit data descriptor only for
+   * an entry that genuinely needs it.
+   *
+   * Upstream always wrote the ZIP64 form -- 4-byte signature, 4-byte
+   * CRC, then comp_size and uncomp_size as 8 bytes each, 24 in total --
+   * for every entry regardless of size. miniz itself does not do this;
+   * `mz_zip_writer_add_read_buf_callback` picks the form from whether
+   * the entry got a ZIP64 extra field, and writes 4-byte sizes when it
+   * did not.
+   *
+   * A 32-bit reader reads the four bytes at +8 as the compressed size
+   * and the four at +12 as the uncompressed size. In the 64-bit layout
+   * those latter four bytes are the *high word* of the compressed size,
+   * which for any entry under 4 GB is zero. So the entry appears to
+   * have an uncompressed size of 0, and eight bytes of descriptor are
+   * left unconsumed, desynchronising everything after it:
+   *
+   *   java.util.zip.ZipException: invalid entry size (expected 0 but
+   *   got 11 bytes)
+   *
+   * -- observed on the Mate XT against an archive this writer produced,
+   * whose central directory recorded the correct size of 11 all along.
+   *
+   * This is invisible to a seeking reader: `java.util.zip.ZipFile`, and
+   * therefore `flutter_archive`'s extractToDirectory, take sizes from
+   * the central directory and never look at a descriptor. It only bites
+   * a streaming reader -- `ZipInputStream`, or anything validating a
+   * backup front-to-back -- which has nothing else to go on.
+   *
+   * The threshold matches what `ZipInputStream.readEnd()` decides from
+   * the bytes it actually inflated, so writer and reader agree.
+   */
   MZ_WRITE_LE32(local_dir_footer + 0, MZ_ZIP_DATA_DESCRIPTOR_ID);
   MZ_WRITE_LE32(local_dir_footer + 4, zip->entry.uncomp_crc32);
-  MZ_WRITE_LE64(local_dir_footer + 8, zip->entry.comp_size);
-  MZ_WRITE_LE64(local_dir_footer + 16, zip->entry.uncomp_size);
+  if ((zip->entry.comp_size > MZ_UINT32_MAX) ||
+      (zip->entry.uncomp_size > MZ_UINT32_MAX)) {
+    MZ_WRITE_LE64(local_dir_footer + 8, zip->entry.comp_size);
+    MZ_WRITE_LE64(local_dir_footer + 16, zip->entry.uncomp_size);
+    local_dir_footer_size = MZ_ZIP_DATA_DESCRIPTER_SIZE64;
+  } else {
+    MZ_WRITE_LE32(local_dir_footer + 8, (mz_uint32)zip->entry.comp_size);
+    MZ_WRITE_LE32(local_dir_footer + 12, (mz_uint32)zip->entry.uncomp_size);
+  }
 
   if (pzip->m_pWrite(pzip->m_pIO_opaque, zip->entry.offset, local_dir_footer,
                      local_dir_footer_size) != local_dir_footer_size) {
@@ -1243,14 +1302,24 @@ int zip_entry_close(struct zip_t *zip) {
   }
   zip->entry.offset += local_dir_footer_size;
 
+  // Same fix as the local header above: an all-NULL call would write a
+  // zero-length ZIP64 extra field, which Android's zip reader refuses.
   pExtra_data = extra_data;
-  extra_size = mz_zip_writer_create_zip64_extra_data(
-      extra_data,
-      (zip->entry.uncomp_size >= MZ_UINT32_MAX) ? &zip->entry.uncomp_size
-                                                : NULL,
-      (zip->entry.comp_size >= MZ_UINT32_MAX) ? &zip->entry.comp_size : NULL,
-      (zip->entry.header_offset >= MZ_UINT32_MAX) ? &zip->entry.header_offset
-                                                  : NULL);
+  if (zip->entry.uncomp_size >= MZ_UINT32_MAX ||
+      zip->entry.comp_size >= MZ_UINT32_MAX ||
+      zip->entry.header_offset >= MZ_UINT32_MAX) {
+    extra_size = mz_zip_writer_create_zip64_extra_data(
+        extra_data,
+        (zip->entry.uncomp_size >= MZ_UINT32_MAX) ? &zip->entry.uncomp_size
+                                                  : NULL,
+        (zip->entry.comp_size >= MZ_UINT32_MAX) ? &zip->entry.comp_size : NULL,
+        (zip->entry.header_offset >= MZ_UINT32_MAX) ? &zip->entry.header_offset
+                                                    : NULL);
+  } else {
+    // Size zero, but keep the pointer valid — the writer is handed both
+    // and there is no reason to make it cope with NULL.
+    extra_size = 0;
+  }
 
   if ((entrylen) && (zip->entry.name[entrylen - 1] == '/') &&
       !zip->entry.uncomp_size) {

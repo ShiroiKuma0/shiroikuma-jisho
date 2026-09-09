@@ -68,7 +68,16 @@ class UserFontsStore {
 
   static final UserFontsStore instance = UserFontsStore._();
 
-  static const String _boxName = 'user_fonts';
+  /// Hive box holding the imported-font index: display/CSS name,
+  /// original filename, and path relative to the fonts directory.
+  ///
+  /// Public because the cross-device export has to name it. The font
+  /// *files* travel as an artifact directory, but without this box the
+  /// mapping from "Source Han Serif JP" to `_____JP_Heavy_1.0.ttf` is
+  /// gone, [list] returns nothing, no `@font-face` is injected, and the
+  /// book renders in the default face with the file sitting right there
+  /// on disk (白い熊, 2026-09-09).
+  static const String boxName = 'user_fonts';
   static const String _entriesKey = 'entries';
   static const String _dirName = 'user_fonts';
 
@@ -86,7 +95,7 @@ class UserFontsStore {
   /// the loopback font server. Idempotent — repeated calls after a
   /// successful start are no-ops.
   Future<void> initialise() async {
-    _box ??= await Hive.openBox(_boxName);
+    _box ??= await Hive.openBox(boxName);
     if (_dir == null) {
       final appDir = await getApplicationDocumentsDirectory();
       final dir = Directory('${appDir.path}/$_dirName');

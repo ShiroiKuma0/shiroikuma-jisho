@@ -25,6 +25,120 @@ import 'package:shiroikumanojisho/src/utils/ui_settings/state_export.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
+/// Relay progress to 応用管理, re-sending the last figure every few
+/// seconds for as long as [body] runs.
+///
+/// Some phases of an export are genuinely silent for half a minute at a
+/// stretch — a collection dumped in one pass reports nothing until it
+/// finishes — and 応用管理 fills that gap with "Waiting for the app".
+/// Worse, it abandons a job that is BOTH silent and idle for ten
+/// minutes, so an app that only reports at phase boundaries is relying
+/// on its own CPU burn to stay alive. Repeating the last figure costs
+/// nothing (the Java relay throttles by time, not content) and keeps
+/// the line alive.
+Future<T> _withProgressHeartbeat<T>(
+  MethodChannel channel,
+  Future<T> Function(void Function(String, int, int, String) report) body,
+) async {
+  var text = 'Working...';
+  var current = 0;
+  var total = 0;
+  var unit = '';
+  void send() {
+    channel.invokeMethod('progress', {
+      'text': text,
+      'current': current,
+      'total': total,
+      'unit': unit,
+    });
+  }
+
+  void report(String t, int c, int n, String u) {
+    text = t;
+    current = c;
+    total = n;
+    unit = u;
+    send();
+  }
+
+  final heartbeat =
+      Timer.periodic(const Duration(seconds: 5), (_) => send());
+  try {
+    return await body(report);
+  } finally {
+    heartbeat.cancel();
+  }
+}
+
+/// Bring up a full [AppModel] inside an automation engine.
+///
+/// The 保存復元 door runs in a background FlutterEngine with no
+/// Activity. That is enough for everything the export needs: plugins
+/// are auto-registered by `new FlutterEngine(context)`, and
+/// `HeadlessInAppWebView` — which is how TTU's IndexedDB is read —
+/// falls back to the application context when there is no Activity.
+/// Only the permission prompts need an Activity, and [headless] skips
+/// them.
+Future<AppModel> _automationAppModel() async {
+  final appModel = AppModel();
+  await appModel.initialise(headless: true);
+  return appModel;
+}
+
+/// Build the cross-device bundle that carries the app's real data —
+/// dictionaries, books, videos, reading progress, the TTU library —
+/// for an automation export, or null when [ids] did not ask for it.
+///
+/// This is the same [AppExportImport.exportData] the in-app Export
+/// panel runs, with no BuildContext: semantic records replayed on the
+/// destination, which is what makes it valid across devices. A binary
+/// snapshot of the data directory would not be — the WebView store
+/// lives in a vendor-specific directory.
+Future<File?> _buildAutomationBundle({
+  required Set<String> ids,
+  required MethodChannel channel,
+  required AppModel appModel,
+}) async {
+  if (!ids.contains(StateExport.appDataId)) {
+    return null;
+  }
+  return _withProgressHeartbeat(
+    channel,
+    (report) => AppExportImport.exportData(
+      appModel: appModel,
+      quiet: true,
+      // Everything stays inside the app's own directories: the door
+      // hands the finished archive to 応用管理 through a descriptor, so
+      // nothing here needs shared storage — which is just as well,
+      // because an app restored by 応用管理 has never been opened and
+      // holds no runtime permissions at all. App documents rather than
+      // the cache, so a trim cannot delete a multi-gigabyte archive
+      // mid-run.
+      outputDirectory: appModel.appDirectory.path,
+      onProgress: report,
+      // Isar's copyToFile freezes this isolate, so Java watches the
+      // file grow instead — otherwise a multi-GB copy is entirely
+      // silent and there is no way to tell how far along it is.
+      onWatchFile: (path, totalBytes, label) async {
+        await channel.invokeMethod('watchFile', {
+          'path': path,
+          'total': totalBytes,
+          'label': label,
+        });
+      },
+      onStopWatchFile: () async {
+        await channel.invokeMethod('stopWatchFile');
+      },
+      // Once 応用管理 abandons a job it unlinks the staging file, and
+      // our descriptor keeps accepting writes that go nowhere. The
+      // cancel is the only signal we get, so it is honoured here too
+      // and not only in the outer archive.
+      shouldCancel: () async =>
+          await channel.invokeMethod<bool>('isCancelled') ?? false,
+    ),
+  );
+}
+
 /// Headless entrypoint for the 保存復元 state-export automation
 /// contract, started by [StateExportService]'s background Flutter
 /// engine — no UI, no [runApp]. Asks Java for the request, runs the
@@ -62,11 +176,18 @@ Future<void> stateExportMain() async {
 
     final ids = StateExport.resolveItems(items);
     final version = (await PackageInfo.fromPlatform()).version;
+    final appModel = await _automationAppModel();
+    final bundle = await _buildAutomationBundle(
+      ids: ids,
+      channel: channel,
+      appModel: appModel,
+    );
     final file = await StateExport.run(
       box: box,
       ids: ids,
       directory: directory,
       appVersion: version,
+      embedBundle: bundle,
       onProgress: (text, current, total, unit) {
         channel.invokeMethod('progress', {
           'text': text,
@@ -81,16 +202,25 @@ Future<void> stateExportMain() async {
       shouldCancel: () async =>
           await channel.invokeMethod<bool>('isCancelled') ?? false,
     );
+    try {
+      bundle?.deleteSync();
+    } catch (_) {}
     final bytes = file.lengthSync();
     await channel.invokeMethod('progress', {
-      'text': '完了 — ${StateExport.humanSize(bytes)}',
+      'text': '完了 — ${StateExport.byteCount(bytes)}',
       'current': bytes,
       'total': bytes,
       'unit': 'bytes',
       'final': true,
     });
+    // Say plainly whether the library is in there. A backup that
+    // silently omits it looks identical to a good one — which is how
+    // 1.5.0+031 produced an archive that restored cleanly onto an
+    // empty app.
     await done('OK:${file.path}|$bytes|${StateExport.humanSize(bytes)}|'
-        '${ids.length} categories');
+        '${ids.length} categories|'
+        '${bundle != null ? 'app data included' : 'NO app data — settings '
+            'and artifacts only, this backup cannot restore your library'}');
   } on StateExportCancelled {
     // The terminal reply for the ORIGINAL request, sent even though
     // 自由作業盤 stopped listening the moment 白い熊 pressed 中止 — it is
@@ -147,14 +277,65 @@ Future<void> automationDataMain() async {
         box: box,
         archive: File(archive),
         ids: ids,
+        // Runs last and replaces the app's data wholesale. It needs a
+        // live AppModel, so it is built here rather than inside
+        // StateExport — and only when an archive actually carries a
+        // bundle, so a settings-only restore stays cheap.
+        onAppData: (bundle) async {
+          final appModel = await _automationAppModel();
+          await _withProgressHeartbeat(
+            channel,
+            (report) => AppExportImport.importData(
+              appModel: appModel,
+              bundle: bundle,
+              onProgress: report,
+            ),
+          );
+        },
+        onProgress: (text, current, total, unit) {
+          channel.invokeMethod('progress', {
+            'text': text,
+            'current': current,
+            'total': total,
+            'unit': unit,
+          });
+        },
+        // Polled between entries, never mid-write, exactly as the
+        // export does.
+        shouldCancel: () async =>
+            await channel.invokeMethod<bool>('isCancelled') ?? false,
       );
-      // Force the box to disk before we answer: 応用管理 force-stops us
-      // the instant we reply success, and an unflushed box would be
-      // the import silently undoing itself.
-      await box.flush();
+      final restoredAppData =
+          summary.containsKey(StateExport.appDataId);
+      if (!restoredAppData) {
+        // Force the box to disk before we answer: 応用管理 force-stops
+        // us the instant we reply success, and an unflushed box would
+        // be the import silently undoing itself. After an app-data
+        // import the box has already been closed and rewritten by
+        // AppExportImport, so flushing our stale handle would undo
+        // exactly what was just restored.
+        await box.flush();
+      }
       final restored =
           summary.values.fold<int>(0, (sum, count) => sum + count);
-      await done('OK:$restored restored|${summary.length} categories');
+      // The final report rides ahead of the terminal reply: the Java
+      // relay throttles everything except `final`, so without this the
+      // last number is the one most likely to be swallowed. It must
+      // precede `done` — 応用管理 force-stops us on hearing success.
+      await channel.invokeMethod('progress', {
+        'text': '完了 — $restored 件',
+        'current': restored,
+        'total': restored,
+        'unit': '件',
+        'final': true,
+      });
+      final wantedAppData = ids.contains(StateExport.appDataId);
+      await done('OK:$restored restored|${summary.length} categories'
+          '${restoredAppData ? '|app data restored' : ''}'
+          '${wantedAppData && !restoredAppData
+              ? '|NO app data in this archive — it was taken by a build '
+                  'that could not include it'
+              : ''}');
       return;
     }
 
@@ -163,11 +344,18 @@ Future<void> automationDataMain() async {
       return;
     }
     final version = (await PackageInfo.fromPlatform()).version;
+    final appModel = await _automationAppModel();
+    final bundle = await _buildAutomationBundle(
+      ids: ids,
+      channel: channel,
+      appModel: appModel,
+    );
     final file = await StateExport.run(
       box: box,
       ids: ids,
       directory: directory,
       appVersion: version,
+      embedBundle: bundle,
       onProgress: (text, current, total, unit) {
         channel.invokeMethod('progress', {
           'text': text,
@@ -179,16 +367,25 @@ Future<void> automationDataMain() async {
       shouldCancel: () async =>
           await channel.invokeMethod<bool>('isCancelled') ?? false,
     );
+    try {
+      bundle?.deleteSync();
+    } catch (_) {}
     final bytes = file.lengthSync();
     await channel.invokeMethod('progress', {
-      'text': '完了 — ${StateExport.humanSize(bytes)}',
+      'text': '完了 — ${StateExport.byteCount(bytes)}',
       'current': bytes,
       'total': bytes,
       'unit': 'bytes',
       'final': true,
     });
+    // Say plainly whether the library is in there. A backup that
+    // silently omits it looks identical to a good one — which is how
+    // 1.5.0+031 produced an archive that restored cleanly onto an
+    // empty app.
     await done('OK:${file.path}|$bytes|${StateExport.humanSize(bytes)}|'
-        '${ids.length} categories');
+        '${ids.length} categories|'
+        '${bundle != null ? 'app data included' : 'NO app data — settings '
+            'and artifacts only, this backup cannot restore your library'}');
   } on StateExportCancelled {
     await done('ERROR:cancelled');
   } catch (e) {

@@ -1544,6 +1544,7 @@ class AppModel with ChangeNotifier {
     final packageNames = [
       'ebook-reader',
       'ipadic',
+      'ppocr',
       've',
     ];
 
@@ -1561,7 +1562,12 @@ class AppModel with ChangeNotifier {
   /// Prepare application data and state to be ready of use upon starting up
   /// the application. [AppModel] is initialised in the main function before
   /// [runApp] is executed.
-  Future<void> initialise() async {
+  /// [headless] is set by the 保存復元 automation door, which brings
+  /// this model up inside a background engine. Everything here is
+  /// engine-safe except the permission requests: without an Activity
+  /// they cannot show a dialog, and the door does not need them —
+  /// whatever the app was granted in normal use is already in force.
+  Future<void> initialise({bool headless = false}) async {
     /// Prepare entities that may be repeatedly used at runtime.
     _packageInfo = await PackageInfo.fromPlatform();
     _androidDeviceInfo = await DeviceInfoPlugin().androidInfo;
@@ -1575,8 +1581,10 @@ class AppModel with ChangeNotifier {
     migrateAccentColourDefault();
 
     /// Perform startup activities unnecessary to further initialisation here.
-    await requestExternalStoragePermissions();
-    await requestAnkidroidPermissions();
+    if (!headless) {
+      await requestExternalStoragePermissions();
+      await requestAnkidroidPermissions();
+    }
 
     /// These directories will commonly be accessed.
     _temporaryDirectory = await getTemporaryDirectory();
@@ -3102,11 +3110,38 @@ class AppModel with ChangeNotifier {
       await _requestWithDeadline(Permission.storage);
     }
 
+    // "All files access" is checked on EVERY launch, not once at setup,
+    // and asked for immediately when it is missing.
+    //
+    // It is not optional for this app: without it a 保存復元 restore
+    // cannot create its staging directory and dies with EPERM, and the
+    // automation door runs headless — there is no Activity there to put
+    // a permission screen on, so if it is not already granted by the
+    // time a restore runs, that restore simply cannot succeed. A fresh
+    // install therefore has exactly one chance to get this right, and
+    // it is here.
+    //
+    // The request opens a settings screen rather than a dialog, so
+    // [_requestWithDeadline] can return while the user is still in it —
+    // hence the re-check afterwards, and a plain warning if it is still
+    // refused. Silently carrying on is what let a phone reach a restore
+    // without it.
     if (_androidDeviceInfo.version.sdkInt >= 30) {
-      final manageStorageGranted =
+      var manageStorageGranted =
           await Permission.manageExternalStorage.isGranted;
       if (!manageStorageGranted) {
         await _requestWithDeadline(Permission.manageExternalStorage);
+        manageStorageGranted =
+            await Permission.manageExternalStorage.isGranted;
+      }
+      if (!manageStorageGranted) {
+        Fluttertoast.showToast(
+          msg: 'All files access is off. Backup and restore will fail '
+              'without it — grant it in Settings → Apps → 白い熊 辞書 → '
+              'Permissions → Files and media.',
+          toastLength: Toast.LENGTH_LONG,
+          gravity: ToastGravity.BOTTOM,
+        );
       }
     }
   }

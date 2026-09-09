@@ -1,7 +1,10 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:ffi';
 import 'dart:io';
 
+import 'package:collection/collection.dart';
+import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:flutter/material.dart';
 import 'package:flutter_archive/flutter_archive.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
@@ -10,6 +13,7 @@ import 'package:hive_flutter/hive_flutter.dart';
 import 'package:intl/intl.dart';
 import 'package:isar_community/isar.dart';
 import 'package:path/path.dart' as path;
+import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:shiroikumanojisho/creator.dart';
 import 'package:shiroikumanojisho/dictionary.dart';
@@ -19,8 +23,11 @@ import 'package:shiroikumanojisho/models.dart';
 import 'package:shiroikumanojisho/src/utils/components/folder_file_picker.dart';
 import 'package:shiroikumanojisho/src/utils/misc/app_backup_restore.dart' show AppBackupRestore;
 import 'package:shiroikumanojisho/src/utils/misc/browser_bookmark.dart';
+import 'package:shiroikumanojisho/src/utils/ui_settings/state_export.dart'
+    show StateExportCancelled;
 import 'package:shiroikumanojisho/src/utils/misc/mokuro_catalog.dart';
-import 'package:shiroikumanojisho/utils.dart' show AppBackupRestore;
+import 'package:shiroikumanojisho/utils.dart'
+    show AppBackupRestore, UserFontsStore;
 
 /// Cross-device data migration via semantic export/import.
 ///
@@ -49,6 +56,11 @@ import 'package:shiroikumanojisho/utils.dart' show AppBackupRestore;
 ///   WebView. Contains the parsed `data` store (books, `coverImage`
 ///   as base64 data URLs), `lastItem` store, and `bookmark` store
 ///   (per-book reading position and progress).
+/// - **thumbnails/**, **fonts/**, **user_fonts/**, **ttuCovers/**:
+///   passthrough copies of loose files nothing else can reconstruct —
+///   hand-picked override thumbnails, fonts imported for the app UI,
+///   fonts imported in the reader and served to the book as
+///   @font-face, and one cover image per book per language.
 /// - **dictionaryResources/**: passthrough copy of the
 ///   per-dictionary asset directory (font binaries, structured-
 ///   content images).
@@ -67,9 +79,101 @@ import 'package:shiroikumanojisho/utils.dart' show AppBackupRestore;
 /// other version outright; that keeps "I imported a thing and it
 /// half-worked" out of the failure modes.
 class AppExportImport {
+  /// App-documents directories copied into the bundle verbatim, each
+  /// with a `has_<name>` manifest flag. Loose user-supplied files that
+  /// nothing else in the bundle can reconstruct:
+  ///
+  ///   thumbnails/  cover images the user picked by hand for a media
+  ///                item (MediaSource.setOverrideThumbnail...)
+  ///   fonts/       fonts imported from the 白い熊 辞書 UI page and
+  ///                registered with the engine for the app's own UI
+  ///   user_fonts/  fonts imported from the reader's settings dialog,
+  ///                served to the book's WebView as @font-face
+  ///
+  /// Every one of these had a *preference* that already travelled in
+  /// Hive while the file itself did not, so each failed the same way:
+  /// the restored app named a font, or kept a renamed item, and then
+  /// showed the default face or the default cover with nothing to say
+  /// why (白い熊, 2026-09-09).
+  ///
+  /// The two font directories are ALSO carried by `StateExport` as the
+  /// `artifacts.fonts` sub-option, so a 応用管理 backup holds them
+  /// twice. That is deliberate: both are independently selectable, and
+  /// a category that only works when a second box is also ticked is
+  /// worse than a duplicated ~20 MB. The restore is idempotent — the
+  /// bundle runs last and writes identical bytes.
+  ///   ttuCovers/   one cover image per book per language, written by
+  ///                the library scan and referenced by the Reader tab
+  ///
+  /// `ttuCovers/` was missed in the first pass of this audit because it
+  /// is built by string interpolation rather than `path.join(dir, 'x')`,
+  /// which is the form that pass grepped for. `user_fonts/` was missed
+  /// the same way. When looking for app-documents subdirectories, match
+  /// both forms.
+  @visibleForTesting
+  static const List<String> bundleCopyDirs = _bundleCopyDirs;
+
+  static const List<String> _bundleCopyDirs = [
+    'thumbnails',
+    'fonts',
+    'user_fonts',
+    'ttuCovers',
+  ];
+
   /// Bundle format version. Bump when adding new top-level files
   /// or changing the JSON shape of any existing file.
+  ///
+  /// **But not for a purely additive, optional entry.** The import
+  /// refuses any version but this one outright, and CLAUDE.md requires
+  /// bundles from 1.2.0 onward to stay importable — so a bump rejects
+  /// every backup already taken. `thumbnails/`, `fonts/` and
+  /// `user_fonts/` were added at schema 1 on 2026-09-09 for exactly
+  /// that reason: an older bundle simply lacks those directories, the
+  /// import skips what is not there, and nothing else changed shape.
+  /// Bump when an existing file's meaning changes, not when a new
+  /// skippable one appears.
   static const int _bundleSchemaVersion = 1;
+
+  /// The isar_community version this build links. There is no runtime
+  /// API for it, so it is a constant — **bump it when the package
+  /// moves**. A raw database file is only portable between builds that
+  /// agree on it.
+  static const String _isarVersion = '3.3.2';
+
+  /// Entry name of the raw Isar database inside a bundle.
+  static const String _isarFileEntry = 'isar/database.isar';
+
+  /// How long the TTU page may take to load before that language is
+  /// given up on. Loading a local page is a second's work; a minute
+  /// and a half is already generous.
+  static const Duration _ttuReadyTimeout = Duration(seconds: 90);
+
+  /// Ceiling on one JavaScript call into the TTU page — a single book
+  /// insert, or the clear/lastItems/bookmarks steps.
+  static const Duration _ttuCallTimeout = Duration(minutes: 3);
+
+  /// Ceiling on one language's whole import.
+  static const Duration _ttuOverallTimeout = Duration(minutes: 15);
+
+  /// The file Isar opens for the default instance.
+  static const String _isarFileName = 'default.isar';
+
+  /// Identifies a raw database file's provenance. A file copy is only
+  /// valid where the architecture, the Isar version and the schema set
+  /// all match; anywhere else it is unreadable and must be refused
+  /// rather than half-opened.
+  /// Full byte count with thousands separators. Progress lines use
+  /// this rather than a rounded size: "1.57 GB" reads the same for
+  /// minutes on end and cannot be distinguished from a stall, where a
+  /// changing digit proves the work is moving.
+  static String _humanBytes(int bytes) =>
+      NumberFormat.decimalPattern().format(bytes);
+
+  static Map<String, dynamic> _isarStamp() => {
+    'abi': Abi.current().toString(),
+    'isar_version': _isarVersion,
+    'schemas': globalSchemas.map((schema) => schema.name).toList(),
+  };
 
   // -------------------------------------------------------------
   // EXPORT
@@ -77,14 +181,49 @@ class AppExportImport {
 
   /// Build a portable export bundle. Saves a ZIP under
   /// `/storage/emulated/0/tmp/` and offers a share dialog.
+  /// [shouldCancel] is polled between the six major steps. That is
+  /// coarse — one step can run for minutes — but it is the difference
+  /// between honouring a cancel late and never honouring it at all, and
+  /// it matters more than it looks: once 応用管理 abandons a job it
+  /// deletes the staging file while our descriptor stays valid, so
+  /// everything written afterwards goes to an unlinked inode and is
+  /// discarded without a word.
+  ///
+  /// [portable] forces the slow row-by-row database dump instead of
+  /// copying the database file. The file copy is orders of magnitude
+  /// faster but only restores onto a matching architecture, Isar
+  /// version and schema set — see [_isarStamp].
+  ///
+  /// [context] is optional: the 保存復元 automation door runs this from
+  /// a background engine that has no widget tree, so a null context
+  /// means no dialogs, no share sheet, and progress relayed through
+  /// [onProgress] instead. Everything the export actually does is
+  /// unchanged — including the headless WebView that reads TTU's
+  /// IndexedDB, which needs no Activity (the plugin falls back to the
+  /// application context).
   static Future<File?> exportData({
     required AppModel appModel,
-    required BuildContext context,
+    BuildContext? context,
     String outputDirectory = '/storage/emulated/0/tmp',
+    String? stagingDirectory,
+    bool portable = false,
+    Future<void> Function(String path, int totalBytes, String label)?
+    onWatchFile,
+    Future<void> Function()? onStopWatchFile,
+    Future<bool> Function()? shouldCancel,
     bool quiet = false,
+    void Function(String text, int current, int total, String unit)? onProgress,
   }) async {
-    final navigator = Navigator.of(context);
-    final log = _ExLog.create('export');
+    final navigator = context == null ? null : Navigator.of(context);
+    // `appDirectory` is getApplicationDocumentsDirectory() — internal
+    // storage, unreadable without root. That is precisely the fallback
+    // a restore takes, because shared /storage/emulated/0/tmp needs the
+    // all-files permission the app has never been granted. On
+    // 2026-09-09 a restore that half-failed left its only log there and
+    // it could not be retrieved at all. The app's own external files
+    // dir needs no permission and IS readable over adb, so prefer it.
+    final log = _ExLog.create('export',
+        fallback: await getExternalStorageDirectory() ?? appModel.appDirectory);
 
     // Six major steps: stage, isar, hive, ttu, dictResources, zip.
     // Manifest is folded into the staging step (cheap).
@@ -92,14 +231,28 @@ class AppExportImport {
       operation: 'Exporting',
       totalSteps: 6,
     );
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) => LongOpProgressDialog(
-        titleNotifier: tracker.titleNotifier,
-        bodyNotifier: tracker.bodyNotifier,
-      ),
-    );
+    if (context != null) {
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => LongOpProgressDialog(
+          titleNotifier: tracker.titleNotifier,
+          bodyNotifier: tracker.bodyNotifier,
+        ),
+      );
+    }
+    // The tracker is two ValueNotifiers, so a headless caller can read
+    // exactly what the dialog would have shown without the dialog.
+    if (onProgress != null) {
+      void relay() => onProgress(
+        tracker.bodyNotifier.value,
+        tracker.detailCurrent ?? tracker.currentStep,
+        tracker.detailTotal ?? tracker.totalSteps,
+        tracker.detailUnit ?? '段階',
+      );
+      tracker.titleNotifier.addListener(relay);
+      tracker.bodyNotifier.addListener(relay);
+    }
 
     // Tracked separately so the failure path can clean it up too —
     // null until staging has been created.
@@ -109,14 +262,28 @@ class AppExportImport {
       log.write('=== export start ===');
       tracker.step('Setting up staging...');
 
-      // External storage so we are not fighting the app data
-      // partition during a possibly-large export.
+      // The finished ZIP goes wherever the caller asked. Staging does
+      // NOT: /storage/emulated/0 is /dev/fuse, so every write crosses a
+      // userspace filesystem daemon, and staging is where the many
+      // small writes happen. Measured on the Mate XT, a backgrounded
+      // dump through FUSE stalled for minutes at a time on a 4 MB
+      // flush. Internal storage is a direct filesystem.
       final tmpRoot = Directory(outputDirectory);
       if (!tmpRoot.existsSync()) tmpRoot.createSync(recursive: true);
-      final timestamp =
-          DateFormat('yyyy-MM-dd_HH-mm-ss').format(DateTime.now());
+      // App-private and NOT the cache: an export stages several
+      // gigabytes here, and Android trims cache directories under
+      // storage pressure — losing files mid-run would corrupt the
+      // archive as silently as it broke a restore at 10,050 of 10,325
+      // files on a phone at 94% full.
+      final stagingRoot = Directory(
+        stagingDirectory ?? appModel.appDirectory.path,
+      );
+      if (!stagingRoot.existsSync()) stagingRoot.createSync(recursive: true);
+      final timestamp = DateFormat(
+        'yyyy-MM-dd_HH-mm-ss',
+      ).format(DateTime.now());
       final stagingName = 'shiroikumanojisho_export_staging_$timestamp';
-      final staging = Directory(path.join(tmpRoot.path, stagingName));
+      final staging = Directory(path.join(stagingRoot.path, stagingName));
       if (staging.existsSync()) staging.deleteSync(recursive: true);
       staging.createSync(recursive: true);
       stagingPathForCleanup = staging.path;
@@ -141,20 +308,81 @@ class AppExportImport {
       final ttuLanguages = <String>[];
       manifest['ttu_languages'] = ttuLanguages;
 
-      // ---- isar dumps ----
+      // ---- isar ----
+      if (await shouldCancel?.call() ?? false) {
+        throw const StateExportCancelled();
+      }
       tracker.step('Exporting database...');
       final isarDir = Directory(path.join(staging.path, 'isar'));
       isarDir.createSync(recursive: true);
-      final isarRowCounts = await _exportIsar(appModel, isarDir, log, tracker);
-      manifest['isar_row_counts'] = isarRowCounts;
+      if (portable) {
+        // Row-by-row JSONL. Portable anywhere, and ruinous at scale: a
+        // 9.7M-entry dictionary measured 953 bytes per row — 9.3 GB of
+        // text, about 90 minutes, before anything is compressed.
+        final isarRowCounts = await _exportIsar(
+          appModel,
+          isarDir,
+          log,
+          tracker,
+        );
+        manifest['isar_row_counts'] = isarRowCounts;
+      } else {
+        // A compacted copy of the database file itself. Isar documents
+        // this as the way to back one up, it is independent of row
+        // count, and it carries every collection — including
+        // MessageItem, which the JSONL path never dumped.
+        tracker.detail('Copying database...');
+        final isarFile = File(path.join(staging.path, _isarFileEntry));
+        // Isar's copyToFile blocks this isolate for its whole duration,
+        // so nothing here — not a Timer, not the tracker — can report
+        // while it runs. [onWatchFile] hands the job to the platform
+        // side, which polls the file's size and reports the growth. The
+        // live instance size is an upper bound: the copy is compacted,
+        // so it finishes at or below this figure.
+        // Indexes and links included: without them the figure is
+        // smaller than the file being written and the progress would
+        // run past 100%.
+        final expectedBytes = appModel.database.getSizeSync(
+          includeIndexes: true,
+          includeLinks: true,
+        );
+        await onWatchFile?.call(
+          isarFile.path,
+          expectedBytes,
+          'Copying database',
+        );
+        try {
+          await appModel.database.copyToFile(isarFile.path);
+        } finally {
+          await onStopWatchFile?.call();
+        }
+        final copiedBytes = isarFile.statSync().size;
+        tracker.detail(
+          'Copied database (${_humanBytes(copiedBytes)})',
+          current: copiedBytes,
+          total: copiedBytes,
+          unit: 'bytes',
+        );
+        manifest['isar_file'] = _isarStamp();
+        log.write(
+          'isar file copy: $copiedBytes bytes '
+          '(instance reported $expectedBytes)',
+        );
+      }
 
       // ---- hive dumps ----
+      if (await shouldCancel?.call() ?? false) {
+        throw const StateExportCancelled();
+      }
       tracker.step('Exporting preferences...');
       final hiveDir = Directory(path.join(staging.path, 'hive'));
       hiveDir.createSync(recursive: true);
       await _exportHive(appModel, hiveDir, log);
 
       // ---- per-language TTU IndexedDB ----
+      if (await shouldCancel?.call() ?? false) {
+        throw const StateExportCancelled();
+      }
       tracker.step('Exporting books...');
       final ttuRoot = Directory(path.join(staging.path, 'ttu'));
       ttuRoot.createSync(recursive: true);
@@ -174,6 +402,9 @@ class AppExportImport {
       }
 
       // ---- dictionaryResources passthrough ----
+      if (await shouldCancel?.call() ?? false) {
+        throw const StateExportCancelled();
+      }
       tracker.step('Copying dictionary resources...');
       final dictResSrc = Directory(
           path.join(appModel.appDirectory.path, 'dictionaryResources'));
@@ -187,13 +418,44 @@ class AppExportImport {
           onProgress: (copied, total) {
             final fmt = NumberFormat.decimalPattern();
             tracker.detail(
-                'Copying dictionary resources... '
-                '(${fmt.format(copied)}/${fmt.format(total)})');
+              'Copying dictionary resources... '
+              '(${fmt.format(copied)}/${fmt.format(total)})',
+              current: copied,
+              total: total,
+              unit: 'ファイル',
+            );
           },
         );
         manifest['has_dictionary_resources'] = true;
       } else {
         manifest['has_dictionary_resources'] = false;
+      }
+
+      // ---- loose user files (see _bundleCopyDirs) ----
+      // Folded into this step rather than given one each: together they
+      // are a handful of images and a font or two, and a progress step
+      // that flashes past is noise.
+      for (final dirName in _bundleCopyDirs) {
+        final src =
+            Directory(path.join(appModel.appDirectory.path, dirName));
+        if (!src.existsSync() ||
+            src.listSync(recursive: true).whereType<File>().isEmpty) {
+          manifest['has_$dirName'] = false;
+          continue;
+        }
+        final dst = Directory(path.join(staging.path, dirName));
+        dst.createSync(recursive: true);
+        await _copyDirectoryWithProgress(
+          src,
+          dst,
+          onProgress: (copied, total) {
+            final fmt = NumberFormat.decimalPattern();
+            tracker.detail('Copying $dirName... '
+                '(${fmt.format(copied)}/${fmt.format(total)})');
+          },
+        );
+        manifest['has_$dirName'] = true;
+        log.write('$dirName copied');
       }
 
       // Write manifest last so it reflects what we actually produced.
@@ -211,27 +473,57 @@ class AppExportImport {
       // gzip-equivalent (DEFLATE) compression. Decompression
       // overhead on ARM is fast enough that the smaller-file
       // win on flash read more than compensates.
+      if (await shouldCancel?.call() ?? false) {
+        throw const StateExportCancelled();
+      }
       tracker.step('Compressing...');
       final zipName = 'shiroikuma-jisho-export_$timestamp.zip';
       final zipFile = File(path.join(tmpRoot.path, zipName));
       if (zipFile.existsSync()) zipFile.deleteSync();
       log.write('zipping to ${zipFile.path}');
-      await ZipFile.createFromDirectory(
-        sourceDir: staging,
-        zipFile: zipFile,
-        onZipping: (fileName, isDirectory, progressPercent) {
-          // `progressPercent` is 0–100 (a double). The
-          // flutter_archive plugin invokes this on the platform's
-          // worker thread per file; the Dart-side dialog updates
-          // trigger a setState and keep the spinner animation
-          // lively even on slow Android flash where compression
-          // of a multi-GB staging dir can take several minutes.
-          tracker.detail(
-              'Compressing... (${progressPercent.toStringAsFixed(0)}%)');
-          return ZipFileOperation.includeItem;
-        },
+      // flutter_archive reports progress PER ENTRY, so a single huge
+      // entry pins it at 0% for the whole time it is being written —
+      // and the database copy is one 4+ GB entry. Watch the archive
+      // grow instead; the staging total is the denominator, and the
+      // result is smaller than that because it is compressed, so the
+      // platform side clamps rather than overshooting.
+      final stagingBytes = staging
+          .listSync(recursive: true)
+          .whereType<File>()
+          .fold<int>(0, (sum, file) => sum + file.lengthSync());
+      log.write('staging total: $stagingBytes bytes');
+      await onWatchFile?.call(zipFile.path, stagingBytes, 'Compressing');
+      try {
+        await ZipFile.createFromDirectory(
+          sourceDir: staging,
+          zipFile: zipFile,
+          onZipping: (fileName, isDirectory, progressPercent) {
+            // `progressPercent` is 0–100 (a double). The
+            // flutter_archive plugin invokes this on the platform's
+            // worker thread per file; the Dart-side dialog updates
+            // trigger a setState and keep the spinner animation
+            // lively even on slow Android flash where compression
+            // of a multi-GB staging dir can take several minutes.
+            tracker.detail(
+              'Compressing... (${progressPercent.toStringAsFixed(0)}%)',
+              current: progressPercent.round(),
+              total: 100,
+              unit: '%',
+            );
+            return ZipFileOperation.includeItem;
+          },
+        );
+      } finally {
+        await onStopWatchFile?.call();
+      }
+      final zipBytes = zipFile.statSync().size;
+      tracker.detail(
+        'Compressed (${_humanBytes(zipBytes)})',
+        current: zipBytes,
+        total: zipBytes,
+        unit: 'bytes',
       );
-      log.write('zip done, size=${zipFile.statSync().size}');
+      log.write('zip done, size=$zipBytes');
 
       // Async-delete the staging dir with per-file progress.
       // On Boox flash a 3+ GB staging dir takes 30+ seconds to
@@ -245,8 +537,12 @@ class AppExportImport {
           onProgress: (deleted, total) {
             final fmt = NumberFormat.decimalPattern();
             tracker.detail(
-                'Cleaning up: '
-                '(${fmt.format(deleted)}/${fmt.format(total)})');
+              'Cleaning up: '
+              '(${fmt.format(deleted)}/${fmt.format(total)})',
+              current: deleted,
+              total: total,
+              unit: 'ファイル',
+            );
           },
         );
         log.write('removed staging: ${staging.path}');
@@ -255,9 +551,9 @@ class AppExportImport {
       }
       log.close();
 
-      if (navigator.canPop()) navigator.pop();
+      if (navigator?.canPop() ?? false) navigator!.pop();
 
-      if (quiet) {
+      if (quiet || context == null) {
         return zipFile;
       }
       if (context.mounted) {
@@ -300,7 +596,10 @@ class AppExportImport {
           if (s.existsSync()) await s.delete(recursive: true);
         } catch (_) {}
       }
-      if (navigator.canPop()) navigator.pop();
+      if (navigator?.canPop() ?? false) navigator!.pop();
+      if (context == null) {
+        rethrow;
+      }
       if (context.mounted) {
         showDialog(
           context: context,
@@ -327,19 +626,36 @@ class AppExportImport {
   /// Restore an app state from an export bundle, replacing all
   /// current Isar/Hive/TTU data. Triggers an `exit(0)` on success
   /// so that the next launch initialises against fresh state.
+  /// [context] is optional, as in [exportData]. A null context means
+  /// the 保存復元 door is driving: no picker (so [bundle] is required),
+  /// no confirmation (応用管理 already asked), no audio-remap flow, and
+  /// crucially **no `exit(0)`** — the door has to send its terminal
+  /// reply first, and 応用管理 force-stops us straight after.
   static Future<void> importData({
     required AppModel appModel,
-    required BuildContext context,
+    BuildContext? context,
     File? bundle,
+    void Function(String text, int current, int total, String unit)? onProgress,
   }) async {
-    final log = _ExLog.create('import');
+    // `appDirectory` is getApplicationDocumentsDirectory() — internal
+    // storage, unreadable without root. That is precisely the fallback
+    // a restore takes, because shared /storage/emulated/0/tmp needs the
+    // all-files permission the app has never been granted. On
+    // 2026-09-09 a restore that half-failed left its only log there and
+    // it could not be retrieved at all. The app's own external files
+    // dir needs no permission and IS readable over adb, so prefer it.
+    final log = _ExLog.create('import',
+        fallback: await getExternalStorageDirectory() ?? appModel.appDirectory);
     Directory? extractDir;
     try {
       log.write('=== import start ===');
 
       String? bundlePath = bundle?.path;
+      if (bundlePath == null && context == null) {
+        throw ArgumentError('headless import needs an explicit bundle');
+      }
       if (bundlePath == null) {
-        bundlePath = await Navigator.of(context).push<String>(
+        bundlePath = await Navigator.of(context!).push<String>(
           MaterialPageRoute(
             builder: (_) => FolderFilePicker(
               appModel: appModel,
@@ -365,38 +681,43 @@ class AppExportImport {
         return;
       }
 
-      if (!context.mounted) return;
-      final confirmed = await showDialog<bool>(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          title: const Text('Import bundle'),
-          content: Text(
-              'Import from:\n${path.basename(bundlePath!)}\n\n'
-              'This will REPLACE all current dictionaries, books, '
-              'reading progress, AnkiMappings, audio history, and '
-              'preferences. The app will close after import.\n\n'
-              'Continue?'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Cancel'),
-            ),
-            TextButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('Import',
-                  style: TextStyle(color: Colors.red)),
-            ),
-          ],
-        ),
-      );
+      if (context != null && !context.mounted) return;
+      final confirmed = context == null
+          ? true
+          : await showDialog<bool>(
+              context: context,
+              builder: (ctx) => AlertDialog(
+                title: const Text('Import bundle'),
+                content: Text(
+                  'Import from:\n${path.basename(bundlePath!)}\n\n'
+                  'This will REPLACE all current dictionaries, books, '
+                  'reading progress, AnkiMappings, audio history, and '
+                  'preferences. The app will close after import.\n\n'
+                  'Continue?',
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(ctx, false),
+                    child: const Text('Cancel'),
+                  ),
+                  TextButton(
+                    onPressed: () => Navigator.pop(ctx, true),
+                    child: const Text(
+                      'Import',
+                      style: TextStyle(color: Colors.red),
+                    ),
+                  ),
+                ],
+              ),
+            );
       if (confirmed != true) {
         log.write('user cancelled at confirm');
         log.close();
         return;
       }
 
-      if (!context.mounted) return;
-      final navigator = Navigator.of(context);
+      if (context != null && !context.mounted) return;
+      final navigator = context == null ? null : Navigator.of(context);
       // Seven major steps: extract, manifest, isar, hive,
       // dictResources, ttu, audio remap. The audio step usually
       // finishes instantly (path heuristic only — real remap, when
@@ -405,21 +726,50 @@ class AppExportImport {
         operation: 'Importing',
         totalSteps: 7,
       );
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (_) => LongOpProgressDialog(
-          titleNotifier: tracker.titleNotifier,
-          bodyNotifier: tracker.bodyNotifier,
-        ),
-      );
+      if (context != null) {
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (_) => LongOpProgressDialog(
+            titleNotifier: tracker.titleNotifier,
+            bodyNotifier: tracker.bodyNotifier,
+          ),
+        );
+      }
+      // The tracker is two ValueNotifiers, so the door can relay
+      // exactly what the dialog would have shown, without a dialog.
+      if (onProgress != null) {
+        void relay() => onProgress(
+          tracker.bodyNotifier.value,
+          tracker.detailCurrent ?? tracker.currentStep,
+          tracker.detailTotal ?? tracker.totalSteps,
+          tracker.detailUnit ?? '段階',
+        );
+        tracker.titleNotifier.addListener(relay);
+        tracker.bodyNotifier.addListener(relay);
+      }
 
       // Extract on shared storage so we do not contend with the app
       // data partition during the actual restore phase.
       tracker.step('Extracting bundle...');
       final ts = DateFormat('yyyy-MM-dd_HH-mm-ss').format(DateTime.now());
-      extractDir = Directory(
-          '/storage/emulated/0/tmp/shiroikumanojisho_import_staging_$ts');
+      // App-private, and deliberately NOT the cache directory.
+      //
+      // Shared storage is wrong here because a restore driven by
+      // 応用管理 runs on an app that has never been opened — it installs
+      // the APK and hands the archive straight to it, so no runtime
+      // permission can have been granted. The restore is given
+      // everything it needs and must touch nothing outside its own
+      // directories.
+      //
+      // The cache directory is wrong for a different reason: Android
+      // trims it under storage pressure, and this tree holds the whole
+      // unpacked 1.7 GB bundle for the length of the restore. Files
+      // disappearing under a copy surface as ENOENT part-way through,
+      // which is exactly how a restore died at 10,050 of 10,325
+      // dictionary-resource files on a phone at 94% full.
+      extractDir = Directory(path.join(appModel.appDirectory.path,
+          'importStaging_$ts'));
       if (extractDir.existsSync()) extractDir.deleteSync(recursive: true);
       extractDir.createSync(recursive: true);
       log.write('extracting to ${extractDir.path}');
@@ -430,7 +780,11 @@ class AppExportImport {
         destinationDir: extractDir,
         onExtracting: (zipEntry, progressPercent) {
           tracker.detail(
-              'Extracting bundle... (${progressPercent.toStringAsFixed(0)}%)');
+            'Extracting bundle... (${progressPercent.toStringAsFixed(0)}%)',
+            current: progressPercent.round(),
+            total: 100,
+            unit: '%',
+          );
           return ZipFileOperation.includeItem;
         },
       );
@@ -455,12 +809,57 @@ class AppExportImport {
       // ---- isar restore ----
       tracker.step('Restoring database...');
       final isarDir = Directory(path.join(extractDir.path, 'isar'));
-      if (isarDir.existsSync()) {
-        final rowCounts =
-            (manifest['isar_row_counts'] as Map<String, dynamic>?)
-                ?.map((k, v) => MapEntry(k, v as int));
-        await _importIsar(appModel, isarDir, log, tracker,
-            rowCounts: rowCounts);
+      // A bundle carries the database one of two ways. A raw file copy
+      // is swapped in at the very end, once Isar has been closed —
+      // replacing the file under a live instance is not possible.
+      File? stagedIsarFile;
+      final isarStamp = manifest['isar_file'] as Map<String, dynamic>?;
+      if (isarStamp != null) {
+        final expected = _isarStamp();
+        final mismatch = <String>[
+          if (isarStamp['abi'] != expected['abi'])
+            'architecture (bundle ${isarStamp['abi']}, '
+                'this device ${expected['abi']})',
+          if (isarStamp['isar_version'] != expected['isar_version'])
+            'Isar version (bundle ${isarStamp['isar_version']}, '
+                'this build ${expected['isar_version']})',
+          if (!const DeepCollectionEquality().equals(
+            (isarStamp['schemas'] as List?)?.cast<String>(),
+            expected['schemas'],
+          ))
+            'database schema',
+        ];
+        if (mismatch.isNotEmpty) {
+          // Refuse rather than half-open it: an Isar file from a
+          // different architecture or schema is not readable, and
+          // trying would corrupt what is already here.
+          throw StateError(
+            'This bundle carries a raw database that does not match '
+            'this device — ${mismatch.join('; ')}. Re-export it with '
+            'the portable option from the source device.',
+          );
+        }
+        stagedIsarFile = File(path.join(extractDir.path, _isarFileEntry));
+        if (!stagedIsarFile.existsSync()) {
+          throw StateError(
+            'Bundle declares a raw database but does not '
+            'contain $_isarFileEntry.',
+          );
+        }
+        log.write(
+          'isar file restore staged: '
+          '${stagedIsarFile.statSync().size} bytes',
+        );
+      } else if (isarDir.existsSync()) {
+        final rowCounts = (manifest['isar_row_counts'] as Map<String, dynamic>?)
+            ?.map((k, v) => MapEntry(k, v as int));
+        await _importIsar(
+          appModel,
+          isarDir,
+          log,
+          tracker,
+          rowCounts: rowCounts,
+        );
       } else {
         log.write('no isar/ in bundle, skipping');
       }
@@ -494,8 +893,12 @@ class AppExportImport {
             onProgress: (deleted, total) {
               final fmt = NumberFormat.decimalPattern();
               tracker.detail(
-                  'Clearing existing dictionary resources: '
-                  '(${fmt.format(deleted)}/${fmt.format(total)})');
+                'Clearing existing dictionary resources: '
+                '(${fmt.format(deleted)}/${fmt.format(total)})',
+                current: deleted,
+                total: total,
+                unit: 'ファイル',
+              );
             },
           );
         }
@@ -506,11 +909,42 @@ class AppExportImport {
           onProgress: (copied, total) {
             final fmt = NumberFormat.decimalPattern();
             tracker.detail(
-                'Restoring dictionary resources... '
-                '(${fmt.format(copied)}/${fmt.format(total)})');
+              'Restoring dictionary resources... '
+              '(${fmt.format(copied)}/${fmt.format(total)})',
+              current: copied,
+              total: total,
+              unit: 'ファイル',
+            );
           },
         );
         log.write('dictionaryResources copied');
+      }
+
+      // ---- loose user files (see _bundleCopyDirs) ----
+      // A merge, not a replace, unlike the stores above: these are
+      // per-item files the user added by hand, so a bundle can only add
+      // to what is here, and deleting one that exists only on this
+      // device would be a loss with nothing gained.
+      //
+      // No re-registration needed: the interactive import ends in
+      // exit(0), so AppModel.initialise() calls loadExternalFonts() on
+      // the next launch and UserFontsStore rescans lazily.
+      for (final dirName in _bundleCopyDirs) {
+        final src = Directory(path.join(extractDir.path, dirName));
+        if (!src.existsSync()) continue;
+        final dst =
+            Directory(path.join(appModel.appDirectory.path, dirName));
+        dst.createSync(recursive: true);
+        await _copyDirectoryWithProgress(
+          src,
+          dst,
+          onProgress: (copied, total) {
+            final fmt = NumberFormat.decimalPattern();
+            tracker.detail('Restoring $dirName... '
+                '(${fmt.format(copied)}/${fmt.format(total)})');
+          },
+        );
+        log.write('$dirName restored');
       }
 
       // ---- per-language TTU IndexedDB ----
@@ -521,7 +955,11 @@ class AppExportImport {
       for (var i = 0; i < ttuLanguages.length; i++) {
         final code = ttuLanguages[i];
         tracker.detail(
-            'Restoring books: $code (${i + 1}/${ttuLanguages.length})...');
+          'Restoring books: $code (${i + 1}/${ttuLanguages.length})...',
+          current: i + 1,
+          total: ttuLanguages.length,
+          unit: '言語',
+        );
         try {
           // Look up by languageCode, NOT by map key. The map is
           // keyed by locale.toLanguageTag() (e.g. "ja-JP") but
@@ -557,19 +995,32 @@ class AppExportImport {
 
       // ---- audio path remap ----
       tracker.step('Checking audio paths...');
-      final unresolved = await _collectUnresolvedAudio(appModel, log);
+      // Pointless before a file swap: the live instance still holds the
+      // OLD media items, so anything collected here describes data that
+      // is about to be replaced.
+      final unresolved = stagedIsarFile != null
+          ? <MediaItem>[]
+          : await _collectUnresolvedAudio(appModel, log);
       if (unresolved.isNotEmpty) {
-        if (navigator.canPop()) navigator.pop();
-        if (context.mounted) {
+        if (navigator?.canPop() ?? false) navigator!.pop();
+        if (context != null && context.mounted) {
           await _runAudioRemapFlow(
             appModel: appModel,
             context: context,
             unresolved: unresolved,
             log: log,
           );
+        } else {
+          // Interactive by nature — it asks where each missing audio
+          // file went. A headless import logs the count and leaves
+          // them unresolved for in-app remapping later.
+          log.write(
+            'headless: ${unresolved.length} unresolved audio '
+            'paths left for in-app remapping',
+          );
         }
       } else {
-        if (navigator.canPop()) navigator.pop();
+        if (navigator?.canPop() ?? false) navigator!.pop();
       }
 
       // ---- cleanup + exit ----
@@ -587,8 +1038,8 @@ class AppExportImport {
       // and supports adding ad-hoc detail strings, so we can show
       // per-file delete progress without standing up a new
       // dialog scaffold here.
-      if (navigator.canPop()) navigator.pop();
-      if (context.mounted) {
+      if (navigator?.canPop() ?? false) navigator!.pop();
+      if (context != null && context.mounted) {
         showDialog(
           context: context,
           barrierDismissible: false,
@@ -598,23 +1049,6 @@ class AppExportImport {
           ),
         );
       }
-      tracker.detail('Cleaning up...');
-
-      try {
-        await _deleteDirectoryWithProgress(
-          extractDir,
-          onPhase: (phase) => tracker.detail('Cleaning up: $phase'),
-          onProgress: (deleted, total) {
-            final fmt = NumberFormat.decimalPattern();
-            tracker.detail(
-                'Cleaning up: '
-                '(${fmt.format(deleted)}/${fmt.format(total)})');
-          },
-        );
-      } catch (e) {
-        log.error('failed to remove extract dir: $e');
-      }
-
       // Force Hive's pending writes to disk before we exit. Each
       // box was already flushed in `_importHive` after its writes,
       // but `Hive.close()` is the belt-and-suspenders move and
@@ -641,8 +1075,72 @@ class AppExportImport {
         log.error('isar close failed: $e');
       }
 
+      // With the instance closed the database is just a file again.
+      // Move rather than copy where possible: the staged copy is on the
+      // same filesystem, so a rename is instant and needs no second
+      // copy of a multi-GB file.
+      if (stagedIsarFile != null) {
+        final target = File(
+          path.join(appModel.databaseDirectory.path, _isarFileName),
+        );
+        final lock = File('${target.path}.lock');
+        try {
+          if (target.existsSync()) target.deleteSync();
+          if (lock.existsSync()) lock.deleteSync();
+          try {
+            stagedIsarFile.renameSync(target.path);
+          } on FileSystemException {
+            // Different filesystem — fall back to a copy.
+            stagedIsarFile.copySync(target.path);
+            stagedIsarFile.deleteSync();
+          }
+          log.write('isar file restored to ${target.path}');
+        } catch (e, st) {
+          log.error('isar file restore failed: $e\n$st');
+          rethrow;
+        }
+      }
+
+      // Cleanup runs LAST, and specifically AFTER the database file has
+      // been moved into place — the staged database lives inside
+      // extractDir, so deleting that tree first destroyed the very file
+      // the swap above needs. It did exactly that: every part of the
+      // restore succeeded, then the swap failed with ENOENT on a tree
+      // that had just been erased, and the whole restore was reported
+      // as failed.
+      tracker.detail('Cleaning up...');
+      try {
+        await _deleteDirectoryWithProgress(
+          extractDir,
+          onPhase: (phase) => tracker.detail('Cleaning up: $phase'),
+          onProgress: (deleted, total) {
+            final fmt = NumberFormat.decimalPattern();
+            tracker.detail(
+              'Cleaning up: '
+              '(${fmt.format(deleted)}/${fmt.format(total)})',
+              current: deleted,
+              total: total,
+              unit: 'ファイル',
+            );
+          },
+        );
+      } catch (e) {
+        // Scratch space only — the data is already in place by now, so
+        // a failure here must never fail the restore.
+        log.error('failed to remove extract dir: $e');
+      }
+
       log.write('=== import complete, exiting ===');
       log.close();
+
+      if (context == null) {
+        // The door replies, then 応用管理 force-stops us. Exiting here
+        // would kill the process before the reply, and the job would
+        // read as a failure despite the data being in place. The
+        // 4-second settle below is skipped for the same reason —
+        // 応用管理's own teardown provides it.
+        return;
+      }
 
       Fluttertoast.showToast(msg: 'Import complete. Closing app...');
       // Bumped from 2s to 4s — gives the OS extra time to drain
@@ -663,6 +1161,9 @@ class AppExportImport {
       try {
         await extractDir?.delete(recursive: true);
       } catch (_) {}
+      if (context == null) {
+        rethrow;
+      }
       if (context.mounted) {
         final nav = Navigator.of(context);
         if (nav.canPop()) {
@@ -1048,9 +1549,18 @@ class AppExportImport {
           // grouping locales this gives `45,000/300,000`, for users
           // whose locale uses other separators it adapts.
           final cur = fmt.format(written);
-          tracker.detail(progressTotal != null
-              ? '$progressLabel ($cur/${fmt.format(progressTotal)})'
-              : '$progressLabel ($cur)');
+          // The counts go out as numbers too, not just inside the
+          // text: 応用管理 renders its progress line from
+          // current/total/unit, so without these a 9.7M-row dump
+          // shows only the coarse step number and looks stalled.
+          tracker.detail(
+            progressTotal != null
+                ? '$progressLabel ($cur/${fmt.format(progressTotal)})'
+                : '$progressLabel ($cur)',
+            current: written,
+            total: progressTotal,
+            unit: '件',
+          );
         }
         if (chunk.length < _isarBatchSize) break;
       }
@@ -1100,9 +1610,14 @@ class AppExportImport {
     void publishProgress() {
       if (tracker == null || progressLabel == null) return;
       final cur = fmt.format(total);
-      tracker.detail(progressTotal != null
-          ? '$progressLabel ($cur/${fmt.format(progressTotal)})'
-          : '$progressLabel ($cur)');
+      tracker.detail(
+        progressTotal != null
+            ? '$progressLabel ($cur/${fmt.format(progressTotal)})'
+            : '$progressLabel ($cur)',
+        current: total,
+        total: progressTotal,
+        unit: '件',
+      );
     }
 
     // Show `(0/total)` immediately so the user sees the denominator
@@ -1213,33 +1728,43 @@ class AppExportImport {
     return d;
   }
 
+  /// Compact form for the JSONL fallback. At 9.7M rows the key names
+  /// alone were a sizeable fraction of the file — `compressedDefinitions`
+  /// repeated nine million times is ~200 MB of nothing but that word —
+  /// and the four tag/path fields are empty for most entries, so they
+  /// are written only when they carry something. [_entryFromJson] still
+  /// reads the long names, so bundles written before this stay
+  /// importable.
   static Map<String, dynamic> _entryToJson(DictionaryEntry e) => {
-        'id': e.id,
-        'term': e.term,
-        'reading': e.reading,
-        'dictionaryId': e.dictionaryId,
-        'popularity': e.popularity,
-        'compressedDefinitions': base64Encode(e.compressedDefinitions),
-        'entryTagsRaw': e.entryTagsRaw,
-        'headingTagsRaw': e.headingTagsRaw,
-        'imagePaths': e.imagePaths,
-        'audioPaths': e.audioPaths,
-      };
+    'i': e.id,
+    't': e.term,
+    'r': e.reading,
+    'd': e.dictionaryId,
+    'p': e.popularity,
+    'c': base64Encode(e.compressedDefinitions),
+    if (e.entryTagsRaw.isNotEmpty) 'et': e.entryTagsRaw,
+    if (e.headingTagsRaw.isNotEmpty) 'ht': e.headingTagsRaw,
+    if (e.imagePaths != null && e.imagePaths!.isNotEmpty) 'ip': e.imagePaths,
+    if (e.audioPaths != null && e.audioPaths!.isNotEmpty) 'ap': e.audioPaths,
+  };
 
   static DictionaryEntry _entryFromJson(Map<String, dynamic> j) {
+    // Short keys are the current form; the long ones are what bundles
+    // written before the compaction carry.
     final e = DictionaryEntry(
-      term: j['term'] as String,
-      reading: j['reading'] as String,
-      dictionaryId: j['dictionaryId'] as int,
-      popularity: (j['popularity'] as num).toDouble(),
-      compressedDefinitions:
-          base64Decode(j['compressedDefinitions'] as String),
-      entryTagsRaw: j['entryTagsRaw'] as String? ?? '',
-      headingTagsRaw: j['headingTagsRaw'] as String? ?? '',
-      imagePaths: (j['imagePaths'] as List?)?.cast<String>(),
-      audioPaths: (j['audioPaths'] as List?)?.cast<String>(),
+      term: (j['t'] ?? j['term']) as String,
+      reading: (j['r'] ?? j['reading']) as String,
+      dictionaryId: (j['d'] ?? j['dictionaryId']) as int,
+      popularity: ((j['p'] ?? j['popularity']) as num).toDouble(),
+      compressedDefinitions: base64Decode(
+        (j['c'] ?? j['compressedDefinitions']) as String,
+      ),
+      entryTagsRaw: (j['et'] ?? j['entryTagsRaw']) as String? ?? '',
+      headingTagsRaw: (j['ht'] ?? j['headingTagsRaw']) as String? ?? '',
+      imagePaths: ((j['ip'] ?? j['imagePaths']) as List?)?.cast<String>(),
+      audioPaths: ((j['ap'] ?? j['audioPaths']) as List?)?.cast<String>(),
     );
-    final id = j['id'];
+    final id = j['i'] ?? j['id'];
     if (id is int) e.id = id;
     return e;
   }
@@ -1356,9 +1881,38 @@ class AppExportImport {
   // satisfy this — values are either primitives or already-JSON-
   // encoded strings — so we do not need a custom (de)serialiser.
 
-  static const List<String> _builtinHiveBoxes = [
+  /// Hive boxes exported by name, on top of the one-per-MediaSource
+  /// preference boxes enumerated below.
+  ///
+  /// Anything the app opens with `Hive.openBox` and does not list here
+  /// is silently absent from every backup, and the failure surfaces far
+  /// from the cause. Both additions below were found that way on
+  /// 2026-09-09, after a restore that looked complete:
+  ///
+  /// - [UserFontsStore.boxName] indexes the imported fonts. Its files
+  ///   travel as an artifact directory, but the index maps the CSS
+  ///   family name to the on-disk file, so without it the reader has no
+  ///   `@font-face` to inject and a book whose setting still names the
+  ///   font renders in the default face.
+  /// [ReaderTtuSource.libraryBoxName] is deliberately NOT here, and was
+  /// briefly added by mistake. It is a derived cache of the last library
+  /// scan, and every entry holds an ABSOLUTE path into `ttuCovers/`.
+  /// Restoring it makes the Reader tab paint that stale listing whenever
+  /// a scan fails or times out — which on a fresh device showed as books
+  /// present with no covers at all, where before the tab simply waited
+  /// for the scan and then painted the truth. A scan rebuilds this box
+  /// anyway, so exporting it buys nothing and costs a wrong shelf
+  /// (白い熊, 2026-09-09: "book covers not restored now").
+  ///
+  /// Referenced by constant, not spelled as literals, so renaming a box
+  /// cannot quietly drop it from the backup.
+  @visibleForTesting
+  static final List<String> builtinHiveBoxes = _builtinHiveBoxes;
+
+  static final List<String> _builtinHiveBoxes = [
     'appModel',
     'readerAudio',
+    UserFontsStore.boxName,
   ];
 
   static Future<void> _exportHive(
@@ -1377,7 +1931,8 @@ class AppExportImport {
       }
     }
 
-    final dump = <String, Map<String, dynamic>>{};
+    // Pre-pass: force dynamic-default preferences into the box so the
+    // bundle is self-sufficient. Must happen before the dump below.
     for (final name in boxNames) {
       try {
         final box = await Hive.openBox(name);
@@ -1403,18 +1958,42 @@ class AppExportImport {
           }
         }
 
+      } catch (e) {
+        log.error('  hive: $name pre-pass failed: $e');
+      }
+    }
+
+    final dump = await dumpHiveBoxes(boxNames);
+    for (final entry in dump.entries) {
+      log.write('  hive: ${entry.key} -> ${entry.value.length} keys');
+    }
+    await File(path.join(outDir.path, 'boxes.json'))
+        .writeAsString(jsonEncode(dump));
+  }
+
+  /// Read every box in [names] into a plain JSON-encodable map.
+  ///
+  /// Extracted from [_exportHive] so the round-trip can be tested
+  /// without an [AppModel]: on 2026-09-09 two boxes turned out to have
+  /// been missing from every backup ever written, and "I read the code
+  /// and it looks right" is what let that stand.
+  @visibleForTesting
+  static Future<Map<String, Map<String, dynamic>>> dumpHiveBoxes(
+      Iterable<String> names) async {
+    final dump = <String, Map<String, dynamic>>{};
+    for (final name in names) {
+      try {
+        final box = await Hive.openBox(name);
         final entries = <String, dynamic>{};
         for (final key in box.keys) {
           entries[key.toString()] = box.get(key);
         }
         dump[name] = entries;
-        log.write('  hive: $name -> ${entries.length} keys');
-      } catch (e) {
-        log.error('  hive: $name failed: $e');
+      } catch (_) {
+        // A box that cannot be opened is omitted, not fatal.
       }
     }
-    await File(path.join(outDir.path, 'boxes.json'))
-        .writeAsString(jsonEncode(dump));
+    return dump;
   }
 
   static Future<void> _importHive(
@@ -1429,9 +2008,20 @@ class AppExportImport {
     }
     final dump = jsonDecode(await boxesFile.readAsString())
         as Map<String, dynamic>;
+    await restoreHiveBoxes(dump, log: log);
+  }
+
+  /// Write a [dumpHiveBoxes] result back into the live Hive boxes.
+  ///
+  /// Extracted from [_importHive] for the same reason as the dump side.
+  @visibleForTesting
+  static Future<void> restoreHiveBoxes(
+    Map<String, dynamic> dump, {
+    _ExLog? log,
+  }) async {
     for (final entry in dump.entries) {
       final name = entry.key;
-      final entries = entry.value as Map<String, dynamic>;
+      final entries = (entry.value as Map).cast<String, dynamic>();
       try {
         final box = await Hive.openBox(name);
         await box.clear();
@@ -1446,9 +2036,9 @@ class AppExportImport {
         // theme I imported did not take effect," "preferences
         // reverted," etc.
         await box.flush();
-        log.write('  hive: $name <- ${entries.length} keys (flushed)');
+        log?.write('  hive: $name <- ${entries.length} keys (flushed)');
       } catch (e) {
-        log.error('  hive: $name failed: $e');
+        log?.error('  hive: $name failed: $e');
       }
     }
   }
@@ -1622,9 +2212,18 @@ class AppExportImport {
     final doneCompleter = Completer<bool>();
     HeadlessInAppWebView? webView;
     Timer? timeout;
-    timeout = Timer(const Duration(minutes: 30), () {
+    // The overall guard completed doneCompleter only — but every await
+    // in this method is on readyCompleter or on a JS call, so it never
+    // interrupted anything. A restore sat wedged inserting the first
+    // German book at 0.75% CPU and would have stayed there forever
+    // rather than for the thirty minutes this looked like it granted.
+    timeout = Timer(_ttuOverallTimeout, () {
+      log.error('  ttu import: overall timeout');
+      if (!readyCompleter.isCompleted) {
+        readyCompleter.completeError(
+            TimeoutException('ttu import: page never loaded', _ttuOverallTimeout));
+      }
       if (!doneCompleter.isCompleted) {
-        log.error('  ttu import: timeout');
         doneCompleter.complete(false);
       }
     });
@@ -1642,11 +2241,32 @@ class AppExportImport {
     await webView.run();
 
     try {
-      final controller = await readyCompleter.future;
+      // A page that never finishes loading is a fast failure, not a
+      // reason to wait out the overall budget.
+      final controller =
+          await readyCompleter.future.timeout(_ttuReadyTimeout);
+
+      // A loaded page is not a ready database. Wait for TTU to create
+      // its own `data` object store before touching anything, or every
+      // insert below fails with "data store missing" and the language
+      // silently restores nothing — see `awaitDataStoreJsBody`.
+      final storeReady = await controller
+          .callAsyncJavaScript(
+              functionBody: ReaderTtuSource.awaitDataStoreJsBody)
+          .timeout(_ttuCallTimeout);
+      if (storeReady?.value != true) {
+        log.error('  ttu ${language.languageCode}: data store never '
+            'appeared (${storeReady?.error ?? "timed out"}) — '
+            '${books.length} books NOT imported');
+        if (!doneCompleter.isCompleted) doneCompleter.complete(false);
+        return;
+      }
 
       // Clear existing stores.
-      await controller.callAsyncJavaScript(
-          functionBody: ReaderTtuSource.clearStoresJsBody);
+      await controller
+          .callAsyncJavaScript(
+              functionBody: ReaderTtuSource.clearStoresJsBody)
+          .timeout(_ttuCallTimeout);
 
       // Insert each book one at a time — keeps any single JS
       // payload manageable.
@@ -1655,25 +2275,37 @@ class AppExportImport {
         tracker.detail('Restoring books: ${language.languageCode} '
             '(${inserted + 1}/${books.length})...');
         try {
-          await controller.callAsyncJavaScript(
-            functionBody: ReaderTtuSource.putBookJsBody,
-            arguments: {'book': book},
-          );
+          // Bounded: an IndexedDB write that never resolves used to
+          // hang the whole restore on one book. Losing a book is bad;
+          // losing every book after it, and the rest of the restore
+          // with them, is worse.
+          await controller
+              .callAsyncJavaScript(
+                functionBody: ReaderTtuSource.putBookJsBody,
+                arguments: {'book': book},
+              )
+              .timeout(_ttuCallTimeout);
           inserted++;
         } catch (e) {
-          log.error('  failed to insert book ${book["id"]}: $e');
+          log.error('  failed to insert book ${book["id"]} '
+              '(${language.languageCode}, ${inserted + 1}/${books.length}) '
+              'on port $port: $e');
         }
       }
 
       // Insert lastItems and bookmarks in one shot — small.
-      await controller.callAsyncJavaScript(
-        functionBody: ReaderTtuSource.putLastItemsJsBody,
-        arguments: {'items': jsonDecode(lastItems)},
-      );
-      await controller.callAsyncJavaScript(
-        functionBody: ReaderTtuSource.putBookmarksJsBody,
-        arguments: {'items': jsonDecode(bookmarks)},
-      );
+      await controller
+          .callAsyncJavaScript(
+            functionBody: ReaderTtuSource.putLastItemsJsBody,
+            arguments: {'items': jsonDecode(lastItems)},
+          )
+          .timeout(_ttuCallTimeout);
+      await controller
+          .callAsyncJavaScript(
+            functionBody: ReaderTtuSource.putBookmarksJsBody,
+            arguments: {'items': jsonDecode(bookmarks)},
+          )
+          .timeout(_ttuCallTimeout);
 
       log.write('  ttu ${language.languageCode}: $inserted books imported');
       if (!doneCompleter.isCompleted) doneCompleter.complete(true);
@@ -2168,7 +2800,11 @@ enum _AudioRemapAction { skip, remap }
 class _ExLog {
   _ExLog._(this.logPath, this._sink);
 
-  factory _ExLog.create(String kind) {
+  /// [fallback] is used when shared storage cannot be written — which
+  /// is exactly when something has gone wrong and the log matters most.
+  /// A restore that failed with EPERM left no log at all because this
+  /// swallowed its own failure and returned a no-op.
+  factory _ExLog.create(String kind, {Directory? fallback}) {
     // File logging on disk at /storage/emulated/0/tmp/. We had this
     // disabled briefly but every import/export issue we have hit
     // since requires the log to diagnose, so it stays on. The log
@@ -2183,9 +2819,22 @@ class _ExLog {
       sink.writeln('opened: ${DateTime.now().toIso8601String()}');
       return _ExLog._(p, sink);
     } catch (e) {
-      debugPrint('log open failed: $e');
-      return _ExLog._('(log unavailable)', null);
+      debugPrint('log open failed on shared storage: $e');
     }
+    try {
+      if (fallback != null) {
+        final ts = DateFormat('yyyy-MM-dd_HH-mm-ss').format(DateTime.now());
+        final p = '${fallback.path}/shiroikumanojisho_${kind}_$ts.log';
+        final sink = File(p).openWrite();
+        sink.writeln('=== shiroikumanojisho $kind log ===');
+        sink.writeln('opened: ${DateTime.now().toIso8601String()} '
+            '(shared storage unavailable; app-private fallback)');
+        return _ExLog._(p, sink);
+      }
+    } catch (e) {
+      debugPrint('log open failed on fallback too: $e');
+    }
+    return _ExLog._('(log unavailable)', null);
   }
 
   final String logPath;
@@ -2276,11 +2925,26 @@ class LongOpProgressTracker {
   final ValueNotifier<String> bodyNotifier;
   int _currentStep = 0;
 
+  /// The step this tracker is on. 応用管理 renders a progress line from
+  /// `current/total`, not from the text, so a caller relaying to it has
+  /// to have the numbers — sending zeros renders a useless "0/0".
+  int get currentStep => _currentStep;
+
+  /// Finer-grained counts within the current step, when the work being
+  /// done has any. Null between them, in which case a relay falls back
+  /// to the step counter — coarse, but never zero.
+  int? detailCurrent;
+  int? detailTotal;
+  String? detailUnit;
+
   /// Advance to the next major step. The new step name is shown
   /// in the body until [detail] is called with finer-grained
   /// progress text.
   void step(String stepName) {
     _currentStep++;
+    detailCurrent = null;
+    detailTotal = null;
+    detailUnit = null;
     titleNotifier.value = '$operation ($_currentStep/$totalSteps)';
     bodyNotifier.value = stepName;
   }
@@ -2288,7 +2952,10 @@ class LongOpProgressTracker {
   /// Update the body detail without advancing the step counter.
   /// Use during long sub-operations (large file copies, ZIP
   /// progress, big collection dumps) to keep the user informed.
-  void detail(String text) {
+  void detail(String text, {int? current, int? total, String? unit}) {
+    detailCurrent = current;
+    detailTotal = total;
+    detailUnit = unit;
     bodyNotifier.value = text;
   }
 }

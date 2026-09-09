@@ -136,13 +136,28 @@ android {
     buildTypes {
         release {
             minifyEnabled true
-            if (!hasKeystore) {
-                throw new GradleException(
-                    "keystore.properties is missing — a release build would " +
-                    "silently fall back to the Android debug key. Restore it " +
-                    "from the 暗号 vault (android-keystores.org) before building.")
+            // `-PdebugSigning` builds the release artifact but signs it
+            // with the universal Android debug key, so it installs OVER
+            // a pre-1.5.0+025 build instead of demanding an uninstall —
+            // the only way to reach the data on a phone still carrying
+            // one of those. It exists solely to get that data OUT, and
+            // the resulting APK must never be published: anyone can
+            // sign a package that replaces it. Kept explicit and opt-in
+            // precisely because a *silent* fallback to this key is the
+            // bug 1.5.0+025 fixed.
+            if (project.hasProperty('debugSigning')) {
+                logger.warn("*** SIGNING RELEASE WITH THE DEBUG KEY " +
+                    "(-PdebugSigning) — for data rescue only, never publish ***")
+                signingConfig signingConfigs.debug
+            } else {
+                if (!hasKeystore) {
+                    throw new GradleException(
+                        "keystore.properties is missing — a release build would " +
+                        "silently fall back to the Android debug key. Restore it " +
+                        "from the 暗号 vault (android-keystores.org) before building.")
+                }
+                signingConfig signingConfigs.release
             }
-            signingConfig signingConfigs.release
             proguardFiles 'proguard-rules.pro'
         }
 
@@ -167,8 +182,10 @@ flutter {
 dependencies {
     implementation 'com.github.ankidroid:Anki-Android:2.17alpha14'
     implementation 'com.github.umair13adil:RxLogs:v1.0.18'
-    // Bundled ML Kit Japanese text-recognition model (~4 MB on arm64). The
-    // vendored google_mlkit_text_recognition plugin declares the per-script
-    // recognizers compileOnly; the app must supply the one it actually uses.
-    implementation 'com.google.mlkit:text-recognition-japanese:16.0.1'
+    // On-device OCR runtime for the PP-OCRv6 models in
+    // src/main/assets/ocr/ (see OcrBridge). This replaced ML Kit, which
+    // was the app's only tracker: its MlKitInitProvider and
+    // MlKitComponentDiscoveryService started themselves at every process
+    // launch. ONNX Runtime registers no manifest components at all.
+    implementation 'com.microsoft.onnxruntime:onnxruntime-android:1.23.0'
 }

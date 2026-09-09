@@ -31,7 +31,26 @@ final zipClose = zipLib.lookupFunction<ZipCloseNative, ZipClose>('zip_close');
 typedef ZipSetLevelNative = Int32 Function(ZipHandle, Int32);
 typedef ZipSetLevel = int Function(ZipHandle, int);
 
-final zipSetLevel = zipLib.lookupFunction<ZipSetLevelNative, ZipSetLevel>('zip_set_level');
+/// Local change (2026-09-09). `zip_set_level` does NOT exist in the C
+/// library this package bundles — the built libasync_zip.so exports 29
+/// `zip_*` symbols and that is not among them, so the binding names an
+/// API the native side never had. Resolving it eagerly threw
+/// `undefined symbol: zip_set_level` out of the worker isolate and, as
+/// an ArgumentError rather than a ZipException, killed it outright.
+///
+/// It is only ever reached on the `compress: false` path, which is why
+/// this lay dormant until an export first stored an entry rather than
+/// deflating it. Set the level on `zip_open` instead — that one exists.
+final ZipSetLevel? zipSetLevel = _lookupSetLevel();
+
+ZipSetLevel? _lookupSetLevel() {
+  try {
+    return zipLib.lookupFunction<ZipSetLevelNative, ZipSetLevel>(
+        'zip_set_level');
+  } catch (_) {
+    return null;
+  }
+}
 
 // extern ZIP_EXPORT ssize_t zip_entries_total(struct zip_t *zip);
 typedef ZipEntriesTotalNative = Int32 Function(ZipHandle);

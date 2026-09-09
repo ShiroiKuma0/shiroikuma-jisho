@@ -179,6 +179,18 @@ class ZipFileReader {
           }
         } on ZipException catch (ex) {
           sendPort.send(IsolateResponse(message.id, null, ex.message));
+        } catch (ex) {
+          // Local change (2026-09-09). Upstream catches ZipException
+          // ONLY, so anything else — a file that vanished between
+          // being listed and being written, an allocation failure, a
+          // type error — escapes this loop, becomes an unhandled async
+          // error and kills the isolate. No reply is ever sent, and the
+          // caller waits forever. That is what stalled an export for
+          // six and a half hours on artifact 2264 of 2265.
+          //
+          // Reporting it keeps the worker alive and, far more usefully,
+          // names the real cause instead of leaving a corpse.
+          sendPort.send(IsolateResponse(message.id, null, '$ex'));
         }
       }
     }

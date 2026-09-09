@@ -188,6 +188,10 @@ public class MainActivity extends AudioServiceActivity {
         // Rasterises scanned PDFs to page JPEGs for the OCR importer.
         new PdfRendererBridge().register(flutterEngine);
 
+        // On-device OCR (PP-OCRv6 under ONNX Runtime). Replaced ML Kit,
+        // whose manifest components were the app's only tracker.
+        new OcrBridge().register(flutterEngine, this);
+
         // Automation token infra for the 保存復元 contract: backed by a
         // device-local SharedPreferences file that never travels in
         // exports (which read the Hive box and app documents only).

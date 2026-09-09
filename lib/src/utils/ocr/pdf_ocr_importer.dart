@@ -87,7 +87,7 @@ class PdfOcrImporter {
     final bookDir = Directory('${appDocDir.path}/scannedPdf/$slug');
     final imgDir = Directory('${bookDir.path}/img');
 
-    final OcrEngine engine = MlkitOcrEngine();
+    final OcrEngine engine = PpOcrEngine();
     try {
       await _fgChannel.invokeMethod('start', {
         'title': 'Importing PDF - $title',

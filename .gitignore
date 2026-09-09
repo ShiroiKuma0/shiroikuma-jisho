@@ -62,3 +62,4 @@ vendor/mecab_dart/android/.cxx/
 keystore.properties
 *.jks
 *.keystore
+.scratch/

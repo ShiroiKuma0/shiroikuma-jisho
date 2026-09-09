@@ -772,7 +772,7 @@ class _HomePageState extends BasePageState<HomePage>
     );
   }
 
-  /// Smoke test for the OCR engine ([MlkitOcrEngine] today): pick an
+  /// Smoke test for the OCR engine ([PpOcrEngine] today): pick an
   /// image file, recognise it with the bundled Japanese model, show the
   /// raw result. Doubles as the manual verification that the engine seam
   /// used by the subtitle and scanned-PDF pipelines is alive.
@@ -792,7 +792,7 @@ class _HomePageState extends BasePageState<HomePage>
       return;
     }
 
-    final OcrEngine engine = MlkitOcrEngine();
+    final OcrEngine engine = PpOcrEngine();
     String resultText;
     try {
       final stopwatch = Stopwatch()..start();

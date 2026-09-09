@@ -1,13 +1,3 @@
-# The hosted google_mlkit_text_recognition plugin references every
-# per-script recognizer, but the app bundles only the Japanese model
-# (plus built-in Latin) via the Gradle dependency in build.gradle.
-# The other script branches are unreachable at runtime -- the app only
-# ever constructs the Japanese recognizer -- so tell R8 not to fail on
-# their absence.
--dontwarn com.google.mlkit.vision.text.chinese.**
--dontwarn com.google.mlkit.vision.text.devanagari.**
--dontwarn com.google.mlkit.vision.text.korean.**
-
 # R8 full mode (the only mode in AGP 9; the old AGP 7 build ran compat
 # mode) strips Room's generated *_Impl database classes, which Room
 # loads reflectively via Class.forName(name + "_Impl"). androidx.work's
@@ -22,14 +12,8 @@
 # invisible to R8; keep the libVLC Java surface intact by name.
 -keep class org.videolan.libvlc.** { *; }
 
-# ML Kit resolves its internal components through reflective
-# ComponentRegistrar/service-loader machinery (Firebase components),
-# which R8 full mode partially strips: text recognition died with an
-# NPE deep in vision-common's LazyInstanceMap telemetry on 1.4.0+38
-# (first post-migration OCR run). Keep the Google ML/GMS/Firebase
-# stack wholesale -- dex size is irrelevant for this sideloaded app,
-# and piecemeal keeps have burned us four times now (Room, libVLC
-# JNI, ML Kit script models, this).
--keep class com.google.mlkit.** { *; }
--keep class com.google.android.gms.** { *; }
--keep class com.google.firebase.** { *; }
+# ONNX Runtime's Java surface is bound from libonnxruntime4j_jni.so by
+# name (OnnxTensor, OrtSession and the enums their JNI constructs), and
+# JNI lookups are invisible to R8 -- the same failure mode that took out
+# libVLC. Keep the whole ai.onnxruntime package.
+-keep class ai.onnxruntime.** { *; }

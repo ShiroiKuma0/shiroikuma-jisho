@@ -9641,6 +9641,8 @@ mz_bool mz_zip_writer_finalize_archive(mz_zip_archive *pZip) {
   mz_zip_internal_state *pState;
   mz_uint64 central_dir_ofs, central_dir_size;
   mz_uint8 hdr[256];
+  /* Local change (2026-09-09): see write_zip64_eocd below. */
+  mz_bool write_zip64_eocd;
 
   if ((!pZip) || (!pZip->m_pState) || (pZip->m_zip_mode != MZ_ZIP_MODE_WRITING))
     return mz_zip_set_error(pZip, MZ_ZIP_INVALID_PARAMETER);
@@ -9673,7 +9675,43 @@ mz_bool mz_zip_writer_finalize_archive(mz_zip_archive *pZip) {
     pZip->m_archive_size += central_dir_size;
   }
 
-  if (pState->m_zip64) {
+  /* Local change (2026-09-09): emit the ZIP64 trailer only when a value in
+   * the 32-bit end-of-central-directory record genuinely overflows.
+   *
+   * Upstream writes the ZIP64 EOCD record and its locator whenever the
+   * writer was opened in ZIP64 mode, even for an archive whose every
+   * field fits in 32 bits -- and then writes the plain EOCD with those
+   * real 32-bit values rather than the 0xFFFFFFFF sentinels (see the
+   * MZ_MIN clamps below). That combination is unreadable by the reader
+   * Android actually uses.
+   *
+   * Android's java.util.zip.ZipFile.open is a native method backed by
+   * the OpenJDK-8-era zip_util.c, whose readCEN() derives the central
+   * directory position as `endpos - cenlen` and consults the ZIP64 EOCD
+   * *only* when a 32-bit field reads 0xFFFFFFFF. With real values in the
+   * EOCD and a 76-byte ZIP64 trailer sitting between the central
+   * directory and that EOCD, the computed position lands 76 bytes past
+   * the true start of the directory and the open fails with
+   *   java.util.zip.ZipException: invalid CEN header (bad signature)
+   * -- verified on the Mate XT (Android 12, SDK 31) against a 2.83 GB
+   * automation export, and reproduced with a two-entry 390-byte archive.
+   * Desktop OpenJDK 21 uses the modern Java reader, which reads the
+   * locator unconditionally and so tolerated this for as long as it took
+   * to think the archives were fine.
+   *
+   * The sentinels and the trailer must therefore travel together: when a
+   * field really does overflow, MZ_MIN clamps it to 0xFFFFFFFF (or the
+   * entry count to 0xFFFF), the old reader follows the locator, and
+   * everything works. When nothing overflows, the trailer is pure
+   * liability -- so it is not written. Archives above 4 GB, above 65535
+   * entries, or with a central directory over 4 GB still get full ZIP64.
+   */
+  write_zip64_eocd = pState->m_zip64 &&
+                     ((pZip->m_total_files > MZ_UINT16_MAX) ||
+                      (central_dir_size > MZ_UINT32_MAX) ||
+                      (central_dir_ofs > MZ_UINT32_MAX));
+
+  if (write_zip64_eocd) {
     /* Write zip64 end of central directory header */
     mz_uint64 rel_ofs_to_zip64_ecdr = pZip->m_archive_size;
 
