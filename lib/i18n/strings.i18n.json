@@ -215,6 +215,7 @@
     "youtube_offline_empty":
         "No study videos yet — use jiyudoga's Study button to export one",
     "study_video_missing": "Study video file not found",
+    "study_audio_missing": "Study audio file not found",
     "local_media_directory_empty": "Directory has no folders or video",
     "pick_video_file": "Pick Video File",
     "navigate_up_one_directory_level": "Navigate Up One Directory Level",

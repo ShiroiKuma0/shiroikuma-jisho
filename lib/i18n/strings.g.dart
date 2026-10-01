@@ -343,6 +343,7 @@ class Translations implements BaseTranslations<AppLocale, Translations> {
 	String get ttu_no_books_added => 'No books added to ッツ Ebook Reader';
 	String get youtube_offline_empty => 'No study videos yet — use jiyudoga\'s Study button to export one';
 	String get study_video_missing => 'Study video file not found';
+	String get study_audio_missing => 'Study audio file not found';
 	String get local_media_directory_empty => 'Directory has no folders or video';
 	String get pick_video_file => 'Pick Video File';
 	String get navigate_up_one_directory_level => 'Navigate Up One Directory Level';
@@ -806,6 +807,7 @@ extension on Translations {
 			case 'ttu_no_books_added': return 'No books added to ッツ Ebook Reader';
 			case 'youtube_offline_empty': return 'No study videos yet — use jiyudoga\'s Study button to export one';
 			case 'study_video_missing': return 'Study video file not found';
+			case 'study_audio_missing': return 'Study audio file not found';
 			case 'local_media_directory_empty': return 'Directory has no folders or video';
 			case 'pick_video_file': return 'Pick Video File';
 			case 'navigate_up_one_directory_level': return 'Navigate Up One Directory Level';

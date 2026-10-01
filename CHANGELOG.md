@@ -4,6 +4,75 @@ All notable user-visible changes to **白い熊の辞書 (shiroikumanojisho)** a
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **Study a 言語島 island from 白い熊 自由作業盤.** A new Android intent,
+  `shiroikuma.jisho.intent.action.STUDY_AUDIO`, opens an island's joined
+  audio file in the player with its subtitles already loaded, so every
+  sentence can be looked up in the pop-up dictionary and sent to Anki the
+  same way a video can. 自由作業盤's 「辞書で学ぶ」 button fires it with two
+  extras — `path`, the absolute path of the island's `.ogg`, and `title`,
+  the island's name — and the app finds the island's same-name `.srt`
+  beside the audio by itself. Islands land in the "Local video files"
+  history like any other picked file, so they can be resumed from there.
+  An island whose audio file has gone missing reports "Study audio file
+  not found" rather than opening an empty player.
+
+### Fixed
+
+- **Fixed the player going deaf mid-session when subtitles were set to
+  "None".** The subtitle track that "None" resolves to was never parsed,
+  and every cue lookup against an unparsed track raises an error. That
+  lookup is the first thing the player does on each of its four-times-a-
+  second updates, so the error aborted the whole update — and with it the
+  position tracking, the current-sentence tracking, Subtitle Pause
+  Playback, the subtitle display and the resume-position bookkeeping — for
+  the remainder of the session, with nothing shown to say so. The same
+  window could open briefly at any point where a track is still loading,
+  which on a freshly opened file happened in roughly one open in three.
+  The track is now parsed before it can be selected, and a cue lookup can
+  no longer abort an update.
+
+- **A local file no longer plays its first moment aloud as the player
+  opens.** The player deliberately starts playing for an instant so VLC
+  can parse the file's tracks, then pauses — but it waited for the
+  reported position to move past zero before doing so, and a position
+  arrives only about four times a second, so a file opening at its start
+  played a few hundred milliseconds of its first sentence out loud. That
+  wait exists to confirm a resume seek has applied, which a file opening
+  at zero has none of, so it now pauses on the first moment of playback
+  instead. A file resuming part-way is unchanged, beyond being rewound
+  onto its saved position rather than a tick past it.
+
+- **The player's subtitle seek buttons now land on the subtitle they
+  aim at.** Both computed their target in whole seconds, so they arrived
+  up to a second away from the cue's start — the back button at the tail
+  of the *previous* sentence rather than the start of the current one,
+  which took two presses to reach what one should have found, and the
+  forward button still inside the sentence being left. They now seek in
+  milliseconds, landing on the cue's own start. Which cue each button
+  picks is unchanged.
+
+- **Subtitle Pause Playback Mode now stops on the cue boundary, not a
+  quarter-second past it.** The player used to notice a subtitle had
+  ended only on the next position report it got from libVLC, and libVLC
+  reports a position about four times a second — measured 260 ms apart
+  on a mono Ogg Opus stream, and up to 500 ms apart on an MP4. Every
+  stop therefore ran past the end of the sentence by up to that much,
+  plus whatever the audio device had buffered, which on a 言語島 island
+  with ~200 ms of silence between sentences meant hearing the start of
+  the next sentence every time. The stop is now aimed at the cue end
+  with a timer and the playhead is then parked on the cue end, so the
+  next sentence is also heard whole when you resume instead of missing
+  its first fraction of a second. Jumping the playhead in this mode — Prev/Next subtitle, the
+  transcript, the scrub bar, a double-tap seek — also no longer stops
+  playback: the pause now fires only when a subtitle was actually played
+  through to its end, rather than on any change of the current subtitle. This is the same fix the reader's
+  audio toolbar already had; the player never received it. It applies
+  to every file the player opens, not only islands.
+
 ## [1.5.0+057] - 2026-09-09
 
 ### Changed

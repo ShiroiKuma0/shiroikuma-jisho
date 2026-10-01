@@ -637,6 +637,22 @@ class _JidoujishoAppState extends ConsumerState<JidoujishoApp>
           isColdStart: isInitial,
         );
         return;
+      case 'shiroikuma.jisho.intent.action.STUDY_AUDIO':
+        // Fired by shiroikuma-jiyusagyoban's 「辞書で学ぶ」 button for one
+        // 言語島 island: a single Ogg Opus stream of every sentence in the
+        // island, with a same-basename .srt beside it (Japanese on the
+        // first line, English on the second). Same plain-absolute-path
+        // contract as STUDY_VIDEO above, and toFile() is avoided for the
+        // same reason — it would copy the audio to a temp file away from
+        // its subtitle, which is paired by basename. Unlike STUDY_VIDEO
+        // this arrives as an implicit intent, hence the DEFAULT category
+        // on its manifest filter.
+        launchStudyAudioAction(
+          audioPath: intent.extra?['path'] ?? '',
+          title: intent.extra?['title'],
+          isColdStart: isInitial,
+        );
+        return;
     }
   }
 
@@ -667,6 +683,41 @@ class _JidoujishoAppState extends ConsumerState<JidoujishoApp>
         .firstWhereOrNull((item) => item.mediaIdentifier == videoPath);
     if (item == null) {
       item = source.getMediaItemFromPath(videoPath, title: title);
+      await source.prepareThumbnail(appModel: appModel, item: item);
+    }
+
+    Navigator.popUntil(
+        appModel.navigatorKey.currentContext!, (route) => route.isFirst);
+    await appModel.openMedia(
+      ref: ref,
+      mediaSource: source,
+      killOnPop: isColdStart,
+      item: item,
+    );
+  }
+
+  /// Import a 言語島 study island exported by 自由作業盤 into the local
+  /// media player source and open it for playback immediately. Shaped like
+  /// [launchStudyVideoAction], but into [PlayerLocalMediaSource] rather than
+  /// the offline YouTube source, because that source pairs the island's
+  /// sidecar `.srt` with the audio by basename on its own.
+  void launchStudyAudioAction({
+    required String audioPath,
+    required bool isColdStart,
+    String? title,
+  }) async {
+    PlayerLocalMediaSource source = PlayerLocalMediaSource.instance;
+
+    if (audioPath.isEmpty || !File(audioPath).existsSync()) {
+      Fluttertoast.showToast(msg: t.study_audio_missing);
+      return;
+    }
+
+    MediaItem? item = appModel
+        .getMediaSourceHistory(mediaSource: source)
+        .firstWhereOrNull((item) => item.mediaIdentifier == audioPath);
+    if (item == null) {
+      item = source.getMediaItemFromPath(audioPath, title: title);
       await source.prepareThumbnail(appModel: appModel, item: item);
     }
 

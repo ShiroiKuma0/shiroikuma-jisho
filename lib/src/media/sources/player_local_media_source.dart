@@ -117,6 +117,54 @@ class PlayerLocalMediaSource extends PlayerMediaSource {
     }
   }
 
+  /// Build a fresh [MediaItem] for a local media file. [title] names the
+  /// item in history and in the player; without one the file's basename is
+  /// used, which is what the file picker wants.
+  MediaItem getMediaItemFromPath(String filePath, {String? title}) {
+    return MediaItem(
+      canDelete: true,
+      canEdit: false,
+      mediaTypeIdentifier: mediaType.uniqueKey,
+      mediaSourceIdentifier: uniqueKey,
+      mediaIdentifier: filePath,
+      position: 0,
+      duration: 0,
+      title: title ?? path.basenameWithoutExtension(filePath),
+    );
+  }
+
+  /// Generate and set the override thumbnail for a local media item.
+  ///
+  /// [generateThumbnail] encodes nothing at all for a file with no video
+  /// stream — an audio-only 言語島 island, a picked MP3 — and copying that
+  /// empty file over as the override would leave the item with a thumbnail
+  /// that cannot be decoded. Leave the override unset in that case so the
+  /// transparent placeholder is used instead.
+  Future<void> prepareThumbnail({
+    required AppModel appModel,
+    required MediaItem item,
+  }) async {
+    File thumbnailFile = appModel.getThumbnailFile();
+
+    if (thumbnailFile.existsSync()) {
+      thumbnailFile.deleteSync();
+    }
+    thumbnailFile.createSync(recursive: true);
+
+    await generateThumbnail(item.mediaIdentifier, thumbnailFile.path);
+
+    if (!thumbnailFile.existsSync() || thumbnailFile.lengthSync() == 0) {
+      return;
+    }
+
+    await setOverrideThumbnailFromMediaItem(
+      appModel: appModel,
+      item: item,
+      file: thumbnailFile,
+      clearOverrideImage: false,
+    );
+  }
+
   /// Pick a video file with a built-in file picker.
   Future<void> pickVideoFile({
     required BuildContext context,
@@ -172,32 +220,8 @@ class PlayerLocalMediaSource extends PlayerMediaSource {
         .getMediaTypeHistory(mediaType: mediaType)
         .firstWhereOrNull((item) => item.mediaIdentifier == filePath);
     if (item == null) {
-      item ??= MediaItem(
-        canDelete: true,
-        canEdit: false,
-        mediaTypeIdentifier: mediaType.uniqueKey,
-        mediaSourceIdentifier: uniqueKey,
-        mediaIdentifier: filePath,
-        position: 0,
-        duration: 0,
-        title: path.basenameWithoutExtension(filePath),
-      );
-
-      String thumbnailPath = appModel.getThumbnailFile().path;
-      File thumbnailFile = appModel.getThumbnailFile();
-
-      if (thumbnailFile.existsSync()) {
-        thumbnailFile.deleteSync();
-      }
-      thumbnailFile.createSync(recursive: true);
-
-      await generateThumbnail(filePath, thumbnailPath);
-      await setOverrideThumbnailFromMediaItem(
-        appModel: appModel,
-        item: item,
-        file: thumbnailFile,
-        clearOverrideImage: false,
-      );
+      item = getMediaItemFromPath(filePath);
+      await prepareThumbnail(appModel: appModel, item: item);
     }
 
     await appModel.openMedia(

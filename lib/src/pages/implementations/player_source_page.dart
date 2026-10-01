@@ -120,6 +120,8 @@ class _PlayerSourcePageState extends BaseSourcePageState<PlayerSourcePage>
     _rewindSubscription?.cancel();
     _fastForwardSubscription?.cancel();
 
+    _autoPauseTimer?.cancel();
+
     WidgetsBinding.instance.removeObserver(this);
 
     _playerController.dispose();
@@ -276,6 +278,15 @@ class _PlayerSourcePageState extends BaseSourcePageState<PlayerSourcePage>
       type: SubtitleItemType.noneSubtitle,
     );
 
+    // Parse the empty controller up front. [SubtitleController.durationSearch]
+    // THROWS NotInitializedException on an unparsed controller, and this item
+    // is what every "None" subtitle selection resolves to — including the
+    // saved-track restore. Left unparsed, selecting None made [listener]
+    // throw on every single tick, which silently killed cue tracking,
+    // auto-pause, the subtitle display and history updates for the rest of
+    // the session. Awaited, so it is parsed before the listener exists.
+    await _emptySubtitleItem.controller.initial();
+
     _subtitleItem = _emptySubtitleItem;
     _secondarySubtitleItem = _emptySubtitleItem;
     _playPauseAnimationController = AnimationController(
@@ -400,8 +411,11 @@ class _PlayerSourcePageState extends BaseSourcePageState<PlayerSourcePage>
     if (_subtitleItems.isNotEmpty) {
       _subtitleItem = _subtitleItems.first;
     }
+    // Awaited for the reason given on [_emptySubtitleItem]: an unparsed
+    // controller here makes every tick until the parse lands throw out of
+    // [listener].
     if (!_subtitleItem.controller.initialized) {
-      _subtitleItem.controller.initial();
+      await _subtitleItem.controller.initial();
     }
 
     _blurOptionsNotifier = ValueNotifier<BlurOptions>(appModel.blurOptions);
@@ -552,9 +566,93 @@ class _PlayerSourcePageState extends BaseSourcePageState<PlayerSourcePage>
 
   double _lastAspectRatio = 1;
 
+
   Subtitle? _autoPauseMemory;
   Duration? _replayEndPosition;
   bool _lastPlayingState = true;
+
+  /// Fires at the current cue's end so auto-pause can stop the player
+  /// *at* the boundary instead of on the next player tick after it.
+  ///
+  /// libVLC hands this page a position only about four times a second
+  /// — measured 260 ms between `MediaPlayer.Event.TimeChanged` events
+  /// on a mono Ogg Opus stream, and steps of up to 500 ms on an MP4 —
+  /// and the plugin forwards nothing in between. Pausing off those
+  /// ticks overshoots the cue end by up to a full tick. A 言語島
+  /// island leaves only ~200 ms of silence between sentences, so the
+  /// overshoot runs straight into the next sentence's first mora.
+  /// Arming a timer for the remaining media time instead keeps the
+  /// stop inside the gap: the reported position is *fresh* at the
+  /// instant a tick arrives, so a timer armed there is aimed at the
+  /// true boundary. Measured on device, it fires within 1–2 ms of
+  /// every cue end.
+  ///
+  /// The same fix, with the same reasoning, is in [ReaderAudioToolbar]
+  /// for the reader's audio.
+  Timer? _autoPauseTimer;
+
+  /// Guards [_armAutoPauseTimer] while [_pauseAtSubtitleEnd] is in
+  /// flight. The pause and the snap-back seek are asynchronous, so
+  /// without this a tick arriving between them could re-arm the timer
+  /// against state that is about to change.
+  bool _autoPausing = false;
+
+  /// How far short of a cue's end the auto-pause timer may fire and
+  /// still be treated as close enough to stop. Anything beyond this
+  /// re-arms for the remainder rather than clipping the sentence.
+  static const Duration _autoPauseSlack = Duration(milliseconds: 40);
+
+  /// Largest backwards jump the auto-pause snap is allowed to make.
+  /// The snap exists to discard an overshoot of a few hundred
+  /// milliseconds; if the player has somehow landed a whole cue or
+  /// more past the boundary — a cue armed before a resume seek
+  /// applied, say — rewinding would replay material the user already
+  /// heard, so leave the playhead alone.
+  static const Duration _autoPauseSnapLimit = Duration(seconds: 2);
+
+  /// Wall-clock reference for extrapolating the playhead between
+  /// player ticks, and the position the last tick reported.
+  ///
+  /// libVLC's position is a staircase: exact at the instant a tick
+  /// lands, then up to a full tick stale until the next one. Anything
+  /// that has to reason about *now* rather than about the last report
+  /// — [_onAutoPauseTimer]'s check that the cue end has actually been
+  /// reached — has to extrapolate, or it concludes the playhead is
+  /// still a quarter of a second short and waits forever.
+  Duration _lastTickPosition = Duration.zero;
+
+  /// The position the tick before [_lastTickPosition] reported, which is
+  /// what lets the auto-pause backstop tell a cue boundary CROSSED by
+  /// playback from one merely landed on by a seek — see its use in
+  /// [listener].
+  Duration _previousTickPosition = Duration.zero;
+  final Stopwatch _sinceLastTick = Stopwatch();
+
+  /// Beyond this, a tick is so overdue that playback has evidently
+  /// stalled and extrapolating from it would run ahead of the audio.
+  /// Fall back to the last reported position, which makes the caller
+  /// wait for a real tick instead of snapping the playhead forward
+  /// over material that was never heard.
+  static const Duration _tickStaleLimit = Duration(seconds: 1);
+
+  /// The playhead now, extrapolated from the last player tick. Equal
+  /// to the reported position while paused, or when a tick is overdue
+  /// past [_tickStaleLimit].
+  Duration get _extrapolatedPosition {
+    if (!_playerController.value.isPlaying ||
+        !_sinceLastTick.isRunning ||
+        _sinceLastTick.elapsed > _tickStaleLimit) {
+      return _positionNotifier.value;
+    }
+
+    double speed = _playerController.value.playbackSpeed;
+    return _lastTickPosition +
+        Duration(
+          microseconds:
+              (_sinceLastTick.elapsedMicroseconds * (speed > 0 ? speed : 1.0))
+                  .round(),
+        );
+  }
 
   /// This is called each time the player ticks.
   void listener() async {
@@ -565,17 +663,35 @@ class _PlayerSourcePageState extends BaseSourcePageState<PlayerSourcePage>
     if (_playerController.value.isInitialized) {
       // Local videos open paused (see [_holdOpenPaused]): VLC needs a
       // moment of playback to parse tracks/duration, so autoplay is
-      // left on and playback is paused right here — but only once the
-      // reported position has moved past zero, which means the
-      // `--start-time` resume seek has applied and a frame at the
-      // persisted position is actually on screen. Pausing on the very
-      // first playing tick instead could freeze a blank or frame-zero
-      // surface.
+      // left on and playback is paused right here.
+      //
+      // A file RESUMING mid-way waits for the reported position to move
+      // past zero, because that is what tells us the `--start-time`
+      // resume seek has applied and a frame at the persisted position is
+      // actually on screen; pausing on the very first playing tick
+      // instead could freeze a blank or frame-zero surface. It is then
+      // rewound onto the persisted position, since the wait costs up to
+      // a reporting tick of playback beyond it.
+      //
+      // A file opening AT zero has no resume seek to wait for, so that
+      // wait achieves nothing and costs a whole tick — libVLC reports a
+      // position only about four times a second — of the first sentence,
+      // played aloud while the player opens and then heard a second time
+      // on the first press. Frame zero is also exactly the frame such a
+      // file should be showing. So stop on the first playing tick and
+      // seek nowhere: nothing is consumed, and playback begins at the
+      // beginning.
+      bool opensAtZero = _holdOpenPosition == Duration.zero;
       if (_holdOpenPaused &&
           _playerController.value.isPlaying &&
-          _playerController.value.position > Duration.zero) {
+          (opensAtZero || _playerController.value.position > Duration.zero)) {
         _holdOpenPaused = false;
-        _playerController.pause();
+        await _playerController.pause();
+
+        if (!opensAtZero &&
+            _playerController.value.position > _holdOpenPosition) {
+          await _playerController.seekTo(_holdOpenPosition);
+        }
       }
 
       // The paused-frame bitmap overlay lives only while paused.
@@ -594,6 +710,26 @@ class _PlayerSourcePageState extends BaseSourcePageState<PlayerSourcePage>
 
       _positionNotifier.value = _playerController.value.position;
       _durationNotifier.value = _playerController.value.duration;
+
+      // Note when the reported position last actually moved, so
+      // [_extrapolatedPosition] can carry it forward between ticks.
+      // The controller notifies on state changes too, not only on
+      // TimeChanged, so key this on the value rather than the call.
+      if (_playerController.value.position != _lastTickPosition) {
+        _previousTickPosition = _lastTickPosition;
+        _lastTickPosition = _playerController.value.position;
+        _sinceLastTick
+          ..reset()
+          ..start();
+      } else if (!_playerController.value.isPlaying) {
+        // Paused: stop the reference ageing. Left running, the window
+        // between a resume and its first tick would extrapolate from a
+        // position as old as the pause and read far ahead of the audio
+        // — enough to stop in the middle of a cue.
+        _sinceLastTick
+          ..reset()
+          ..stop();
+      }
       _playingNotifier.value = _playerController.value.isPlaying;
       _endedNotifier.value = _playerController.value.isEnded;
 
@@ -642,8 +778,17 @@ class _PlayerSourcePageState extends BaseSourcePageState<PlayerSourcePage>
         _bufferingDuration = null;
       }
 
-      Subtitle? newSubtitle = _subtitleItem.controller
-          .durationSearch(_positionNotifier.value + subtitleDelay);
+      // A cue lookup must never take the listener down with it.
+      // Controllers are parsed asynchronously and several paths swap
+      // [_subtitleItem] — the saved-track restore, a sidecar finishing,
+      // an OCR pass — so a tick can land on one that is not parsed yet,
+      // where durationSearch throws. An exception here kills the whole
+      // tick: position, cue tracking, auto-pause, history. Treat it as
+      // "no cue yet" and carry on.
+      Subtitle? newSubtitle = _subtitleItem.controller.initialized
+          ? _subtitleItem.controller
+              .durationSearch(_positionNotifier.value + subtitleDelay)
+          : null;
 
       String sentence = _currentSubtitle.value?.data ?? '';
       String regex = _subtitleOptionsNotifier.value.regexFilter;
@@ -686,23 +831,45 @@ class _PlayerSourcePageState extends BaseSourcePageState<PlayerSourcePage>
           }
         }
 
+        // Auto-pause backstop. [_autoPauseTimer] normally stops the
+        // player AT the cue end, before the position ever reaches
+        // here; this path covers what a timer cannot — the mode being
+        // switched to auto-pause mid-cue, or a cue whose end arrived
+        // before any tick had armed anything. It goes through the same
+        // [_pauseAtSubtitleEnd], so the snap-back happens either way.
+        //
+        // Only when the playhead genuinely played THROUGH the cue's
+        // end, though. A cue change also happens whenever the position
+        // jumps — Prev/Next subtitle, the transcript, the scrub bar, a
+        // double-tap seek — and treating a jump as a boundary makes
+        // this pause the player and snap the playhead onto the end of
+        // the cue just left, which pulls the user straight back to
+        // where they were trying to leave. Seeking backwards was
+        // impossible until this test was added.
+        Subtitle? leaving = _currentSubtitle.value;
+        Duration cuePosition = _positionNotifier.value + subtitleDelay;
+        Duration previousCuePosition = _previousTickPosition + subtitleDelay;
+
+        // The cue's end must have been CROSSED between the last two
+        // positions, not merely landed on. Seeking to a cue's start lands
+        // exactly on the previous cue's end — the cues an island carries
+        // are contiguous — and a position test alone cannot tell that
+        // from having played there, so pressing the back button paused
+        // the player and snapped it back to the cue it was leaving. The
+        // next press then played the sentence properly, which is what
+        // made it look like the button needed pressing twice.
+        bool playedThroughEnd = leaving != null &&
+            previousCuePosition < leaving.end &&
+            cuePosition >= leaving.end - _autoPauseSlack &&
+            cuePosition <= leaving.end + _autoPauseSnapLimit;
+
         if (appModel.playbackMode == PlaybackMode.autoPausePlayback &&
             _autoPauseNotifier.value == null &&
-            _autoPauseNotifier.value != _currentSubtitle.value &&
             !_sliderBeingDragged &&
-            _currentSubtitle.value != null &&
-            _autoPauseMemory != _currentSubtitle.value) {
-          dialogSmartPause();
-          _autoPauseMemory = _currentSubtitle.value;
-          _autoPauseNotifier.value = _currentSubtitle.value;
-
-          // Comparison overlay: the cue played to its end uncut and
-          // the playhead stays put — the just-ended cue's original
-          // bitmap is drawn back over the paused frame from the saved
-          // store, so resume replays nothing.
-          if (_activeBitmapTrack != null) {
-            showPausedBitmapForCue(_autoPauseNotifier.value!);
-          }
+            leaving != null &&
+            playedThroughEnd &&
+            _autoPauseMemory != leaving) {
+          _pauseAtSubtitleEnd(leaving);
         }
 
         if (_autoPauseNotifier.value != null) {
@@ -807,6 +974,11 @@ class _PlayerSourcePageState extends BaseSourcePageState<PlayerSourcePage>
           }
         }
       }
+
+      // Re-aim the auto-pause timer from this tick's position. Last
+      // thing in the tick, so it sees the subtitle state the block
+      // above has just settled.
+      _armAutoPauseTimer(_extrapolatedPosition);
     }
   }
 
@@ -851,6 +1023,19 @@ class _PlayerSourcePageState extends BaseSourcePageState<PlayerSourcePage>
   /// finishes loading before the user starts playback. Cleared by any
   /// user play/pause interaction.
   bool _holdOpenPaused = false;
+
+  /// Where playback is meant to begin for this item — the same figure
+  /// each source hands VLC as `--start-time` in its
+  /// `preparePlayerController`: the saved resume position in seconds, or
+  /// zero when that is within ten seconds of the end. Kept in step with
+  /// those by hand; it is two lines in each.
+  Duration get _holdOpenPosition {
+    MediaItem? item = widget.item;
+    if (item == null || item.duration - item.position < 10) {
+      return Duration.zero;
+    }
+    return Duration(seconds: item.position);
+  }
 
   /// Ask VLC to render [track]'s original bitmaps natively. The
   /// controller was created with `--sub-track=99999` (nothing), so
@@ -3785,6 +3970,212 @@ class _PlayerSourcePageState extends BaseSourcePageState<PlayerSourcePage>
 
   /// This is called when opening dialogs such as the transcript and the
   /// creator, where it is appropriate to pause the player.
+  /// Arm [_autoPauseTimer] to fire when the current cue ends.
+  ///
+  /// Called from every player tick, so the timer is continuously
+  /// re-aimed at the cue end from the freshest position there is —
+  /// which also means it self-corrects if a tick is late or the rate
+  /// changes. Cheap: one cancel plus one [Timer] per tick.
+  void _armAutoPauseTimer(Duration position) {
+    _autoPauseTimer?.cancel();
+    _autoPauseTimer = null;
+
+    if (_autoPausing) {
+      return;
+    }
+    if (appModel.playbackMode != PlaybackMode.autoPausePlayback) {
+      return;
+    }
+    // Opening plays for a moment to parse tracks before pausing (see
+    // [_holdOpenPaused] in [listener]). The position reads zero over
+    // that window even when the file is resuming mid-way, so arming
+    // here aims at the first cue's end and fires long after the resume
+    // seek has moved the playhead elsewhere.
+    if (_holdOpenPaused) {
+      return;
+    }
+    if (!_playerController.value.isPlaying || _sliderBeingDragged) {
+      return;
+    }
+    // Already stopped at a boundary and waiting for the user.
+    if (_autoPauseNotifier.value != null) {
+      return;
+    }
+
+    Subtitle? sub = _currentSubtitle.value;
+    if (sub == null) {
+      return;
+    }
+    // Already auto-paused for this cue and playing on through it —
+    // the user chose to continue, so don't stop them again.
+    if (_autoPauseMemory == sub) {
+      return;
+    }
+
+    Duration remaining = _autoPauseTargetFor(sub) - position;
+    if (remaining.isNegative) {
+      return;
+    }
+    // Nothing left of this cue worth stopping for. Reached by seeking
+    // close to a cue's end, or by a position report dipping into the
+    // previous cue as playback resumes; pausing immediately there gives
+    // the user a stop they did not ask for and a sentence they have to
+    // press twice to hear.
+    if (remaining < _autoPauseSlack) {
+      return;
+    }
+
+    // `remaining` is media time; the wall-clock wait to reach it is
+    // that divided by the playback rate.
+    double speed = _playerController.value.playbackSpeed;
+    int micros = (remaining.inMicroseconds / (speed > 0 ? speed : 1.0)).round();
+
+    _autoPauseTimer = Timer(
+      Duration(microseconds: micros),
+      () => _onAutoPauseTimer(sub),
+    );
+  }
+
+  /// Where [sub]'s end sits on the player's own clock.
+  ///
+  /// Cue times are compared against `position + subtitleDelay`
+  /// everywhere in this page, so a cue ending at `sub.end` is reached
+  /// when the playhead is at `sub.end - subtitleDelay`.
+  ///
+  /// Minus [_cueLandingEpsilon], though, and that millisecond is
+  /// load-bearing. The subtitle package's cue lookup is CLOSED at both
+  /// ends (`start <= t && end >= t`, its `inRange`), so with contiguous
+  /// cues — cue n ending exactly where n+1 starts, as a 言語島 island's
+  /// do — a playhead sitting precisely on a boundary belongs to both
+  /// cues, and which one its recursive binary search returns depends on
+  /// where the mid-point walk lands. Measured on one island's seven cues
+  /// it alternates: the end of cue 1 resolves to cue 2, the end of cue 2
+  /// to cue 2, the end of cue 3 to cue 4. So land a millisecond INSIDE
+  /// the cue meant, every time, and the lookup is never in doubt.
+  Duration _autoPauseTargetFor(Subtitle sub) =>
+      sub.end - subtitleDelay - _cueLandingEpsilon;
+
+  /// Where the playhead goes to be unambiguously inside [cue] from its
+  /// start — see [_autoPauseTargetFor] for the other end.
+  Duration _cueStartTargetFor(Subtitle cue) =>
+      cue.start - subtitleDelay + _cueLandingEpsilon;
+
+  /// How far inside a cue the playhead is parked so the cue lookup can
+  /// only resolve one way — see [_autoPauseTargetFor].
+  ///
+  /// Twenty milliseconds rather than one, because libVLC's reported
+  /// position DIPS BELOW a seek target for a tick when playback resumes:
+  /// measured on this device, a seek to 6000 ms was followed by
+  /// consecutive reports of 6000 and then 5990. Landing a single
+  /// millisecond inside a cue let that dip fall into the neighbouring
+  /// one, which flipped the displayed subtitle to it and armed its pause
+  /// a few milliseconds from its end — so the first press after a seek
+  /// stopped at once and a second was needed to play the sentence.
+  /// Twenty clears the dip with room to spare, and is one Opus packet,
+  /// so it cannot cross a page boundary either.
+  static const Duration _cueLandingEpsilon = Duration(milliseconds: 20);
+
+  /// [_autoPauseTimer]'s callback: stop at [sub]'s end, unless the
+  /// world moved on while the timer was pending.
+  Future<void> _onAutoPauseTimer(Subtitle sub) async {
+    _autoPauseTimer = null;
+    if (!mounted) {
+      return;
+    }
+    if (appModel.playbackMode != PlaybackMode.autoPausePlayback) {
+      return;
+    }
+    if (!_playerController.value.isPlaying || _sliderBeingDragged) {
+      return;
+    }
+    if (_currentSubtitle.value != sub) {
+      return;
+    }
+    if (_autoPauseMemory == sub) {
+      return;
+    }
+
+    // The timer can land early — it was armed off a position that is
+    // itself a moment old, and the rate may have dropped since. If the
+    // playhead is genuinely still short of the cue end, re-arm for the
+    // remainder rather than clipping the tail off the sentence. This
+    // has to use the extrapolated playhead: the *reported* position is
+    // a quarter of a second stale by the time the boundary arrives, so
+    // comparing against it would conclude "not there yet" at every
+    // single boundary and never stop at all.
+    Duration position = _extrapolatedPosition;
+    if (_autoPauseTargetFor(sub) - position > _autoPauseSlack) {
+      _armAutoPauseTimer(position);
+      return;
+    }
+
+    await _pauseAtSubtitleEnd(sub);
+  }
+
+  /// Pause at the end of [sub] and snap the playhead back onto that end
+  /// exactly.
+  ///
+  /// The snap is the part that matters. However promptly we stop,
+  /// something is always overshot — a late timer, the round trip into
+  /// libVLC, the audio device's buffered latency — and without a seek
+  /// that overshoot is silently subtracted from the head of the next
+  /// sentence, because resuming just plays on from wherever the player
+  /// happened to stop. Snapping back to the cue end discards it, so the
+  /// next sentence is heard whole.
+  ///
+  /// Seeking is exact here, which is what makes the snap safe: libVLC
+  /// lands on a millisecond target in an Ogg Opus stream (measured
+  /// +0 ms at every cue end of a 言語島 island, whose granule is one
+  /// 20 ms packet per page) as it does in MP4. This is not the
+  /// inaccurate-seek problem that made the reader's audio refuse MP3 in
+  /// favour of M4B — that one is ExoPlayer's, and this player does not
+  /// go through ExoPlayer.
+  ///
+  /// `sub.end` rather than the *next* cue's start, though the latter
+  /// would skip the silence between them: everything else in this page
+  /// reads the playhead to decide what the current sentence is, and
+  /// parking it on the next cue would move all of it one sentence on.
+  /// The boundary keeps the playhead where the old tick-driven pause
+  /// used to leave it.
+  Future<void> _pauseAtSubtitleEnd(Subtitle sub) async {
+    if (_autoPausing) {
+      return;
+    }
+    _autoPausing = true;
+    _autoPauseTimer?.cancel();
+    _autoPauseTimer = null;
+
+    // Set synchronously, before the first await: [listener] reads these
+    // immediately after calling us from the backstop, and uses them to
+    // freeze the display on the cue that just ended.
+    _autoPauseMemory = sub;
+    _autoPauseNotifier.value = sub;
+
+    try {
+      await dialogSmartPause();
+
+      // Mostly this only discards the few milliseconds between the
+      // timer firing and the pause taking effect; it matters more on
+      // the backstop path, which arrives a whole tick late.
+      Duration target = _autoPauseTargetFor(sub);
+      // Sanity bound only — see [_autoPauseSnapLimit]: a playhead a
+      // whole cue or more past the boundary is left alone.
+      if (_extrapolatedPosition - target <= _autoPauseSnapLimit) {
+        await _playerController.seekTo(target);
+      }
+
+      // Comparison overlay: the cue played to its end uncut and the
+      // playhead stays put — the just-ended cue's original bitmap is
+      // drawn back over the paused frame from the saved store, so
+      // resume replays nothing.
+      if (_activeBitmapTrack != null) {
+        showPausedBitmapForCue(sub);
+      }
+    } finally {
+      _autoPausing = false;
+    }
+  }
+
   Future<void> dialogSmartPause() async {
     if (_playerController.value.isPlaying) {
       _menuHideTimer?.cancel();
@@ -4072,56 +4463,83 @@ class _PlayerSourcePageState extends BaseSourcePageState<PlayerSourcePage>
     }
   }
 
+  /// Seek to the start of the cue the playhead is in — and, pressed
+  /// again from that start, to the one before it.
+  ///
+  /// This used to compute a delta in WHOLE SECONDS and seek to
+  /// `(position.inSeconds - delta) * 1000`, which reduces to the cue's
+  /// start truncated to the second. From a cue starting at 1936 ms it
+  /// landed on 1000 ms — inside the *previous* cue, near its end — so
+  /// the button played the tail of the wrong sentence, and a second
+  /// press was needed to reach the one it should have found first.
+  /// Seeking in milliseconds is the whole fix; the cue it picks is
+  /// unchanged.
   void seekPrevSubtitle() {
-    Duration duration = _durationNotifier.value;
-    Duration position = _positionNotifier.value;
-    bool isEnded = _endedNotifier.value;
-
-    bool validPosition = duration.compareTo(position) >= 0;
-    double sliderValue = validPosition ? position.inSeconds.toDouble() : 0;
-
-    if (isEnded) {
-      sliderValue = 1;
+    if (_durationNotifier.value < _positionNotifier.value) {
+      return;
     }
-    int prevIdx = _subtitleItem.controller.subtitles.lastIndexWhere(
-        (element) => _positionNotifier.value > (element.start + subtitleDelay));
-    if (validPosition && prevIdx != -1) {
-      // _playerController.setTime(
-      //     _subtitleItem.controller.subtitles[prevIdx].start.inSeconds -
-      //         subtitleDelay.inSeconds);
-      int deltaTime = _positionNotifier.value.inSeconds -
-          _subtitleItem.controller.subtitles[prevIdx].start.inSeconds +
-          subtitleDelay.inSeconds;
-      _playerController.setTime((sliderValue.toInt() - deltaTime) * 1000);
-      _autoPauseNotifier.value = null;
-      _autoPauseMemory = null;
+
+    // Cue times are compared against `position + subtitleDelay`
+    // everywhere in this page, and a cue is made current by putting the
+    // playhead at `start - subtitleDelay`. The old code mixed the two
+    // signs; these follow the convention [durationSearch] uses.
+    List<Subtitle> cues = _subtitleItem.controller.subtitles;
+    Duration cuePosition = _positionNotifier.value + subtitleDelay;
+    int idx = cues.lastIndexWhere((cue) => cue.start <= cuePosition);
+    if (idx == -1) {
+      return;
     }
+
+    // Step by INDEX once the playhead is already at a cue's start.
+    // [_seekToCueStart] parks a millisecond inside the cue, so asking
+    // again for "the last cue starting before the playhead" returns the
+    // same cue and the button seeks to where it already is — there was
+    // no way to walk back past the second sentence.
+    if (cuePosition - cues[idx].start <= _cueLandingEpsilon * 2) {
+      idx -= 1;
+    }
+    if (idx < 0) {
+      return;
+    }
+
+    _seekToCueStart(cues[idx]);
   }
 
+  /// Put the playhead at the start of [cue], and nothing else.
+  ///
+  /// Deliberately plain: it seeks to the cue's own start — a millisecond
+  /// inside it, so the cue lookup cannot resolve to its neighbour — and
+  /// leaves the displayed subtitle, the auto-pause state and playback to
+  /// follow from the position. Earlier versions seeked short of the cue
+  /// to compensate for the audio output starting a fraction of a second
+  /// late, and every compensation cost something else: the sentence
+  /// before being displayed, its pause re-firing, a press consumed. The
+  /// audio files carry their own leading silence instead.
+  void _seekToCueStart(Subtitle cue) {
+    Duration target = _cueStartTargetFor(cue);
+
+    _autoPauseTimer?.cancel();
+    _autoPauseNotifier.value = null;
+    _autoPauseMemory = null;
+    _playerController.seekTo(target.isNegative ? Duration.zero : target);
+  }
+
+  /// Seek to the start of the next cue. Had the same whole-second
+  /// truncation as [seekPrevSubtitle], which landed it up to a second
+  /// SHORT of the cue it was aiming at — i.e. still inside the one the
+  /// user was trying to leave.
   void seekNextSubtitle() {
-    Duration duration = _durationNotifier.value;
-    Duration position = _positionNotifier.value;
-    bool isEnded = _endedNotifier.value;
-
-    bool validPosition = duration.compareTo(position) >= 0;
-    double sliderValue = validPosition ? position.inSeconds.toDouble() : 0;
-
-    if (isEnded) {
-      sliderValue = 1;
+    if (_durationNotifier.value < _positionNotifier.value) {
+      return;
     }
-    int nextIdx = _subtitleItem.controller.subtitles.indexWhere(
-        (element) => _positionNotifier.value < (element.start - subtitleDelay));
-    if (validPosition && nextIdx != -1) {
-      int deltaTime =
-          _subtitleItem.controller.subtitles[nextIdx].start.inSeconds -
-              _positionNotifier.value.inSeconds -
-              subtitleDelay.inSeconds;
-      _playerController.setTime((sliderValue.toInt() + deltaTime) * 1000);
-      // _playerController.setTime(
-      //     _subtitleItem.controller.subtitles[nextIdx].start.inSeconds -
-      //         subtitleDelay.inSeconds);
-      _autoPauseNotifier.value = null;
-      _autoPauseMemory = null;
+
+    Duration cuePosition = _positionNotifier.value + subtitleDelay;
+    int nextIdx = _subtitleItem.controller.subtitles
+        .indexWhere((cue) => cue.start > cuePosition);
+    if (nextIdx == -1) {
+      return;
     }
+
+    _seekToCueStart(_subtitleItem.controller.subtitles[nextIdx]);
   }
 }

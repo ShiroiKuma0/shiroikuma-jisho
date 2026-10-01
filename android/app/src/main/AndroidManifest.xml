@@ -66,6 +66,18 @@
             <intent-filter>
                 <action android:name="shiroikuma.jisho.intent.action.STUDY_VIDEO" />
             </intent-filter>
+            <!-- Study-audio import from shiroikuma-jiyusagyoban (a 言語島
+                 island's 「辞書で学ぶ」 button). Unlike STUDY_VIDEO above,
+                 this one is fired as an IMPLICIT intent (setPackage, no
+                 component), and startActivity only resolves an implicit
+                 intent to a filter carrying DEFAULT — so the category is
+                 load-bearing here, not decoration. 自由作業盤 also calls
+                 queryIntentActivities against this filter first and tells
+                 白い熊 the app cannot study audio if nothing answers. -->
+            <intent-filter>
+                <action android:name="shiroikuma.jisho.intent.action.STUDY_AUDIO" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
             <intent-filter>
                 <action android:name="android.intent.action.MEDIA_SEARCH" />
                 <category android:name="android.intent.category.DEFAULT" />
