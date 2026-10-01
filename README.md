@@ -6,11 +6,11 @@
 
 **An immersion language-learning suite: video player, audio-synced ebook reader, dictionary and Anki card factory in one app.**
 
-A fork of [arianneorpilla/jidoujisho](https://github.com/arianneorpilla/jidoujisho) with **major additions**: on-device OCR for Blu-ray subtitles and scanned PDFs, five new languages, an audio-synced reader with SRT subtitles and Tasker control, a dual-language translation split view, one shelf for every imported book, per-book appearance settings, cross-device backup, an e-ink-friendly UI, and **not one tracker in the APK**.
+A fork of [arianneorpilla/jidoujisho](https://github.com/arianneorpilla/jidoujisho) with **major additions**: on-device OCR for Blu-ray subtitles and scanned PDFs, five new languages, an audio-synced reader with SRT subtitles and Tasker control, 言語島 sentence-island study imported from its sister app, a dual-language translation split view, one shelf for every imported book, per-book appearance settings, cross-device backup, an e-ink-friendly UI, and **not one tracker in the APK**.
 
 Installs **side-by-side** with jidoujisho (app id `shiroikuma.jisho`).
 
-**📥 Latest release: [`1.5.0+057`](https://github.com/ShiroiKuma0/shiroikumanojisho/releases/latest)** — [all releases & APK downloads »](https://github.com/ShiroiKuma0/shiroikumanojisho/releases)
+**📥 Latest release: [`1.5.0+081`](https://github.com/ShiroiKuma0/shiroikumanojisho/releases/latest)** — [all releases & APK downloads »](https://github.com/ShiroiKuma0/shiroikumanojisho/releases)
 
 </div>
 
@@ -53,6 +53,11 @@ Show a secondary (translation) subtitle track on top of the primary one, with in
 
 ## 📥 YouTube offline study videos
 One tap in [shiroikuma-jiyudoga](https://github.com/ShiroiKuma0/shiroikuma-jiyudoga) ("Study in jisho") downloads a YouTube video with generated subtitles into a study folder and opens it here immediately — offline playback with per-line replay and tap-word dictionary. The "YouTube offline" player source lists the whole study library with resume positions.
+
+---
+
+## 🏝️ 言語島 islands from 自由作業盤
+「辞書で学ぶ」in [白い熊 自由作業盤](https://github.com/ShiroiKuma0/shiroikuma-jiyusagyoban)'s 言語島 editor hands a whole sentence island to this app: one joined audio file of every sentence in the island, voiced by 白い熊 音声, with its subtitles beside it — opened straight into the player, where each sentence is tappable for dictionary lookup and exportable to Anki. Subtitle-pause playback stops on the sentence boundary rather than a quarter-second past it, and the subtitle seek buttons step sentence by sentence, so an island is studied one sentence at a time without touching the scrub bar.
 
 ---
 
