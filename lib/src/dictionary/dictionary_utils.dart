@@ -95,6 +95,7 @@ Future<void> deleteDictionariesHelper(DeleteDictionaryParams params) async {
   database.writeTxnSync(() {
     database.dictionaryTags.clearSync();
     database.dictionaryEntrys.clearSync();
+    database.dictionaryGloss.clearSync();
     database.dictionaryPitchs.clearSync();
     database.dictionaryFrequencys.clearSync();
     database.dictionarys.clearSync();
@@ -124,6 +125,10 @@ Future<void> deleteDictionaryHelper(DeleteDictionaryParams params) async {
         .where()
         .dictionaryIdEqualTo(id)
         .deleteAllSync();
+    database.dictionaryGloss
+        .where()
+        .dictionaryIdEqualTo(id)
+        .deleteAllSync();
     database.dictionaryPitchs
         .where()
         .dictionaryIdEqualTo(id)
@@ -134,4 +139,113 @@ Future<void> deleteDictionaryHelper(DeleteDictionaryParams params) async {
         .deleteAllSync();
     database.dictionarys.deleteSync(dictionary.id);
   });
+}
+
+/// Entries decoded and indexed per write transaction while building the
+/// English gloss index.
+const int _kGlossBatch = 2000;
+
+/// Entries sampled before deciding a dictionary has no Latin glosses.
+const int _kGlossSample = 500;
+
+/// Top-level helper invoked through `compute()`: build [DictionaryGloss]
+/// rows for every dictionary that has no current marker row. Returns the
+/// number of dictionaries indexed.
+///
+/// Dictionaries whose first [_kGlossSample] entries have no Latin glosses
+/// (monolingual Japanese, kanji, frequency and pitch dictionaries) are
+/// marked without a full scan. The rest are decoded in batches; Jitendex
+/// takes a minute or so on a phone, once. Runs beside the UI isolate, which
+/// keeps searching normally meanwhile, just without English results for
+/// the dictionary being indexed.
+Future<int> buildGlossIndexHelper(IsolateParams params) async {
+  final Isar isar = Isar.getInstance() ??
+      await Isar.open(
+        globalSchemas,
+        directory: params.directoryPath,
+        maxSizeMiB: 8192,
+      );
+
+  int indexed = 0;
+  for (final Dictionary dictionary in isar.dictionarys.where().findAllSync()) {
+    final markers = isar.dictionaryGloss
+        .where()
+        .entryIdEqualTo(DictionaryGloss.markerEntryId)
+        .filter()
+        .dictionaryIdEqualTo(dictionary.id)
+        .findAllSync();
+    if (markers.any((m) => m.glosses.contains(DictionaryGloss.indexVersion))) {
+      continue;
+    }
+
+    // Start from nothing: a stale index (older version, or a build that was
+    // interrupted) is dropped rather than patched.
+    isar.writeTxnSync(() {
+      isar.dictionaryGloss
+          .where()
+          .dictionaryIdEqualTo(dictionary.id)
+          .deleteAllSync();
+    });
+
+    final List<int> entryIds = isar.dictionaryEntrys
+        .where()
+        .dictionaryIdEqualTo(dictionary.id)
+        .idProperty()
+        .findAllSync();
+
+    bool anyGloss = false;
+    for (int start = 0; start < entryIds.length; start += _kGlossBatch) {
+      if (start >= _kGlossSample && !anyGloss) break;
+
+      final int end = (start + _kGlossBatch).clamp(0, entryIds.length);
+      final entries = isar.dictionaryEntrys
+          .getAllSync(entryIds.sublist(start, end))
+          .whereType<DictionaryEntry>();
+
+      final rows = <DictionaryGloss>[];
+      for (final DictionaryEntry entry in entries) {
+        List<String> definitions;
+        try {
+          definitions =
+              await DefinitionCodec.decode(entry.compressedDefinitions);
+        } catch (_) {
+          continue;
+        }
+        final row = DictionaryGloss.forEntry(
+          entryId: entry.id!,
+          dictionaryId: dictionary.id,
+          definitions: definitions,
+        );
+        if (row != null) rows.add(row);
+      }
+
+      if (rows.isNotEmpty) {
+        anyGloss = true;
+        isar.writeTxnSync(() => isar.dictionaryGloss.putAllSync(rows));
+      }
+    }
+
+    // The dictionary may have been deleted while it was being indexed.
+    if (isar.dictionarys.getSync(dictionary.id) == null) {
+      isar.writeTxnSync(() {
+        isar.dictionaryGloss
+            .where()
+            .dictionaryIdEqualTo(dictionary.id)
+            .deleteAllSync();
+      });
+      continue;
+    }
+
+    isar.writeTxnSync(() {
+      isar.dictionaryGloss.putSync(DictionaryGloss(
+        entryId: DictionaryGloss.markerEntryId,
+        dictionaryId: dictionary.id,
+        words: const [],
+        glosses: const [DictionaryGloss.indexVersion],
+      ));
+    });
+    indexed++;
+  }
+
+  return indexed;
 }

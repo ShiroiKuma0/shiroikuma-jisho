@@ -306,6 +306,231 @@ class JapaneseLanguage extends Language {
 ///      [SearchResultBuilder.buildFromOrderedGroups].
 Future<SearchResultData?> prepareSearchResultsJapaneseLanguage(
     DictionarySearchParams params) async {
+  final String query = params.searchTerm.trim();
+  if (!_latinQuery.hasMatch(query)) {
+    return _prepareSearchResultsJapaneseTerms(params);
+  }
+
+  // A Latin query is either romaji or English, and often could be both
+  // ("sake", "mine"). Search it both ways. Whichever reading matches the
+  // whole query goes first; the other keeps at least half the slots.
+  const kanaKit = KanaKit();
+  final String kana = kanaKit.toHiragana(query.toLowerCase());
+  final bool isRomaji = kana.isNotEmpty && kanaKit.isKana(kana);
+
+  final SearchResultData? japanese =
+      isRomaji ? await _prepareSearchResultsJapaneseTerms(params) : null;
+
+  final database = Isar.getInstance() ??
+      await Isar.open(
+        globalSchemas,
+        directory: params.directoryPath,
+        maxSizeMiB: 8192,
+      );
+  final SearchResultData? english = searchJapaneseByEnglishGloss(
+    database: database,
+    query: query,
+    maxGroups: params.maximumDictionaryTermsInResult,
+    enabledDictionaryIds: params.enabledDictionaryIds,
+  );
+
+  if (japanese == null) return english;
+  if (english == null) return japanese;
+
+  final bool romajiMatchesWhole = japanese.bestLength >= kana.length;
+  return _mergeSearchResults(
+    first: romajiMatchesWhole ? japanese : english,
+    second: romajiMatchesWhole ? english : japanese,
+    maxGroups: params.maximumDictionaryTermsInResult,
+  );
+}
+
+/// Letters, spaces, apostrophes and hyphens only — a query that could be
+/// English or romaji. Wildcard queries never match, so they keep their
+/// own path.
+final RegExp _latinQuery = RegExp(r"^[A-Za-z][A-Za-z' \-]*$");
+
+/// Concatenate two results without repeating a headword. [second] keeps up
+/// to half of [maxGroups] when it has that many, so a full first list
+/// cannot push it out entirely.
+SearchResultData _mergeSearchResults({
+  required SearchResultData first,
+  required SearchResultData second,
+  required int maxGroups,
+}) {
+  final int reserved =
+      second.groups.length < maxGroups ~/ 2 ? second.groups.length : maxGroups ~/ 2;
+  final seen = <String>{};
+  final groups = <EntryGroup>[];
+
+  for (final g in first.groups) {
+    if (groups.length >= maxGroups - reserved) break;
+    if (seen.add('${g.term}\u0001${g.reading}')) groups.add(g);
+  }
+  for (final g in second.groups) {
+    if (groups.length >= maxGroups) break;
+    if (seen.add('${g.term}\u0001${g.reading}')) groups.add(g);
+  }
+
+  return SearchResultData(
+    searchTerm: first.searchTerm,
+    bestLength: first.bestLength > second.bestLength
+        ? first.bestLength
+        : second.bestLength,
+    groups: groups,
+  );
+}
+
+/// English → Japanese: find headwords whose English glosses contain every
+/// word of [query], best matches first.
+///
+/// Candidates come from the [DictionaryGloss] word index (probed with the
+/// longest query word, the likeliest to be rare). Each candidate entry is
+/// scored by its best gloss:
+///   tier 0 — the gloss is the query ("eat" for "to eat")
+///   tier 1 — the gloss starts with the query ("eat up", "give up smoking")
+///   tier 2 — the gloss contains every query word
+/// then by how early that sense comes, then by frequency rank, then by the
+/// dictionary's own popularity score. Only [enabledDictionaryIds] are
+/// searched, so dictionaries hidden for Japanese never answer.
+SearchResultData? searchJapaneseByEnglishGloss({
+  required Isar database,
+  required String query,
+  required int maxGroups,
+  required List<int> enabledDictionaryIds,
+}) {
+  final String normalised = DictionaryGloss.normalise(query);
+  final List<String> words = DictionaryGloss.tokens(normalised);
+  if (words.isEmpty) return null;
+
+  final String probe =
+      words.reduce((a, b) => b.length > a.length ? b : a);
+  final Set<int> enabled = enabledDictionaryIds.toSet();
+
+  final rows = database.dictionaryGloss
+      .where()
+      .wordsElementEqualTo(probe)
+      .limit(5000)
+      .findAllSync();
+
+  // entryId → (tier, sense bucket)
+  final scores = <int, (int, int)>{};
+  for (final DictionaryGloss row in rows) {
+    if (enabled.isNotEmpty && !enabled.contains(row.dictionaryId)) continue;
+    if (!words.every(row.words.contains)) continue;
+
+    (int, int)? best;
+    for (final String stored in row.glosses) {
+      final int tab = stored.indexOf('\t');
+      final int sense = int.tryParse(stored.substring(0, tab)) ?? 99;
+      final String text = stored.substring(tab + 1);
+
+      int tier;
+      if (text == normalised) {
+        tier = 0;
+      } else if (text.startsWith('$normalised ')) {
+        tier = 1;
+      } else if (words.every(DictionaryGloss.tokens(text).contains)) {
+        tier = 2;
+      } else {
+        continue;
+      }
+      final int senseBucket = sense == 0 ? 0 : (sense <= 2 ? 1 : 2);
+      final (int, int) score = (tier, senseBucket);
+      if (best == null ||
+          score.$1 < best.$1 ||
+          (score.$1 == best.$1 && score.$2 < best.$2)) {
+        best = score;
+      }
+    }
+    if (best == null) continue;
+
+    final previous = scores[row.entryId];
+    if (previous == null ||
+        best.$1 < previous.$1 ||
+        (best.$1 == previous.$1 && best.$2 < previous.$2)) {
+      scores[row.entryId] = best;
+    }
+  }
+  if (scores.isEmpty) return null;
+
+  int compareScore((int, int) a, (int, int) b) =>
+      a.$1 != b.$1 ? a.$1.compareTo(b.$1) : a.$2.compareTo(b.$2);
+
+  // Walk the candidates best-first until there are enough headwords to
+  // rank; only those get the frequency lookup.
+  final shortlist = scores.keys.toList()
+    ..sort((a, b) => compareScore(scores[a]!, scores[b]!));
+  final int wantedGroups = maxGroups * 4;
+  final groupScore = <String, (int, int)>{};
+  final groupEntries = <String, List<DictionaryEntry>>{};
+  const int chunk = 100;
+  for (int start = 0;
+      start < shortlist.length && groupEntries.length < wantedGroups;
+      start += chunk) {
+    final ids = shortlist.sublist(
+        start, (start + chunk).clamp(0, shortlist.length));
+    for (final DictionaryEntry entry in database.dictionaryEntrys
+        .getAllSync(ids)
+        .whereType<DictionaryEntry>()) {
+      final key = '${entry.term}\u0001${entry.reading}';
+      if (!groupEntries.containsKey(key) &&
+          groupEntries.length >= wantedGroups) {
+        continue;
+      }
+      groupEntries.putIfAbsent(key, () => []).add(entry);
+      final s = scores[entry.id]!;
+      final previous = groupScore[key];
+      if (previous == null || compareScore(s, previous) < 0) {
+        groupScore[key] = s;
+      }
+    }
+  }
+
+  // One batched query for every headword's frequency rows.
+  final terms = groupEntries.values.map((e) => e.first.term).toSet().toList();
+  final frequencyRows = database.dictionaryFrequencys
+      .where()
+      .anyOf<String, String>(terms, (q, term) => q.termEqualTo(term))
+      .findAllSync();
+  final frequencies = <String, double>{};
+  for (final key in groupEntries.keys) {
+    final e = groupEntries[key]!.first;
+    double best = double.infinity;
+    for (final f in frequencyRows) {
+      if (f.term == e.term &&
+          (f.reading == e.reading || f.reading.isEmpty) &&
+          f.value < best) {
+        best = f.value;
+      }
+    }
+    frequencies[key] = best;
+  }
+  double popularity(String key) =>
+      groupEntries[key]!.fold<double>(0, (sum, e) => sum + e.popularity);
+
+  final keys = groupEntries.keys.toList()
+    ..sort((a, b) {
+      final cmp = compareScore(groupScore[a]!, groupScore[b]!);
+      if (cmp != 0) return cmp;
+      final fa = frequencies[a]!;
+      final fb = frequencies[b]!;
+      if (fa != fb) return fa.compareTo(fb);
+      return popularity(b).compareTo(popularity(a));
+    });
+
+  final builder = SearchResultBuilder(searchTerm: query, maxGroups: maxGroups);
+  for (final key in keys) {
+    builder.addEntries(groupEntries[key]!);
+  }
+  builder.recordMatchLength(query.length);
+  return builder.buildFromOrderedGroups(database, builder.rawGroups());
+}
+
+/// The Japanese-term search proper: romaji is converted to kana, then
+/// exact, deinflected, wildcard and prefix matches are collected.
+Future<SearchResultData?> _prepareSearchResultsJapaneseTerms(
+    DictionarySearchParams params) async {
   const kanaKit = KanaKit();
 
   String searchTerm = params.searchTerm.trim();

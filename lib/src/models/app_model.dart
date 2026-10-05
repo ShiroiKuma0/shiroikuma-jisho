@@ -47,6 +47,7 @@ import 'package:shiroikumanojisho/src/models/search_worker.dart';
 final List<CollectionSchema> globalSchemas = [
   DictionarySchema,
   DictionaryEntrySchema,
+  DictionaryGlossSchema,
   DictionaryPitchSchema,
   DictionaryFrequencySchema,
   DictionaryTagSchema,
@@ -1795,6 +1796,12 @@ class AppModel with ChangeNotifier {
       }
     }
 
+    /// Index the English glosses of any dictionary not yet indexed —
+    /// dictionaries imported before English search existed, and all of
+    /// them after a restore (the index is not in the backup). Runs in the
+    /// background; the app is usable meanwhile.
+    unawaited(refreshGlossIndex());
+
     /// Preload the in-memory term-index in memory on startup if the
     /// user has opted into that (default is `onBookOpen`, in which
     /// case this is skipped and the reader page kicks off the
@@ -2138,6 +2145,7 @@ class AppModel with ChangeNotifier {
 
       progressNotifier.value = t.import_complete;
       onImportSuccess();
+      unawaited(refreshGlossIndex());
       await Future.delayed(const Duration(seconds: 1), () {});
       return true;
     } catch (e) {
@@ -2148,6 +2156,46 @@ class AppModel with ChangeNotifier {
       return false;
     } finally {
       receivePort.close();
+    }
+  }
+
+  bool _glossIndexRunning = false;
+  bool _glossIndexAgain = false;
+
+  /// Build the English gloss index for every dictionary that lacks one, in
+  /// a background isolate. A call while a build is running schedules one
+  /// more pass instead of a second concurrent build, so several imports in
+  /// a row are all picked up.
+  Future<void> refreshGlossIndex() async {
+    if (_glossIndexRunning) {
+      _glossIndexAgain = true;
+      return;
+    }
+    _glossIndexRunning = true;
+    try {
+      do {
+        _glossIndexAgain = false;
+        final ReceivePort port = ReceivePort();
+        try {
+          final int indexed = await compute(
+            buildGlossIndexHelper,
+            IsolateParams(
+              sendPort: port.sendPort,
+              directoryPath: _databaseDirectory.path,
+            ),
+          );
+          if (indexed > 0) {
+            // Cached results for Latin queries predate the new index.
+            clearDictionaryResultsCache();
+          }
+        } catch (e) {
+          debugPrint('Gloss index build failed: $e');
+        } finally {
+          port.close();
+        }
+      } while (_glossIndexAgain);
+    } finally {
+      _glossIndexRunning = false;
     }
   }
 

@@ -8,6 +8,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Added
 
+- **Search in English to find Japanese words.** Typing “eat” now finds
+  食べる, 食う and 口にする; “give up” finds 諦める; “thank you” finds
+  ありがとう. Matches are ranked by how closely a meaning fits (the whole
+  meaning first, then meanings that start with your words, then ones that
+  merely contain them), then by how early that meaning is listed, then by
+  word frequency. A query that also reads as romaji is searched both ways:
+  “sake” shows 酒 by its reading and by its meaning, with whichever matches
+  the whole query first. Works with any dictionary that has English
+  meanings, such as Jitendex or JMdict; the first launch after updating
+  indexes the ones already installed in the background (about half a
+  minute for Jitendex), and new imports are indexed as they finish.
+
 - **Download dictionaries from inside the app.** The dictionary menu has a
   new “Download dictionaries” button, and a fresh install offers the same
   list right after first-time setup. Tick what you want and the app fetches
