@@ -58,6 +58,22 @@ sealed class StructuredContent with StructuredContentMappable {
   dom.Node toNode();
 }
 
+/// Styles that hide the renderer's marker on items flagged by
+/// [StructuredContentStyledContainer.toNode]: items whose marker is
+/// already in their text, and the items of a list styled `none`.
+Map<String, Style> get listMarkerStyles => {
+      'li[data-no-marker]': Style(marker: Marker(content: Content.none)),
+      '[data-no-markers] > li': Style(marker: Marker(content: Content.none)),
+    };
+
+/// A structured-content `data` map as HTML attributes. Yomitan renders
+/// `data: {content: "glossary"}` as `data-sc-content="glossary"`, and
+/// dictionary stylesheets (Jitendex's styles.css) select on exactly that.
+Map<String, String> dataAttributes(Map<String, String>? data) => {
+      if (data != null)
+        for (final e in data.entries) 'data-sc-${e.key}': e.value,
+    };
+
 /// Represents a text node.
 @MappableClass(
   discriminatorValue: StructuredContentTextNode.checkType,
@@ -93,12 +109,17 @@ class StructuredContentChildContent extends StructuredContent
 
   @override
   dom.Node toNode() {
-    final node = dom.Element.tag('div');
+    // A fragment, not a wrapping <div>: appending it puts the children
+    // straight into the parent. A <div> broke every container whose
+    // content is a list — <ruby><div>彼<rt>かの</rt></div></ruby> lost
+    // its kanji, <ul><div><li> added a stray bullet level, and a span
+    // with mixed content broke onto new lines.
+    final fragment = dom.DocumentFragment();
     for (final child in children) {
-      node.nodes.add(child.toNode());
+      fragment.append(child.toNode());
     }
 
-    return node;
+    return fragment;
   }
 
   /// Discriminator logic.
@@ -307,7 +328,7 @@ class StructuredContentContainer extends StructuredContent
     final containerNode = dom.Element.tag(tag);
 
     containerNode.attributes.addAll({
-      ...?data,
+      ...dataAttributes(data),
       'lang': ?lang,
     });
 
@@ -362,14 +383,50 @@ class StructuredContentStyledContainer extends StructuredContent
   dom.Node toNode() {
     final containerNode = dom.Element.tag(tag);
 
+    // A quoted list-style-type ("①") is a literal marker and "none" no
+    // marker; the renderer can draw neither from a style attribute. The
+    // item carries the marker as text instead and is flagged so the
+    // stylesheet suppresses the renderer's own (see [listMarkerStyles]).
+    final String? marker = style?.literalMarker;
+    final bool hideMarker = tag == 'li' &&
+        (marker != null || style?.listStyleType == 'none');
+    final bool isList = tag == 'ul' || tag == 'ol';
+    final bool hideChildMarkers = isList &&
+        (marker != null || style?.listStyleType == 'none');
+
     containerNode.attributes.addAll({
-      ...?data,
+      ...dataAttributes(data),
       'lang': ?lang,
-      if (style != null) 'style': style!.toInlineStyle()
+      if (style != null) 'style': style!.toInlineStyle(),
+      if (hideMarker) 'data-no-marker': '',
+      if (hideChildMarkers) 'data-no-markers': '',
     });
+
+    if (tag == 'li' && marker != null) {
+      containerNode.append(dom.Text('$marker '));
+    }
 
     if (content != null) {
       containerNode.append(content!.toNode());
+    }
+
+    // A list styled with a literal marker (JMdict's "📝 " notes) puts it
+    // in front of each of its items.
+    if (isList && marker != null) {
+      for (final item in containerNode.children) {
+        if (item.localName == 'li') {
+          item.nodes.insert(0, dom.Text('$marker '));
+        }
+      }
+    }
+
+    // Tag badges (part of speech, usage) have a right margin in the
+    // dictionary's stylesheet, which the renderer ignores on inline
+    // elements; without a space "derogatory" and "kana" run together.
+    if (tag == 'span' && data?['class'] == 'tag') {
+      return dom.DocumentFragment()
+        ..append(containerNode)
+        ..append(dom.Text(' '));
     }
 
     return containerNode;
@@ -425,7 +482,7 @@ class StructuredContentTableElement extends StructuredContent
     final node = dom.Element.tag(tag);
 
     node.attributes.addAll({
-      ...?data,
+      ...dataAttributes(data),
       'lang': ?lang,
       if (style != null) 'style': style!.toInlineStyle(),
       if (colSpan != null) 'colspan': colSpan!.toString(),
@@ -517,26 +574,39 @@ class StructuredContentStyle with StructuredContentStyleMappable {
   /// Equivalent to 'list-style-type'.
   final String listStyleType;
 
-  /// Convert this into a usable data map.
+  /// The marker text when [listStyleType] is a quoted string such as
+  /// `"①"`, as Jitendex numbers its senses; null otherwise.
+  String? get literalMarker {
+    final match = RegExp(r'''^\s*["'](.*)["']\s*$''').firstMatch(listStyleType);
+    return match?.group(1);
+  }
+
+  /// Convert this into an inline `style` attribute.
+  ///
+  /// Only properties the dictionary actually set are written. Writing every
+  /// default (font-size: medium, margins of 0, list-style-type) made each
+  /// element override the dictionary's own stylesheet, and turned every
+  /// list's bullet into a square.
   String toInlineStyle() {
-    final attributes = {
-      'font-style': fontStyle,
-      'font-weight': fontWeight,
-      'font-size': fontSize,
-      'text-decoration-line': textDecorationLine.join(' '),
-      'vertical-align': verticalAlign,
-      'text-align': textAlign,
-      'margin-top': marginTop.toString(),
-      'margin-left': marginLeft.toString(),
-      'margin-right': marginRight.toString(),
-      'margin-bottom': marginBottom.toString(),
-      'list-style-type': listStyleType == 'disc' ||
-              (!validListStyleTypes.contains(listStyleType))
-          ? 'square'
-          : listStyleType
+    final attributes = <String, String>{
+      if (fontStyle != 'normal') 'font-style': fontStyle,
+      if (fontWeight != 'normal') 'font-weight': fontWeight,
+      if (fontSize != 'medium') 'font-size': fontSize,
+      if (textDecorationLine.isNotEmpty)
+        'text-decoration-line': textDecorationLine.join(' '),
+      if (verticalAlign != 'baseline') 'vertical-align': verticalAlign,
+      if (textAlign != 'start') 'text-align': textAlign,
+      if (marginTop != 0) 'margin-top': '${marginTop}em',
+      if (marginLeft != 0) 'margin-left': '${marginLeft}em',
+      if (marginRight != 0) 'margin-right': '${marginRight}em',
+      if (marginBottom != 0) 'margin-bottom': '${marginBottom}em',
+      if (literalMarker == null &&
+          listStyleType != 'disc' &&
+          listStyleType != 'none' &&
+          validListStyleTypes.contains(listStyleType))
+        'list-style-type': listStyleType,
     };
 
-    final style = attributes.entries.map((e) => '${e.key}:${e.value};').join();
-    return style;
+    return attributes.entries.map((e) => '${e.key}:${e.value};').join();
   }
 }

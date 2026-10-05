@@ -59,6 +59,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Fixed
 
+- **Jitendex, JMdict and other Yomitan dictionaries look the way they are
+  meant to.** Definitions came out as several nested bulleted lists with
+  stray “•” and “▪” markers, tags such as “derogatory” and “kana” ran
+  together, and the kanji of example sentences were missing (“はえるをがる”
+  instead of 彼女は吠える犬を怖がる with its readings). The dictionary's own
+  stylesheet is now applied — Jitendex shows ＊ part-of-speech groups,
+  ①② numbered senses, unbulleted glosses and coloured tag badges —
+  example sentences show their kanji with furigana, and JMdict keeps its ◦
+  bullets, 📝 notes and ➡ cross-references.
+
 - **The Dictionary tab's lookup history survives a restart.** It was kept
   only in memory, so every launch showed “History is empty” while the
   search box still offered the earlier searches. The looked-up words are

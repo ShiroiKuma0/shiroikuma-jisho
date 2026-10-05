@@ -28,6 +28,9 @@ final dictionaryEntryHtmlProvider =
 
           final document = dom.Document.html('');
           document.body?.append(node);
+          if (document.body != null) {
+            blockifyListItems(document.body!);
+          }
           final html = document.body?.innerHtml ?? '';
 
           return html;
@@ -39,6 +42,50 @@ final dictionaryEntryHtmlProvider =
       .join('<br>');
 });
 
+const Set<String> _blockTags = {
+  'div', 'ul', 'ol', 'li', 'table', 'p', 'br', 'h1', 'h2', 'h3', 'h4', //
+  'h5', 'h6', 'blockquote', 'pre', 'details', 'summary',
+};
+
+/// Wrap each run of inline content in a list item that also holds block
+/// content in a `<div>` of its own.
+///
+/// The renderer lays a list item's inline content out after its blocks:
+/// Jitendex's `<li>② <span>derogatory</span><ul>glosses</ul></li>` drew
+/// the number and the badge under the glosses, and the "noun" badge of a
+/// sense group under all of its senses. As a block of its own each run
+/// stays where it was written.
+@visibleForTesting
+void blockifyListItems(dom.Element root) {
+  for (final li in root.querySelectorAll('li')) {
+    final nodes = List<dom.Node>.from(li.nodes);
+    final hasBlock = nodes.any((n) =>
+        n is dom.Element && _blockTags.contains(n.localName?.toLowerCase()));
+    if (!hasBlock) continue;
+
+    final rebuilt = <dom.Node>[];
+    dom.Element? run;
+    for (final n in nodes) {
+      final isBlock = n is dom.Element &&
+          _blockTags.contains(n.localName?.toLowerCase());
+      if (isBlock) {
+        run = null;
+        rebuilt.add(n);
+      } else {
+        if (n is dom.Text && n.data.trim().isEmpty && run == null) continue;
+        if (run == null) {
+          run = dom.Element.tag('div');
+          rebuilt.add(run);
+        }
+        run.append(n);
+      }
+    }
+    li.nodes
+      ..clear()
+      ..addAll(rebuilt);
+  }
+}
+
 /// Get the [Directory] used as a resource directory for a certain [Dictionary].
 final dictionaryResourceDirectoryProvider =
     Provider.family<Directory, int>((ref, dictionaryId) {
@@ -46,6 +93,21 @@ final dictionaryResourceDirectoryProvider =
 
   return Directory(
       path.join(appModel.dictionaryResourceDirectory.path, '$dictionaryId'));
+});
+
+/// The dictionary's own `styles.css`, converted for the renderer (see
+/// [parseDictionaryStylesheet]); empty when it ships none. Read once per
+/// dictionary — the file sits in its resource directory from the import.
+final dictionaryStylesheetProvider =
+    Provider.family<Map<String, Style>, int>((ref, dictionaryId) {
+  final directory = ref.watch(dictionaryResourceDirectoryProvider(dictionaryId));
+  final file = File(path.join(directory.path, 'styles.css'));
+  try {
+    if (!file.existsSync()) return const {};
+    return parseDictionaryStylesheet(file.readAsStringSync());
+  } catch (_) {
+    return const {};
+  }
 });
 
 /// Provides the same HTML as [dictionaryEntryHtmlProvider] but with every
@@ -107,9 +169,13 @@ void _walkAndInject(dom.Node node, Language language) {
       // Skip descendants of anchors (preserve existing cross-reference
       // behaviour), script/style (no visible text), and <scanword>
       // itself (keeps the walk idempotent).
+      // Ruby too: its renderer draws the base text above which the
+      // reading sits only when that base is plain text, and a <scanword>
+      // in its place made the kanji vanish.
       if (tag == 'a' ||
           tag == 'script' ||
           tag == 'style' ||
+          tag == 'ruby' ||
           tag == 'scanword') {
         continue;
       }
@@ -267,13 +333,25 @@ class DictionaryHtmlWidget extends ConsumerWidget {
         ),
         'td': tableStyle,
         'th': tableStyle,
+        // Room for the markers, which are drawn outside the item; with
+        // no padding JMdict's bullets fell off the left edge. A
+        // dictionary stylesheet that hides markers also sets its own.
         'ul': Style(
-          padding: HtmlPaddings.zero,
+          padding: HtmlPaddings.only(inlineStart: 1.2, unit: Unit.em),
         ),
+        'ol': Style(
+          padding: HtmlPaddings.only(inlineStart: 1.2, unit: Unit.em),
+        ),
+        '[data-no-markers]': Style(padding: HtmlPaddings.zero),
         'li': Style(
           padding: HtmlPaddings.zero,
         ),
         'a': Style(color: linkColor),
+        ...listMarkerStyles,
+        // The dictionary's own stylesheet last, so it wins over the
+        // defaults above where it says something.
+        ...ref.watch(
+            dictionaryStylesheetProvider(entry.dictionary.value!.id)),
       },
       extensions: [
         const TableHtmlExtension(),
