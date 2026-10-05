@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/foundation.dart';
 import 'package:isar_community/isar.dart';
 import 'package:shiroikumanojisho/dictionary.dart';
@@ -166,7 +168,37 @@ Future<int> buildGlossIndexHelper(IsolateParams params) async {
         maxSizeMiB: 8192,
       );
 
+  // Dart prints never reach logcat on the GRL-LX9, so the indexer keeps
+  // its own log beside the backup/restore logs. Appends are flushed so a
+  // killed run still leaves what it got through.
+  File? log;
+  try {
+    final Directory dir = Directory('/storage/emulated/0/tmp');
+    if (dir.existsSync()) {
+      final String stamp = DateTime.now()
+          .toIso8601String()
+          .replaceAll(':', '-')
+          .replaceAll('T', '_')
+          .split('.')
+          .first;
+      log = File('${dir.path}/shiroikuma-jisho-gloss-index_$stamp.log');
+    }
+  } catch (_) {
+    log = null;
+  }
+  void note(String line) {
+    try {
+      log?.writeAsStringSync(
+        '${DateTime.now().toIso8601String()} $line\n',
+        mode: FileMode.append,
+        flush: true,
+      );
+    } catch (_) {}
+  }
+
+  final Stopwatch clock = Stopwatch()..start();
   int indexed = 0;
+  bool loggedAnything = false;
   for (final Dictionary dictionary in isar.dictionarys.where().findAllSync()) {
     final markers = isar.dictionaryGloss
         .where()
@@ -186,6 +218,12 @@ Future<int> buildGlossIndexHelper(IsolateParams params) async {
           .dictionaryIdEqualTo(dictionary.id)
           .deleteAllSync();
     });
+
+    if (!loggedAnything) {
+      loggedAnything = true;
+      note('start: index version ${DictionaryGloss.indexVersion}');
+    }
+    final int startedAt = clock.elapsedMilliseconds;
 
     final List<int> entryIds = isar.dictionaryEntrys
         .where()
@@ -223,7 +261,17 @@ Future<int> buildGlossIndexHelper(IsolateParams params) async {
         anyGloss = true;
         isar.writeTxnSync(() => isar.dictionaryGloss.putAllSync(rows));
       }
+      if (anyGloss) {
+        params.send(['progress', dictionary.name, end, entryIds.length]);
+      }
     }
+
+    final int rowCount = isar.dictionaryGloss
+        .where()
+        .dictionaryIdEqualTo(dictionary.id)
+        .countSync();
+    note('${dictionary.name}: ${entryIds.length} entries, $rowCount gloss '
+        'rows, ${clock.elapsedMilliseconds - startedAt} ms');
 
     // The dictionary may have been deleted while it was being indexed.
     if (isar.dictionarys.getSync(dictionary.id) == null) {
@@ -247,5 +295,8 @@ Future<int> buildGlossIndexHelper(IsolateParams params) async {
     indexed++;
   }
 
+  if (loggedAnything) {
+    note('done: $indexed dictionaries in ${clock.elapsedMilliseconds} ms');
+  }
   return indexed;
 }

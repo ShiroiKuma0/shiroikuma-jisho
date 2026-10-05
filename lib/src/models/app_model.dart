@@ -2162,6 +2162,10 @@ class AppModel with ChangeNotifier {
   bool _glossIndexRunning = false;
   bool _glossIndexAgain = false;
 
+  /// What the English gloss indexer is doing, for the no-results message;
+  /// null when it is idle.
+  final ValueNotifier<String?> glossIndexStatus = ValueNotifier<String?>(null);
+
   /// Build the English gloss index for every dictionary that lacks one, in
   /// a background isolate. A call while a build is running schedules one
   /// more pass instead of a second concurrent build, so several imports in
@@ -2176,6 +2180,24 @@ class AppModel with ChangeNotifier {
       do {
         _glossIndexAgain = false;
         final ReceivePort port = ReceivePort();
+        bool announced = false;
+        port.listen((message) {
+          // ['progress', dictionary name, entries done, entries total]
+          if (message is List && message.length == 4) {
+            glossIndexStatus.value = t.gloss_index_progress(
+              name: message[1],
+              done: intl.NumberFormat.decimalPattern().format(message[2]),
+              total: intl.NumberFormat.decimalPattern().format(message[3]),
+            );
+            if (!announced) {
+              announced = true;
+              Fluttertoast.showToast(
+                msg: t.gloss_index_started,
+                toastLength: Toast.LENGTH_LONG,
+              );
+            }
+          }
+        });
         try {
           final int indexed = await compute(
             buildGlossIndexHelper,
@@ -2188,6 +2210,12 @@ class AppModel with ChangeNotifier {
             // Cached results for Latin queries predate the new index.
             clearDictionaryResultsCache();
           }
+          if (announced) {
+            Fluttertoast.showToast(
+              msg: t.gloss_index_ready,
+              toastLength: Toast.LENGTH_LONG,
+            );
+          }
         } catch (e) {
           debugPrint('Gloss index build failed: $e');
         } finally {
@@ -2196,6 +2224,7 @@ class AppModel with ChangeNotifier {
       } while (_glossIndexAgain);
     } finally {
       _glossIndexRunning = false;
+      glossIndexStatus.value = null;
     }
   }
 
@@ -2341,7 +2370,7 @@ class AppModel with ChangeNotifier {
     );
 
     await compute(deleteDictionariesHelper, params);
-    await clearDictionaryHistory();
+    await clearDictionaryHistory(forget: false);
 
     if (dictionaryResourceDirectory.existsSync()) {
       dictionaryResourceDirectory.deleteSync(recursive: true);
@@ -2364,7 +2393,8 @@ class AppModel with ChangeNotifier {
     );
 
     await compute(deleteDictionaryHelper, params);
-    await clearDictionaryHistory();
+    await clearDictionaryHistory(forget: false);
+    unawaited(restoreDictionaryHistory(force: true));
 
     final directory = Directory(
         path.join(dictionaryResourceDirectory.path, dictionary.id.toString()));
@@ -4523,13 +4553,18 @@ class AppModel with ChangeNotifier {
     }
   }
 
-  /// Clear the entire dictionary history.
-  Future<void> clearDictionaryHistory() async {
+  /// Clear the entire dictionary history. With [forget] false the saved
+  /// search terms are kept, for callers that only need the in-memory
+  /// results dropped (a dictionary was removed) and restore them after.
+  Future<void> clearDictionaryHistory({bool forget = true}) async {
     for (final notifier in _resultChangeNotifiers.values) {
       notifier.dispose();
     }
     _resultChangeNotifiers.clear();
     _dictionaryHistory.clear();
+    if (forget) {
+      _persistDictionaryHistory();
+    }
 
     dictionaryEntriesNotifier.notifyListeners();
   }
@@ -5490,6 +5525,53 @@ class AppModel with ChangeNotifier {
       }
     }
 
+    _rememberDictionaryResult(result);
+    _persistDictionaryHistory();
+  }
+
+  /// Preference key of the persisted history terms. Per language, since a
+  /// term is searched again under the language it was looked up in.
+  String get _dictionaryHistoryKey =>
+      'dictionary_history_terms_${targetLanguage.languageCode}';
+
+  /// The history itself lives in memory (results are not persisted), so
+  /// only its search terms are saved, oldest first, and
+  /// [restoreDictionaryHistory] searches them again after a restart.
+  void _persistDictionaryHistory() {
+    _preferences.put(
+      _dictionaryHistoryKey,
+      _dictionaryHistory.values.map((r) => r.searchTerm).toList(),
+    );
+  }
+
+  bool _dictionaryHistoryRestored = false;
+
+  /// Rebuild the in-memory history from the persisted search terms. Once
+  /// per launch; [force] re-runs it after dictionaries change, which
+  /// invalidates the results held in memory.
+  Future<void> restoreDictionaryHistory({bool force = false}) async {
+    if (_dictionaryHistoryRestored && !force) {
+      return;
+    }
+    _dictionaryHistoryRestored = true;
+
+    final List<String> terms = List<String>.from(
+        _preferences.get(_dictionaryHistoryKey, defaultValue: <String>[]));
+    for (final String term in terms) {
+      try {
+        final result = await searchDictionary(
+          searchTerm: term,
+          searchWithWildcards: false,
+        );
+        _rememberDictionaryResult(result);
+      } catch (e) {
+        debugPrint('Dictionary history restore failed for "$term": $e');
+      }
+    }
+    dictionaryEntriesNotifier.notifyListeners();
+  }
+
+  void _rememberDictionaryResult(DictionarySearchResult result) {
     if (result.headings.isEmpty || result.searchTerm.isEmpty) return;
     final id = result.id;
     if (id == null) return;

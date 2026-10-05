@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:change_notifier_builder/change_notifier_builder.dart';
 import 'package:flutter_colorpicker/flutter_colorpicker.dart';
 import 'package:flutter/material.dart';
@@ -99,6 +100,9 @@ class _HomePageState extends BasePageState<HomePage>
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       appModel.populateDefaultMapping(appModel.targetLanguage);
       appModel.populateBookmarks();
+      // The lookup history is held in memory; bring back the last
+      // session's from its saved search terms.
+      unawaited(appModel.restoreDictionaryHistory());
       if (appModel.isFirstTimeSetup) {
         await appModel.showLanguageMenu();
         appModel.setLastSelectedDictionaryFormat(

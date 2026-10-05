@@ -24,7 +24,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   the whole query first. Works with any dictionary that has English
   meanings, such as Jitendex or JMdict; the first launch after updating
   indexes the ones already installed in the background (about half a
-  minute for Jitendex), and new imports are indexed as they finish.
+  minute for Jitendex), and new imports are indexed as they finish. A
+  toast says when that starts and when English search is ready, and an
+  English search made meanwhile says the index is still being built, with
+  its progress, instead of a bare “no results”.
 
 - **Download dictionaries from inside the app.** The dictionary menu has a
   new “Download dictionaries” button, and a fresh install offers the same
@@ -56,6 +59,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   `shiroikumanojisho_` names still import.
 
 ### Fixed
+
+- **The Dictionary tab's lookup history survives a restart.** It was kept
+  only in memory, so every launch showed “History is empty” while the
+  search box still offered the earlier searches. The looked-up words are
+  now saved and searched again at startup; removing a dictionary refreshes
+  them instead of emptying the history.
 
 - **The Stash no longer forgets words.** It was stored with the search
   histories and trimmed like them, so once it held more than 60 words,
