@@ -1,9 +1,9 @@
 ---
 name: upstream-new-version
-description: Bring shiroikumanojisho onto a NEW upstream jidoujisho release (arianneorpilla/jidoujisho) and rebuild. Checks upstream for a new version, ALWAYS presents a proceed-gated tabular description of the features the new upstream version introduces BEFORE any merging/rebasing, then — only after 白い熊 says proceed — creates an integration branch, absorbs the upstream release into it (merge, not rebase; the fork's global rename makes a literal rebase impossible), reconciles conflicts so every fork patch survives, regenerates codegen, verifies the customization layer, and builds the new +NNN. Use when 白い熊 runs /upstream-new-version, says a new jidoujisho/upstream version is out, or asks to update/sync/bump the fork to upstream, absorb the new upstream release, rebase onto upstream, or rebase-and-rebuild the fork. For porting one or two individual upstream commits instead of a whole release, use the `upstream-sync` skill.
+description: Bring shiroikuma-jisho onto a NEW upstream jidoujisho release (arianneorpilla/jidoujisho) and rebuild. Checks upstream for a new version, ALWAYS presents a proceed-gated tabular description of the features the new upstream version introduces BEFORE any merging/rebasing, then — only after 白い熊 says proceed — creates an integration branch, absorbs the upstream release into it (merge, not rebase; the fork's global rename makes a literal rebase impossible), reconciles conflicts so every fork patch survives, regenerates codegen, verifies the customization layer, and builds the new +NNN. Use when 白い熊 runs /upstream-new-version, says a new jidoujisho/upstream version is out, or asks to update/sync/bump the fork to upstream, absorb the new upstream release, rebase onto upstream, or rebase-and-rebuild the fork. For porting one or two individual upstream commits instead of a whole release, use the `upstream-sync` skill.
 ---
 
-# Sync shiroikumanojisho onto a new upstream jidoujisho version
+# Sync shiroikuma-jisho onto a new upstream jidoujisho version
 
 Upstream is [arianneorpilla/jidoujisho](https://github.com/arianneorpilla/jidoujisho), tracked as the
 `upstream` remote (fetch only — never push there). This skill covers absorbing a **whole new upstream

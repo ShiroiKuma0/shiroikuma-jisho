@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.14)
-project(shiroikumanojisho LANGUAGES CXX)
+project(shiroikuma-jisho LANGUAGES CXX)
 
-set(BINARY_NAME "shiroikumanojisho")
+set(BINARY_NAME "shiroikuma-jisho")
 
 cmake_policy(SET CMP0063 NEW)
 

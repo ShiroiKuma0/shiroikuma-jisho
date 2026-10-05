@@ -24,5 +24,5 @@ jobs:
     - name: Upload APK
       uses: actions/upload-artifact@v4
       with:
-        name: shiroikumanojisho-arm64
+        name: shiroikuma-jisho-arm64
         path: build/app/outputs/flutter-apk/app-arm64-v8a-release.apk

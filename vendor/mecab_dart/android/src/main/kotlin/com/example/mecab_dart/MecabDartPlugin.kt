@@ -9,7 +9,7 @@ import io.flutter.plugin.common.MethodChannel.Result
 /**
  * MecabDartPlugin
  *
- * Vendored for shiroikumanojisho (toolchain migration): the upstream
+ * Vendored for shiroikuma-jisho (toolchain migration): the upstream
  * class carried the v1-embedding registerWith(Registrar) path, whose
  * API the Flutter engine removed. The channel only ever served the
  * template getPlatformVersion; the real MeCab binding is pure FFI.

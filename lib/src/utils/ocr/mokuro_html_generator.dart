@@ -67,7 +67,7 @@ class MokuroHtmlGenerator {
       ..write('<div id="dimOverlay"></div>')
       ..write('<div id="popupAbout" class="popup">'
           '<p>HTML overlay generated on-device by 白い熊 辞書 '
-          '(shiroikumanojisho) from a scanned PDF, in the format of '
+          '(shiroikuma-jisho) from a scanned PDF, in the format of '
           '<a href="https://github.com/kha-white/mokuro" target="_blank">'
           'mokuro</a> 0.2.5.</p>'
           '<p>Text is the result of on-device OCR and may contain '

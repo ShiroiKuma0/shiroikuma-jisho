@@ -58,7 +58,7 @@ public class PluginScriptsUtil {
           "  return txt === '' && !isActiveElementEditable;" +
           "})();";
 
-  // Vendored patch (shiroikumanojisho toolchain migration): furigana-
+  // Vendored patch (shiroikuma-jisho toolchain migration): furigana-
   // aware selection, carried over verbatim from the jidoujisho fork
   // (arianneorpilla/flutter_inappwebview @ ffd18243). Walks the
   // selection range's text nodes and EXCLUDES <rt>/<rp> (ruby

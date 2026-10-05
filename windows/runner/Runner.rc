@@ -90,12 +90,12 @@ BEGIN
         BLOCK "040904e4"
         BEGIN
             VALUE "CompanyName", "com.example" "\0"
-            VALUE "FileDescription", "shiroikumanojisho" "\0"
+            VALUE "FileDescription", "shiroikuma-jisho" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
-            VALUE "InternalName", "shiroikumanojisho" "\0"
+            VALUE "InternalName", "shiroikuma-jisho" "\0"
             VALUE "LegalCopyright", "Copyright (C) 2022 com.example. All rights reserved." "\0"
-            VALUE "OriginalFilename", "shiroikumanojisho.exe" "\0"
-            VALUE "ProductName", "shiroikumanojisho" "\0"
+            VALUE "OriginalFilename", "shiroikuma-jisho.exe" "\0"
+            VALUE "ProductName", "shiroikuma-jisho" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
         END
     END

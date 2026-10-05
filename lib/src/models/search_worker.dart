@@ -150,7 +150,7 @@ void searchWorkerEntry(SearchWorkerInit init) {
   // anything transitively triggered by loading libraries that touch
   // plugins at init — silently throws. Isar itself is FFI-only and
   // doesn't need either, but imports that reach into the
-  // shiroikumanojisho codebase may pull in code that does, and
+  // shiroikuma-jisho codebase may pull in code that does, and
   // matching compute()'s setup exactly removes a whole class of
   // "why is this broken" failure modes.
   DartPluginRegistrant.ensureInitialized();

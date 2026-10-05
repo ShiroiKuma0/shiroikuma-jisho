@@ -2,7 +2,7 @@
 
 Prepared 2026-07-24 from `TOOLCHAIN_MIGRATION_HANDOFF.md` (research July 2026, not
 re-verified here except where noted "repo-verified"). This is the working plan for
-modernising the entire build toolchain and dependency graph of shiroikumanojisho.
+modernising the entire build toolchain and dependency graph of shiroikuma-jisho.
 Implementation proceeds phase by phase with device verification between phases, the
 same cadence as the OCR project.
 

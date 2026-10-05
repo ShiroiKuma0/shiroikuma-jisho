@@ -1,6 +1,6 @@
 ---
 name: changelog
-description: How and when to update `CHANGELOG.md` for shiroikumanojisho. Use this skill any time you add or modify a user-facing feature, fix a user-visible bug, change behaviour that someone outside the codebase might notice, or are about to cut a release. Trigger words include "changelog", "release notes", "what's new", "release", "what changed", or any feature/fix PR that touches public app behaviour. Skip the skill (and the changelog) for purely internal work — refactors, test changes, build infrastructure, dependency bumps that have no user impact, documentation edits. The skill defines what counts as user-facing, the entry format, and how the changelog connects to the GitHub release notes at publish time.
+description: How and when to update `CHANGELOG.md` for shiroikuma-jisho. Use this skill any time you add or modify a user-facing feature, fix a user-visible bug, change behaviour that someone outside the codebase might notice, or are about to cut a release. Trigger words include "changelog", "release notes", "what's new", "release", "what changed", or any feature/fix PR that touches public app behaviour. Skip the skill (and the changelog) for purely internal work — refactors, test changes, build infrastructure, dependency bumps that have no user impact, documentation edits. The skill defines what counts as user-facing, the entry format, and how the changelog connects to the GitHub release notes at publish time.
 ---
 
 # Changelog
@@ -81,7 +81,7 @@ When cutting a release (see `build-and-release` skill):
 2. In `CHANGELOG.md`:
    - Rename `## [Unreleased]` to `## [X.Y.Z] - YYYY-MM-DD` with today's date.
    - Add a fresh `## [Unreleased]` at the top with `_Nothing yet._` placeholder content.
-   - Add a new link reference at the bottom: `[X.Y.Z]: https://github.com/ShiroiKuma0/shiroikumanojisho/releases/tag/X.Y.Z`.
+   - Add a new link reference at the bottom: `[X.Y.Z]: https://github.com/ShiroiKuma0/shiroikuma-jisho/releases/tag/X.Y.Z`.
    - Update the `[Unreleased]` compare link to reference the new latest tag.
 3. Commit this together with the pubspec version bump as part of the `Release X.Y.Z` commit. The release tag points at this commit.
 4. Copy the new section's content into the GitHub release description on publish. Adapt for the GitHub audience if needed (e.g. add an "Install" section pointing at the APK attachment, keep the substantive content the same).

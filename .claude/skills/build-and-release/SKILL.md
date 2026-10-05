@@ -1,11 +1,11 @@
 ---
 name: build-and-release
-description: Build, deploy, and release the shiroikumanojisho Flutter Android app. Use this skill any time you are about to run `flutter build`, `gradle`, `adb push`, `adb install`, bump a version in pubspec.yaml, generate a release commit, tag a release, or upload to GitHub releases. Also use when reasoning about why a build is failing in confusing ways (the JDK pin and Gradle-daemon hygiene rules here cover the most common cause). Trigger words include "build", "release", "deploy", "APK", "tag", "version bump", "publish", "gradle", "JDK", "Zulu", "split-per-abi". The non-obvious rules — JDK 21 + dedicated Flutter SDK checkout, archive-to-~/tmp + /after-build delivery, release filename without datetime, bare-semver tag, pubspec clean for release — are easy to get wrong from defaults and are encoded here precisely so Claude does not have to re-derive them every session.
+description: Build, deploy, and release the shiroikuma-jisho Flutter Android app. Use this skill any time you are about to run `flutter build`, `gradle`, `adb push`, `adb install`, bump a version in pubspec.yaml, generate a release commit, tag a release, or upload to GitHub releases. Also use when reasoning about why a build is failing in confusing ways (the JDK pin and Gradle-daemon hygiene rules here cover the most common cause). Trigger words include "build", "release", "deploy", "APK", "tag", "version bump", "publish", "gradle", "JDK", "Zulu", "split-per-abi". The non-obvious rules — JDK 21 + dedicated Flutter SDK checkout, archive-to-~/tmp + /after-build delivery, release filename without datetime, bare-semver tag, pubspec clean for release — are easy to get wrong from defaults and are encoded here precisely so Claude does not have to re-derive them every session.
 ---
 
 # Build and release
 
-This skill encodes the build, deploy, and release conventions for `shiroikumanojisho`. The rules are not arbitrary — each one exists because the obvious default produces a bug. Follow them precisely.
+This skill encodes the build, deploy, and release conventions for `shiroikuma-jisho`. The rules are not arbitrary — each one exists because the obvious default produces a bug. Follow them precisely.
 
 ## Toolchain pin: JDK 21 + dedicated Flutter SDK checkout
 

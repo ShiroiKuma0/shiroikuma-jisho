@@ -267,7 +267,7 @@ class FloatingSearchBar extends ImplicitlyAnimatedWidget {
   final Widget? title;
 
   /// {@template floating_search_bar.centerTitle}
-  /// LOCAL PATCH (shiroikumanojisho): centre the [title] in the space
+  /// LOCAL PATCH (shiroikuma-jisho): centre the [title] in the space
   /// between the leading actions and the actions, instead of pinning
   /// it to the start of that space.
   ///

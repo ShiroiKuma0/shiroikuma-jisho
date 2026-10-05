@@ -282,7 +282,7 @@ class AppExportImport {
       final timestamp = DateFormat(
         'yyyy-MM-dd_HH-mm-ss',
       ).format(DateTime.now());
-      final stagingName = 'shiroikumanojisho_export_staging_$timestamp';
+      final stagingName = 'shiroikuma-jisho-export-staging_$timestamp';
       final staging = Directory(path.join(stagingRoot.path, stagingName));
       if (staging.existsSync()) staging.deleteSync(recursive: true);
       staging.createSync(recursive: true);
@@ -2813,9 +2813,9 @@ class _ExLog {
       final dir = Directory('/storage/emulated/0/tmp');
       if (!dir.existsSync()) dir.createSync(recursive: true);
       final ts = DateFormat('yyyy-MM-dd_HH-mm-ss').format(DateTime.now());
-      final p = '${dir.path}/shiroikumanojisho_${kind}_$ts.log';
+      final p = '${dir.path}/shiroikuma-jisho-${kind}_$ts.log';
       final sink = File(p).openWrite();
-      sink.writeln('=== shiroikumanojisho $kind log ===');
+      sink.writeln('=== shiroikuma-jisho $kind log ===');
       sink.writeln('opened: ${DateTime.now().toIso8601String()}');
       return _ExLog._(p, sink);
     } catch (e) {
@@ -2824,9 +2824,9 @@ class _ExLog {
     try {
       if (fallback != null) {
         final ts = DateFormat('yyyy-MM-dd_HH-mm-ss').format(DateTime.now());
-        final p = '${fallback.path}/shiroikumanojisho_${kind}_$ts.log';
+        final p = '${fallback.path}/shiroikuma-jisho-${kind}_$ts.log';
         final sink = File(p).openWrite();
-        sink.writeln('=== shiroikumanojisho $kind log ===');
+        sink.writeln('=== shiroikuma-jisho $kind log ===');
         sink.writeln('opened: ${DateTime.now().toIso8601String()} '
             '(shared storage unavailable; app-private fallback)');
         return _ExLog._(p, sink);

@@ -1,8 +1,19 @@
 # Changelog
 
-All notable user-visible changes to **白い熊の辞書 (shiroikumanojisho)** are documented in this file.
+All notable user-visible changes to **白い熊の辞書 (shiroikuma-jisho)** are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [Unreleased]
+
+### Changed
+
+- **The project is now called shiroikuma-jisho everywhere.** The GitHub
+  repository moved to `ShiroiKuma0/shiroikuma-jisho` (old links redirect),
+  and the files the app writes to `/sdcard/tmp/` follow the new name:
+  backups are `shiroikuma-jisho-backup_<stamp>.zip` and diagnostic logs
+  `shiroikuma-jisho-<kind>_<stamp>.log`. Bundles exported under the old
+  `shiroikumanojisho_` names still import.
 
 ## [1.5.0+081] - 2026-10-01
 
@@ -1076,20 +1087,20 @@ Initial release after the rename and restructure from `ShiroiKuma0/jidoujisho2`.
 - App display name set to `白い熊の辞書` (Android and iOS); iOS identity also updated.
 - Version baseline reset to `1.0.0+1` post-rename.
 
-[Unreleased]: https://github.com/ShiroiKuma0/shiroikumanojisho/compare/1.5.0+025...HEAD
-[1.5.0+025]: https://github.com/ShiroiKuma0/shiroikumanojisho/releases/tag/1.5.0+025
-[1.5.0+024]: https://github.com/ShiroiKuma0/shiroikumanojisho/releases/tag/1.5.0+024
-[1.4.0+25]: https://github.com/ShiroiKuma0/shiroikumanojisho/releases/tag/1.4.0+25
-[1.4.0+6]: https://github.com/ShiroiKuma0/shiroikumanojisho/releases/tag/1.4.0+6
-[1.4.0+3]: https://github.com/ShiroiKuma0/shiroikumanojisho/releases/tag/1.4.0+3
-[1.4.0+2]: https://github.com/ShiroiKuma0/shiroikumanojisho/releases/tag/1.4.0+2
-[1.4.0]: https://github.com/ShiroiKuma0/shiroikumanojisho/releases/tag/1.4.0
-[1.3.1]: https://github.com/ShiroiKuma0/shiroikumanojisho/releases/tag/1.3.1
-[1.3.0]: https://github.com/ShiroiKuma0/shiroikumanojisho/releases/tag/1.3.0
-[1.2.0]: https://github.com/ShiroiKuma0/shiroikumanojisho/releases/tag/1.2.0
-[1.1.0]: https://github.com/ShiroiKuma0/shiroikumanojisho/releases/tag/1.1.0
-[1.0.4]: https://github.com/ShiroiKuma0/shiroikumanojisho/releases/tag/1.0.4
-[1.0.3]: https://github.com/ShiroiKuma0/shiroikumanojisho/releases/tag/1.0.3
-[1.0.2]: https://github.com/ShiroiKuma0/shiroikumanojisho/releases/tag/1.0.2
-[1.0.1]: https://github.com/ShiroiKuma0/shiroikumanojisho/releases/tag/1.0.1
-[1.0.0]: https://github.com/ShiroiKuma0/shiroikumanojisho/releases/tag/1.0.0
+[Unreleased]: https://github.com/ShiroiKuma0/shiroikuma-jisho/compare/1.5.0+025...HEAD
+[1.5.0+025]: https://github.com/ShiroiKuma0/shiroikuma-jisho/releases/tag/1.5.0+025
+[1.5.0+024]: https://github.com/ShiroiKuma0/shiroikuma-jisho/releases/tag/1.5.0+024
+[1.4.0+25]: https://github.com/ShiroiKuma0/shiroikuma-jisho/releases/tag/1.4.0+25
+[1.4.0+6]: https://github.com/ShiroiKuma0/shiroikuma-jisho/releases/tag/1.4.0+6
+[1.4.0+3]: https://github.com/ShiroiKuma0/shiroikuma-jisho/releases/tag/1.4.0+3
+[1.4.0+2]: https://github.com/ShiroiKuma0/shiroikuma-jisho/releases/tag/1.4.0+2
+[1.4.0]: https://github.com/ShiroiKuma0/shiroikuma-jisho/releases/tag/1.4.0
+[1.3.1]: https://github.com/ShiroiKuma0/shiroikuma-jisho/releases/tag/1.3.1
+[1.3.0]: https://github.com/ShiroiKuma0/shiroikuma-jisho/releases/tag/1.3.0
+[1.2.0]: https://github.com/ShiroiKuma0/shiroikuma-jisho/releases/tag/1.2.0
+[1.1.0]: https://github.com/ShiroiKuma0/shiroikuma-jisho/releases/tag/1.1.0
+[1.0.4]: https://github.com/ShiroiKuma0/shiroikuma-jisho/releases/tag/1.0.4
+[1.0.3]: https://github.com/ShiroiKuma0/shiroikuma-jisho/releases/tag/1.0.3
+[1.0.2]: https://github.com/ShiroiKuma0/shiroikuma-jisho/releases/tag/1.0.2
+[1.0.1]: https://github.com/ShiroiKuma0/shiroikuma-jisho/releases/tag/1.0.1
+[1.0.0]: https://github.com/ShiroiKuma0/shiroikuma-jisho/releases/tag/1.0.0

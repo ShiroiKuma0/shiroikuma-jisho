@@ -76,7 +76,7 @@ grep -q "^version: ${NEW_FULL}\$" "$PUBSPEC" || die "pubspec rewrite failed"
 #  (1) Current-release links/labels: the release badge anchor near
 #      the top and the visible "Latest Release: <VER>" paragraph
 #      further down. These both point at the current release on
-#      the active `shiroikumanojisho` repo and use tag names
+#      the active `shiroikuma-jisho` repo and use tag names
 #      WITHOUT a `v` prefix (user preference).
 #
 #  (2) History list: a multi-line series of `<a>` tags listing
@@ -90,15 +90,15 @@ grep -q "^version: ${NEW_FULL}\$" "$PUBSPEC" || die "pubspec rewrite failed"
 # uses `v` in the tag name — it's plain `tag/X.Y.Z`.
 
 # Safety check: the current version's link should appear somewhere.
-grep -q "shiroikumanojisho/releases/tag/${CURRENT_SEMVER}" "$README" \
-  || die "README doesn't mention shiroikumanojisho tag/${CURRENT_SEMVER} — already updated?"
+grep -q "shiroikuma-jisho/releases/tag/${CURRENT_SEMVER}" "$README" \
+  || die "README doesn't mention shiroikuma-jisho tag/${CURRENT_SEMVER} — already updated?"
 
 # Rewrite badge + "Latest Release" references. These are the only
-# shiroikumanojisho links that point at a specific tag on the main
+# shiroikuma-jisho links that point at a specific tag on the main
 # repo; updating them atomically via the substring
-# `shiroikumanojisho/releases/tag/<CURRENT>` is both safe and
+# `shiroikuma-jisho/releases/tag/<CURRENT>` is both safe and
 # complete.
-sed -i "s|shiroikumanojisho/releases/tag/${CURRENT_SEMVER}|shiroikumanojisho/releases/tag/${NEW_VER}|g" "$README"
+sed -i "s|shiroikuma-jisho/releases/tag/${CURRENT_SEMVER}|shiroikuma-jisho/releases/tag/${NEW_VER}|g" "$README"
 # Also update the visible label inside the "Latest Release" anchor.
 # The badge anchor contains an <img> not a text label, so this
 # touches only the visible-label paragraph.
@@ -121,20 +121,20 @@ with open(readme_path, encoding="utf-8") as f:
     text = f.read()
 
 current_entry = (
-    f'<a href="https://github.com/ShiroiKuma0/shiroikumanojisho'
+    f'<a href="https://github.com/ShiroiKuma0/shiroikuma-jisho'
     f'/releases/tag/{current}">{current}</a>'
 )
 
 # Find the final `<a ...tag/NEW">NEW</a>` in the 白い熊の辞書 era
-# history line (identified by `shiroikumanojisho/releases/tag/`)
+# history line (identified by `shiroikuma-jisho/releases/tag/`)
 # and, if the `CURRENT` entry is gone, reinsert it immediately
 # before the new one.
 history_final_pattern = re.compile(
-    r'(<a href="https://github\.com/ShiroiKuma0/shiroikumanojisho'
+    r'(<a href="https://github\.com/ShiroiKuma0/shiroikuma-jisho'
     r'/releases/tag/' + re.escape(new_ver) + r'">' +
     re.escape(new_ver) + r'</a>)'
 )
-if f'shiroikumanojisho/releases/tag/{current}' not in text:
+if f'shiroikuma-jisho/releases/tag/{current}' not in text:
     def repl(m):
         return f'{current_entry} .\n  {m.group(1)}'
     text, n = history_final_pattern.subn(repl, text, count=1)

@@ -1,4 +1,4 @@
-// Vendored for shiroikumanojisho (toolchain migration): one-line fix —
+// Vendored for shiroikuma-jisho (toolchain migration): one-line fix —
 // AGP 9 removed getDefaultProguardFile('proguard-android.txt'); upstream
 // fixes it only in the 6.2 beta line. Otherwise identical to hosted 1.1.3.
 

@@ -1,4 +1,4 @@
-// Vendored for shiroikumanojisho (toolchain migration): the upstream
+// Vendored for shiroikuma-jisho (toolchain migration): the upstream
 // buildscript block pinned AGP 3.5.4, which cannot load under the
 // app's Gradle 9 / AGP 9 build — plugin projects inherit AGP from the
 // main build via the Flutter plugin loader, so the block is removed.

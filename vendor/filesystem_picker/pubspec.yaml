@@ -6,7 +6,7 @@ homepage: https://github.com/andyduke/filesystem_picker/tree/master/package
 repository: https://github.com/andyduke/filesystem_picker
 issue_tracker: https://github.com/andyduke/filesystem_picker/issues
 
-# Vendored for shiroikumanojisho (toolchain migration): SDK upper
+# Vendored for shiroikuma-jisho (toolchain migration): SDK upper
 # bound widened for Dart 3 and the unused (discontinued) pedantic
 # dependency dropped. Source: arianneorpilla/filesystem_picker fork,
 # branch jidoujisho, package/ subtree — carries the multi-root /

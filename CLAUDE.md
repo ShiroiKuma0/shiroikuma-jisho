@@ -1,10 +1,10 @@
-# Claude Code context for shiroikumanojisho
+# Claude Code context for shiroikuma-jisho
 
 This file is read automatically by Claude Code at the start of every session in this repository. It captures the facts and conventions that aren't obvious from a fresh checkout but matter for any non-trivial work on the codebase.
 
 ## What this is
 
-A personal Flutter fork of `arianneorpilla/jidoujisho` reorganised into `shiroikumanojisho` (白い熊の辞書 — "the white bear's dictionary"), a Japanese reading app with dictionary lookup, audio-synced TTU reader, video player, mokuro support, browser, Anki export, and cross-device backup/restore.
+A personal Flutter fork of `arianneorpilla/jidoujisho` reorganised into `shiroikuma-jisho` (白い熊の辞書 — "the white bear's dictionary"), a Japanese reading app with dictionary lookup, audio-synced TTU reader, video player, mokuro support, browser, Anki export, and cross-device backup/restore.
 
 The project root is the Flutter project root — there is no nested `yuuna/` subdirectory like the upstream had.
 
@@ -12,8 +12,8 @@ The project root is the Flutter project root — there is no nested `yuuna/` sub
 
 | Item | Value |
 |------|-------|
-| GitHub repo | `ShiroiKuma0/shiroikumanojisho` |
-| Dart package name | `shiroikumanojisho` |
+| GitHub repo | `ShiroiKuma0/shiroikuma-jisho` |
+| Dart package name | `shiroikumanojisho` — deliberately kept: Dart forbids hyphens, so it cannot read `shiroikuma-jisho`, and 白い熊 chose (2026-10-05) to leave it rather than use `shiroikuma_jisho`. Everything else, including the repo, is `shiroikuma-jisho`. |
 | App display name | `白い熊 辞書` |
 | Android `applicationId` | `shiroikuma.jisho` |
 | Java package | `shiroikuma.jisho` |
@@ -43,7 +43,7 @@ This is a single-developer fork; the build environment is fixed and the specific
 | Item | Value |
 |------|-------|
 | OS | Tuxedo OS (Debian/Ubuntu derivative) |
-| Working tree | `~/git/shiroikumanojisho` |
+| Working tree | `~/git/shiroikuma-jisho` |
 | Local archive directory for built APKs | `~/tmp/` |
 
 ### JDK and Flutter SDK

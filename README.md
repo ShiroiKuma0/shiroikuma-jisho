@@ -10,7 +10,7 @@ A fork of [arianneorpilla/jidoujisho](https://github.com/arianneorpilla/jidoujis
 
 Installs **side-by-side** with jidoujisho (app id `shiroikuma.jisho`).
 
-**📥 Latest release: [`1.5.0+081`](https://github.com/ShiroiKuma0/shiroikumanojisho/releases/latest)** — [all releases & APK downloads »](https://github.com/ShiroiKuma0/shiroikumanojisho/releases)
+**📥 Latest release: [`1.5.0+081`](https://github.com/ShiroiKuma0/shiroikuma-jisho/releases/latest)** — [all releases & APK downloads »](https://github.com/ShiroiKuma0/shiroikuma-jisho/releases)
 
 </div>
 
@@ -83,8 +83,8 @@ A fork of [arianneorpilla/jidoujisho](https://github.com/arianneorpilla/jidoujis
 
 ## Building
 ```bash
-git clone https://github.com/ShiroiKuma0/shiroikumanojisho.git
-cd shiroikumanojisho
+git clone https://github.com/ShiroiKuma0/shiroikuma-jisho.git
+cd shiroikuma-jisho
 # Requires JDK 17+ (Gradle 9.1.0 / AGP 9.0.1) and Flutter 3.44.x (Dart 3.12).
 export JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64 && export PATH="$JAVA_HOME/bin:$PATH"
 flutter build apk --split-per-abi --release

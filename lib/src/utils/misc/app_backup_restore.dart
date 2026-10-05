@@ -58,7 +58,7 @@ import 'package:shiroikumanojisho/src/utils/misc/app_export_import.dart'
 ///    other code in the app regresses into using `file_picker`.
 ///
 /// 5. Diagnostic log written to
-///    `/storage/emulated/0/tmp/shiroikumanojisho_restore_<ts>.log`
+///    `/storage/emulated/0/tmp/shiroikuma-jisho-restore_<ts>.log`
 ///    at every step. Survives the post-restore `exit(0)` and any
 ///    crashes; the user can read it without a debugger to see what
 ///    happened.
@@ -158,7 +158,7 @@ class AppBackupRestore {
 
       final timestamp =
           DateFormat('yyyy-MM-dd_HH-mm-ss').format(DateTime.now());
-      final filename = 'shiroikumanojisho_backup_$timestamp.zip';
+      final filename = 'shiroikuma-jisho-backup_$timestamp.zip';
 
       final tmpDir = Directory('/storage/emulated/0/tmp');
       if (!tmpDir.existsSync()) tmpDir.createSync(recursive: true);
@@ -745,7 +745,7 @@ class _RestoreLog {
   _RestoreLog._(this.path, this._sink);
 
   /// Open a fresh log at
-  /// `/storage/emulated/0/tmp/shiroikumanojisho_<kind>_<ts>.log`.
+  /// `/storage/emulated/0/tmp/shiroikuma-jisho-<kind>_<ts>.log`.
   /// Kind is something like `restore` or `backup`.
   factory _RestoreLog.create(String kind) {
     // File logging on disk at /storage/emulated/0/tmp/. See
@@ -756,10 +756,10 @@ class _RestoreLog {
       final dir = Directory('/storage/emulated/0/tmp');
       if (!dir.existsSync()) dir.createSync(recursive: true);
       final ts = DateFormat('yyyy-MM-dd_HH-mm-ss').format(DateTime.now());
-      final p = '${dir.path}/shiroikumanojisho_${kind}_$ts.log';
+      final p = '${dir.path}/shiroikuma-jisho-${kind}_$ts.log';
       final f = File(p);
       final sink = f.openWrite();
-      sink.writeln('=== shiroikumanojisho $kind log ===');
+      sink.writeln('=== shiroikuma-jisho $kind log ===');
       sink.writeln('opened: ${DateTime.now().toIso8601String()}');
       return _RestoreLog._(p, sink);
     } catch (e) {

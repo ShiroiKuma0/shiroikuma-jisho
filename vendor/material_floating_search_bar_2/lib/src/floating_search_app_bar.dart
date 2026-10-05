@@ -664,7 +664,7 @@ class FloatingSearchAppBarState extends ImplicitlyAnimatedWidgetState<
       }
     }
 
-    // LOCAL PATCH (shiroikumanojisho): a centred title skips the
+    // LOCAL PATCH (shiroikuma-jisho): a centred title skips the
     // horizontal scroll view entirely. Inside it the child is laid
     // out with unbounded width, which pins it to the start and stops
     // it from ellipsising; a plain padded Center gives it the bar's

@@ -1,4 +1,4 @@
-# FFmpeg/FFprobe invocation audit — shiroikumanojisho (flutter_ffmpeg 0.4.2 → ffmpeg_kit_flutter_new 4.5.x)
+# FFmpeg/FFprobe invocation audit — shiroikuma-jisho (flutter_ffmpeg 0.4.2 → ffmpeg_kit_flutter_new 4.5.x)
 
 Current native package: `flutterFFmpegPackage = "full-gpl-lts"` (`/home/shiroikuma/git/shiroikuma-jisho/android/build.gradle:43`).
 Dart dependency: `flutter_ffmpeg: ^0.4.2` (`pubspec.yaml:50`).
