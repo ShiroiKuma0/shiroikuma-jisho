@@ -6,6 +6,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- **Download dictionaries from inside the app.** The dictionary menu has a
+  new “Download dictionaries” button, and a fresh install offers the same
+  list right after first-time setup. Tick what you want and the app fetches
+  each Yomitan zip from its maintainer and imports it: Jitendex, JMdict
+  (English), KANJIDIC (English), Kanjium pitch accents, JPDB frequency and
+  JMnedict. Recommended ones come pre-ticked, sizes are shown, and
+  dictionaries already imported are marked “installed”. Nothing is bundled,
+  so the APK stays the same size. Only offered while the target language
+  is Japanese.
+
 ### Changed
 
 - **The project is now called shiroikuma-jisho everywhere.** The GitHub

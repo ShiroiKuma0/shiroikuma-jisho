@@ -23,6 +23,7 @@ import 'package:fluttertoast/fluttertoast.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:isar_community/isar.dart';
 import 'package:intl/intl.dart' as intl;
+import 'package:http/http.dart' as http;
 import 'package:path/path.dart' as path;
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:path_provider/path_provider.dart';
@@ -1961,17 +1962,20 @@ class AppModel with ChangeNotifier {
 
   /// Start the process of importing a dictionary. This is called from the
   /// dictionary menu, and starts the process of importing for the
-  /// [lastSelectedDictionaryFormat].
-  Future<void> importDictionary({
+  /// [lastSelectedDictionaryFormat], or for [dictionaryFormat] when given
+  /// (the downloader always imports Yomitan zips, whatever format the user
+  /// last picked by hand). Returns whether the import succeeded.
+  Future<bool> importDictionary({
     required File file,
     required ValueNotifier<String> progressNotifier,
     required Function() onImportSuccess,
+    DictionaryFormat? dictionaryFormat,
   }) async {
     /// New results may be wrong after dictionary is added so this has to be
     /// done.
     clearDictionaryResultsCache();
 
-    DictionaryFormat dictionaryFormat = lastSelectedDictionaryFormat;
+    dictionaryFormat ??= lastSelectedDictionaryFormat;
 
     /// Importing makes heavy use of isolates as it is very performance
     /// intensive to work with files. In order to ensure the UI isolate isn't
@@ -2097,14 +2101,111 @@ class AppModel with ChangeNotifier {
       progressNotifier.value = t.import_complete;
       onImportSuccess();
       await Future.delayed(const Duration(seconds: 1), () {});
+      return true;
     } catch (e) {
       progressNotifier.value = '$e';
       await Future.delayed(const Duration(seconds: 3), () {});
       progressNotifier.value = t.import_failed;
       await Future.delayed(const Duration(seconds: 1), () {});
+      return false;
     } finally {
       receivePort.close();
     }
+  }
+
+  /// The downloadable dictionaries for the current target language. Empty
+  /// for languages without a catalog.
+  List<CatalogDictionary> get dictionaryCatalog =>
+      targetLanguage.languageCode == 'ja'
+          ? japaneseDictionaryCatalog
+          : const <CatalogDictionary>[];
+
+  /// Whether a copy of [entry] is already imported.
+  bool isCatalogDictionaryInstalled(CatalogDictionary entry) =>
+      dictionaries.any((dictionary) => entry.matches(dictionary.name));
+
+  /// Download [entry] into the temporary directory and import it as a
+  /// Yomitan dictionary, reporting both stages through [progressNotifier].
+  /// The zip is deleted afterwards whether or not the import succeeded.
+  /// Returns whether the dictionary was imported.
+  Future<bool> downloadAndImportCatalogDictionary({
+    required CatalogDictionary entry,
+    required ValueNotifier<String> progressNotifier,
+    required Function() onImportSuccess,
+  }) async {
+    final File file = File(path.join(
+      _temporaryDirectory.path,
+      'catalog_${DateTime.now().millisecondsSinceEpoch}.zip',
+    ));
+    final http.Client client = http.Client();
+
+    try {
+      progressNotifier.value = t.download_dictionary_start(name: entry.name);
+      final http.StreamedResponse response =
+          await client.send(http.Request('GET', Uri.parse(entry.url)));
+      if (response.statusCode != 200) {
+        throw Exception(t.download_dictionary_http_error(
+            name: entry.name, code: response.statusCode));
+      }
+
+      final int? total = response.contentLength;
+      final IOSink sink = file.openWrite();
+      int received = 0;
+      int lastReportedMegabytes = -1;
+      try {
+        await for (final List<int> chunk in response.stream) {
+          sink.add(chunk);
+          received += chunk.length;
+          final int megabytes = received ~/ (1024 * 1024);
+          if (megabytes != lastReportedMegabytes) {
+            lastReportedMegabytes = megabytes;
+            progressNotifier.value = t.download_dictionary_progress(
+              name: entry.name,
+              received: megabytes,
+              total: total == null ? '?' : '${total ~/ (1024 * 1024)}',
+            );
+          }
+        }
+      } finally {
+        await sink.close();
+      }
+
+      return await importDictionary(
+        file: file,
+        progressNotifier: progressNotifier,
+        onImportSuccess: onImportSuccess,
+        dictionaryFormat: YomichanFormat.instance,
+      );
+    } catch (e) {
+      progressNotifier.value = '$e';
+      await Future.delayed(const Duration(seconds: 3), () {});
+      progressNotifier.value = t.import_failed;
+      await Future.delayed(const Duration(seconds: 1), () {});
+      return false;
+    } finally {
+      client.close();
+      if (file.existsSync()) {
+        file.deleteSync();
+      }
+    }
+  }
+
+  /// Show the dictionary download dialog. [isFirstTimeSetup] words it as an
+  /// offer the user can skip rather than a menu.
+  Future<void> showDictionaryDownloadMenu({bool isFirstTimeSetup = false}) async {
+    if (dictionaryCatalog.isEmpty) {
+      return;
+    }
+
+    await showDialog(
+      context: navigatorKey.currentContext!,
+      builder: (context) => DictionaryDownloadDialogPage(
+        isFirstTimeSetup: isFirstTimeSetup,
+      ),
+    );
+
+    notifyListeners();
+    dictionaryMenuNotifier.notifyListeners();
   }
 
   /// Toggle a dictionary's between collapsed and expanded state. This will

@@ -105,6 +105,13 @@ class _HomePageState extends BasePageState<HomePage>
             appModel.targetLanguage.standardFormat);
 
         appModel.setFirstTimeSetupFlag();
+
+        // A fresh install has no dictionaries, so lookups return nothing
+        // until some are imported. Offer to fetch them now; the dialog
+        // does nothing for languages without a catalog.
+        if (appModel.dictionaries.isEmpty) {
+          await appModel.showDictionaryDownloadMenu(isFirstTimeSetup: true);
+        }
       }
     });
   }

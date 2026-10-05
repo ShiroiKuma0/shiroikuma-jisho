@@ -4,9 +4,9 @@
 /// To regenerate, run: `dart run slang`
 ///
 /// Locales: 1
-/// Strings: 431
+/// Strings: 444
 ///
-/// Built on 2026-07-25 at 09:58 UTC
+/// Built on 2026-10-05 at 05:00 UTC
 
 // coverage:ignore-file
 // ignore_for_file: type=lint
@@ -185,6 +185,8 @@ class Translations implements BaseTranslations<AppLocale, Translations> {
 	String get dialog_create => 'CREATE';
 	String get dialog_delete => 'DELETE';
 	String get dialog_cancel => 'CANCEL';
+	String get dialog_skip => 'SKIP';
+	String get dialog_download => 'DOWNLOAD';
 	String get dialog_select => 'SELECT';
 	String get dialog_stash => 'STASH';
 	String get dialog_search => 'SEARCH';
@@ -249,6 +251,16 @@ class Translations implements BaseTranslations<AppLocale, Translations> {
 	String get import_failed => 'Dictionary import failed.';
 	String get import_complete => 'Dictionary import complete.';
 	String import_duplicate({required Object name}) => 'A dictionary with the name『${name}』is already imported.';
+	String get download_dictionaries => 'Download dictionaries';
+	String get download_dictionaries_first_time => 'Download dictionaries?';
+	String get download_dictionaries_explanation => 'These are fetched from their maintainers and imported like any dictionary file. They can be removed again from the dictionary menu.';
+	String download_dictionaries_total({required Object megabytes}) => 'Selected: about ${megabytes} MB';
+	String download_dictionary_entry({required Object name, required Object megabytes}) => '${name} (~${megabytes} MB)';
+	String download_dictionary_installed({required Object name}) => '${name} (installed)';
+	String download_dictionary_start({required Object name}) => 'Downloading 『${name}』...';
+	String download_dictionary_progress({required Object name, required Object received, required Object total}) => 'Downloading 『${name}』:\n${received} / ${total} MB';
+	String download_dictionary_http_error({required Object name, required Object code}) => 'Downloading 『${name}』 failed (HTTP ${code}).';
+	String download_dictionaries_failed({required Object n}) => '${n} dictionaries could not be downloaded or imported.';
 	String get dialog_title_dictionary_clear => 'Clear all dictionaries?';
 	String get dialog_content_dictionary_clear => 'Wiping the dictionary database will also clear all search results in history.';
 	String dialog_title_dictionary_delete({required Object name}) => 'Delete 『${name}』?';
@@ -649,6 +661,8 @@ extension on Translations {
 			case 'dialog_create': return 'CREATE';
 			case 'dialog_delete': return 'DELETE';
 			case 'dialog_cancel': return 'CANCEL';
+			case 'dialog_skip': return 'SKIP';
+			case 'dialog_download': return 'DOWNLOAD';
 			case 'dialog_select': return 'SELECT';
 			case 'dialog_stash': return 'STASH';
 			case 'dialog_search': return 'SEARCH';
@@ -713,6 +727,16 @@ extension on Translations {
 			case 'import_failed': return 'Dictionary import failed.';
 			case 'import_complete': return 'Dictionary import complete.';
 			case 'import_duplicate': return ({required Object name}) => 'A dictionary with the name『${name}』is already imported.';
+			case 'download_dictionaries': return 'Download dictionaries';
+			case 'download_dictionaries_first_time': return 'Download dictionaries?';
+			case 'download_dictionaries_explanation': return 'These are fetched from their maintainers and imported like any dictionary file. They can be removed again from the dictionary menu.';
+			case 'download_dictionaries_total': return ({required Object megabytes}) => 'Selected: about ${megabytes} MB';
+			case 'download_dictionary_entry': return ({required Object name, required Object megabytes}) => '${name} (~${megabytes} MB)';
+			case 'download_dictionary_installed': return ({required Object name}) => '${name} (installed)';
+			case 'download_dictionary_start': return ({required Object name}) => 'Downloading 『${name}』...';
+			case 'download_dictionary_progress': return ({required Object name, required Object received, required Object total}) => 'Downloading 『${name}』:\n${received} / ${total} MB';
+			case 'download_dictionary_http_error': return ({required Object name, required Object code}) => 'Downloading 『${name}』 failed (HTTP ${code}).';
+			case 'download_dictionaries_failed': return ({required Object n}) => '${n} dictionaries could not be downloaded or imported.';
 			case 'dialog_title_dictionary_clear': return 'Clear all dictionaries?';
 			case 'dialog_content_dictionary_clear': return 'Wiping the dictionary database will also clear all search results in history.';
 			case 'dialog_title_dictionary_delete': return ({required Object name}) => 'Delete 『${name}』?';

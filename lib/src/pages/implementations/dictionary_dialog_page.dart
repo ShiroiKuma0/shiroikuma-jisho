@@ -254,6 +254,10 @@ class _DictionaryDialogPageState extends BasePageState with ChangeNotifier {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
+                // A content button rather than a fifth action: four
+                // actions already fill the ~720 px Palma width.
+                if (appModel.dictionaryCatalog.isNotEmpty)
+                  buildDownloadButton(),
                 if (dictionaries.isEmpty)
                   buildEmptyMessage()
                 else
@@ -282,6 +286,26 @@ class _DictionaryDialogPageState extends BasePageState with ChangeNotifier {
               ],
             ),
           ),
+        ),
+      ),
+    );
+  }
+
+  Widget buildDownloadButton() {
+    return Padding(
+      padding: EdgeInsets.only(bottom: Spacing.of(context).spaces.normal),
+      child: SizedBox(
+        width: double.infinity,
+        child: OutlinedButton.icon(
+          icon: const Icon(Icons.download),
+          label: Text(t.download_dictionaries),
+          onPressed: () async {
+            await appModel.showDictionaryDownloadMenu();
+            _selectedOrder = appModel.dictionaries.lastOrNull?.order;
+            if (mounted) {
+              setState(() {});
+            }
+          },
         ),
       ),
     );
