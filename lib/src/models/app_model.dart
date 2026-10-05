@@ -2206,6 +2206,12 @@ class AppModel with ChangeNotifier {
               directoryPath: _databaseDirectory.path,
             ),
           );
+          if (indexed < 0) {
+            // Another build holds the heartbeat — a previous engine in
+            // this process, or one killed less than a minute ago. Look
+            // again once its heartbeat would have gone stale.
+            Future.delayed(const Duration(seconds: 75), refreshGlossIndex);
+          }
           if (indexed > 0) {
             // Cached results for Latin queries predate the new index.
             clearDictionaryResultsCache();

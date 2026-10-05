@@ -152,7 +152,7 @@ const int _kGlossSample = 500;
 
 /// Top-level helper invoked through `compute()`: build [DictionaryGloss]
 /// rows for every dictionary that has no current marker row. Returns the
-/// number of dictionaries indexed.
+/// number of dictionaries indexed, or -1 when another build is running.
 ///
 /// Dictionaries whose first [_kGlossSample] entries have no Latin glosses
 /// (monolingual Japanese, kanji, frequency and pitch dictionaries) are
@@ -196,10 +196,53 @@ Future<int> buildGlossIndexHelper(IsolateParams params) async {
     } catch (_) {}
   }
 
+  // One build at a time. Reopening the app can start a second AppModel
+  // (and indexer) in the same process while the first is still running,
+  // and the two then index the same dictionaries side by side. A running
+  // build touches this file every batch; a fresh one means "busy".
+  final File heartbeat = File('${params.directoryPath}/gloss_index.heartbeat');
+  if (heartbeat.existsSync() &&
+      DateTime.now().difference(heartbeat.lastModifiedSync()) <
+          const Duration(minutes: 1)) {
+    return -1;
+  }
+  void beat() {
+    try {
+      heartbeat.writeAsStringSync(DateTime.now().toIso8601String(),
+          flush: true);
+    } catch (_) {}
+  }
+
+  beat();
+
   final Stopwatch clock = Stopwatch()..start();
   int indexed = 0;
   bool loggedAnything = false;
-  for (final Dictionary dictionary in isar.dictionarys.where().findAllSync()) {
+  for (final Dictionary dictionary
+      in isar.dictionarys.where().sortByOrder().findAllSync()) {
+    // English search exists only for Japanese, so only dictionaries used
+    // for Japanese are indexed. Others — an English–Czech dictionary's
+    // Czech glosses pass the Latin-script test — would cost minutes and
+    // never be searched; rows an earlier build gave them are dropped.
+    final bool forJapanese = dictionary.primaryLanguage.isNotEmpty
+        ? dictionary.primaryLanguage == 'ja'
+        : !dictionary.hiddenLanguages.contains('ja');
+    if (!forJapanese) {
+      if (isar.dictionaryGloss
+              .where()
+              .dictionaryIdEqualTo(dictionary.id)
+              .countSync() >
+          0) {
+        isar.writeTxnSync(() {
+          isar.dictionaryGloss
+              .where()
+              .dictionaryIdEqualTo(dictionary.id)
+              .deleteAllSync();
+        });
+      }
+      continue;
+    }
+
     final markers = isar.dictionaryGloss
         .where()
         .entryIdEqualTo(DictionaryGloss.markerEntryId)
@@ -264,6 +307,7 @@ Future<int> buildGlossIndexHelper(IsolateParams params) async {
       if (anyGloss) {
         params.send(['progress', dictionary.name, end, entryIds.length]);
       }
+      beat();
     }
 
     final int rowCount = isar.dictionaryGloss
@@ -298,5 +342,8 @@ Future<int> buildGlossIndexHelper(IsolateParams params) async {
   if (loggedAnything) {
     note('done: $indexed dictionaries in ${clock.elapsedMilliseconds} ms');
   }
+  try {
+    heartbeat.deleteSync();
+  } catch (_) {}
   return indexed;
 }
