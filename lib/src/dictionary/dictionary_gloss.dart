@@ -30,7 +30,7 @@ class DictionaryGloss {
 
   /// Bumped when extraction or normalisation changes, so existing indexes
   /// are rebuilt. Stored in the marker row's [glosses].
-  static const String indexVersion = 'v1';
+  static const String indexVersion = 'v2';
 
   /// Identifier for database purposes.
   Id? id;
@@ -111,7 +111,8 @@ class DictionaryGloss {
   /// `data: {content: glossary}` lists; each `li` is one gloss and each
   /// glossary list one sense. Only those lists are read, so example
   /// sentences, notes and cross-references never become matches. A plain
-  /// string definition is one sense, split on `;`.
+  /// string definition is one sense, split on `;`, and is read only when
+  /// it is entirely Latin script.
   static List<(int, String)> extractGlosses(List<String> definitions) {
     final out = <(int, String)>[];
     int sense = 0;
@@ -153,10 +154,17 @@ class DictionaryGloss {
         }
       }
 
-      for (final String part in definition.split(';')) {
-        final text = part.trim();
-        if (text.isNotEmpty) {
-          out.add((sense, text));
+      // Only a wholly English definition is a gloss list. Japanese–English
+      // dictionaries such as 新和英大辞典 write running text that mixes
+      // Japanese explanations, examples and English: split on ";", a
+      // fragment like "dog" out of 狙う's "shadow; follow; tail; dog"
+      // became an exact match and outranked 犬.
+      if (isLatinGloss(definition)) {
+        for (final String part in definition.split(';')) {
+          final text = part.trim();
+          if (text.isNotEmpty) {
+            out.add((sense, text));
+          }
         }
       }
       sense++;

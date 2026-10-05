@@ -69,6 +69,16 @@ void main() {
       ]);
     });
 
+    test('ignores plain text that mixes Japanese and English', () {
+      // 新和英大辞典's 狙う: the "dog" in sense 2 used to become an exact
+      // match for "dog".
+      expect(
+          DictionaryGloss.extractGlosses([
+            '2 〔付けねらう〕 shadow; follow; tail; dog; 〔猫などが獲物を〕 stalk.'
+          ]),
+          isEmpty);
+    });
+
     test('splits plain-text definitions on semicolons, one sense each', () {
       expect(DictionaryGloss.extractGlosses(['to eat; to live on', 'meal']),
           [(0, 'to eat'), (0, 'to live on'), (1, 'meal')]);
