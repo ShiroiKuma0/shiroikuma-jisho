@@ -1089,6 +1089,44 @@ class AppModel with ChangeNotifier {
 
   /// Update the user-defined order of a given dictionary in the database.
   /// See the dictionary dialog's [ReorderableListView] for usage.
+  /// Move [visible]`[oldIndex]` to [newIndex] among the dictionaries shown
+  /// for the target language, and return the moved dictionary's new order.
+  ///
+  /// `order` stays one global number per dictionary, but only the slots the
+  /// [visible] dictionaries already occupy are reshuffled; dictionaries
+  /// hidden for this language keep theirs. Everything that reads `order`
+  /// only ever compares dictionaries shown together, so each language keeps
+  /// its own priority. A dictionary shown for two languages is the one case
+  /// where reordering in one moves it in the other too.
+  int reorderDictionariesForLanguage({
+    required List<Dictionary> visible,
+    required int oldIndex,
+    required int newIndex,
+  }) {
+    // Make the global orders distinct first: older imports and the reorder
+    // code before this one could leave ties, and ties would make two slots
+    // collapse into one.
+    List<Dictionary> all = dictionaries;
+    Map<String, int> normalised = {
+      for (int i = 0; i < all.length; i++) all[i].name: i,
+    };
+
+    List<Dictionary> moved = [...visible];
+    Dictionary item = moved.removeAt(oldIndex);
+    moved.insert(newIndex, item);
+
+    List<int> slots = visible.map((d) => normalised[d.name]!).toList()..sort();
+    for (int i = 0; i < moved.length; i++) {
+      normalised[moved[i].name] = slots[i];
+    }
+    for (Dictionary dictionary in all) {
+      dictionary.order = normalised[dictionary.name]!;
+    }
+
+    updateDictionaryOrder(all);
+    return normalised[item.name]!;
+  }
+
   void updateDictionaryOrder(List<Dictionary> newDictionaries) async {
     _database.writeTxnSync(() {
       _database.dictionarys.putAllSync(newDictionaries);

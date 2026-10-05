@@ -67,6 +67,7 @@
     "catalog_delete_confirmation": "This catalog will be deleted. Are you sure you want to do this?",
     "dictionaries_deleting_data": "Deleting dictionary data...",
     "dictionaries_menu_empty": "Import a dictionary for use",
+    "dictionaries_hidden_for_language": "Hidden for $language",
     "options_theme_light": "Use light theme",
     "options_theme_dark": "Use dark theme",
     "options_incognito_on": "Turn on incognito mode",

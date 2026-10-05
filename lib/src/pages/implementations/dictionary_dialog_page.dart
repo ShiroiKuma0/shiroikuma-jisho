@@ -3,7 +3,6 @@ import 'dart:io';
 import 'package:change_notifier_builder/change_notifier_builder.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
-import 'package:reorderables/reorderables.dart';
 import 'package:spaces/spaces.dart';
 import 'package:shiroikumanojisho/dictionary.dart';
 import 'package:shiroikumanojisho/media.dart';
@@ -237,55 +236,96 @@ class _DictionaryDialogPageState extends BasePageState with ChangeNotifier {
 
   Widget buildContent() {
     List<Dictionary> dictionaries = appModel.dictionaries;
-    ScrollController contentController = ScrollController();
+    List<Dictionary> visible = dictionaries
+        .where((dictionary) => !dictionary.isHidden(appModel.targetLanguage))
+        .toList();
+    List<Dictionary> hidden = dictionaries
+        .where((dictionary) => dictionary.isHidden(appModel.targetLanguage))
+        .toList();
 
+    _notifiersByDictionary = {};
+    _selectedOrder ??= dictionaries.firstOrNull?.order;
+
+    // One CustomScrollView rather than a list nested in a scroll view: the
+    // reorderable sliver then auto-scrolls the whole dialog while a row is
+    // dragged towards its edge, which a long list needs.
     return SizedBox(
       width: double.maxFinite,
       child: RawScrollbar(
         thickness: 3,
         thumbVisibility: true,
-        controller: contentController,
-        child: Padding(
-          padding: contentController.hasClients
-              ? Spacing.of(context).insets.onlyRight.normal
-              : EdgeInsets.zero,
-          child: SingleChildScrollView(
-            controller: contentController,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // A content button rather than a fifth action: four
-                // actions already fill the ~720 px Palma width.
-                if (appModel.dictionaryCatalog.isNotEmpty)
-                  buildDownloadButton(),
-                if (dictionaries.isEmpty)
-                  buildEmptyMessage()
-                else
-                  Flexible(
-                    child: buildDictionaryList(dictionaries),
-                  ),
-                const JidoujishoDivider(),
-                Padding(
-                  padding: Spacing.of(context).insets.onlyLeft.small,
-                  child: Row(
-                    children: [
-                      Icon(Icons.language,
-                          size: 14, color: theme.unselectedWidgetColor),
-                      const SizedBox(width: 4),
-                      Text(
-                        t.import_for_language(language: appModel.targetLanguage.languageName),
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: theme.unselectedWidgetColor,
-                        ),
-                      ),
-                    ],
-                  ),
+        controller: _scrollController,
+        child: CustomScrollView(
+          controller: _scrollController,
+          shrinkWrap: true,
+          slivers: [
+            // A content button rather than a fifth action: four
+            // actions already fill the ~720 px Palma width.
+            if (appModel.dictionaryCatalog.isNotEmpty)
+              SliverToBoxAdapter(child: buildDownloadButton()),
+            if (dictionaries.isEmpty)
+              SliverToBoxAdapter(child: buildEmptyMessage())
+            else ...[
+              buildDictionaryList(visible),
+              if (hidden.isNotEmpty)
+                SliverToBoxAdapter(child: buildHiddenHeader()),
+              if (hidden.isNotEmpty)
+                SliverList.list(
+                  children: hidden
+                      .map((dictionary) => buildDictionaryTile(
+                            dictionary,
+                            _notifierFor(dictionary),
+                          ))
+                      .toList(),
                 ),
-                buildImportDropdown(),
-              ],
+            ],
+            SliverToBoxAdapter(
+              child: Column(
+                children: [
+                  const JidoujishoDivider(),
+                  Padding(
+                    padding: Spacing.of(context).insets.onlyLeft.small,
+                    child: Row(
+                      children: [
+                        Icon(Icons.language,
+                            size: 14, color: theme.unselectedWidgetColor),
+                        const SizedBox(width: 4),
+                        Text(
+                          t.import_for_language(language: appModel.targetLanguage.languageName),
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: theme.unselectedWidgetColor,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  buildImportDropdown(),
+                ],
+              ),
             ),
-          ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Divides the dictionaries shown for the target language from those
+  /// hidden for it, which cannot be dragged: their position only matters
+  /// for the languages they are shown in.
+  Widget buildHiddenHeader() {
+    return Padding(
+      padding: EdgeInsets.only(
+        left: Spacing.of(context).spaces.small,
+        top: Spacing.of(context).spaces.normal,
+        bottom: Spacing.of(context).spaces.small,
+      ),
+      child: Text(
+        t.dictionaries_hidden_for_language(
+            language: appModel.targetLanguage.languageName),
+        style: TextStyle(
+          fontSize: 12,
+          color: theme.unselectedWidgetColor,
         ),
       ),
     );
@@ -294,19 +334,18 @@ class _DictionaryDialogPageState extends BasePageState with ChangeNotifier {
   Widget buildDownloadButton() {
     return Padding(
       padding: EdgeInsets.only(bottom: Spacing.of(context).spaces.normal),
-      child: SizedBox(
-        width: double.infinity,
-        child: OutlinedButton.icon(
-          icon: const Icon(Icons.download),
-          label: Text(t.download_dictionaries),
-          onPressed: () async {
-            await appModel.showDictionaryDownloadMenu();
-            _selectedOrder = appModel.dictionaries.lastOrNull?.order;
-            if (mounted) {
-              setState(() {});
-            }
-          },
-        ),
+      // A TextButton, so the 白い熊 UI theme draws it as the same pill as
+      // the dialog's CLEAR / IMPORT / CLOSE actions.
+      child: TextButton.icon(
+        icon: const Icon(Icons.download),
+        label: Text(t.download_dictionaries),
+        onPressed: () async {
+          await appModel.showDictionaryDownloadMenu();
+          _selectedOrder = appModel.dictionaries.lastOrNull?.order;
+          if (mounted) {
+            setState(() {});
+          }
+        },
       ),
     );
   }
@@ -325,46 +364,47 @@ class _DictionaryDialogPageState extends BasePageState with ChangeNotifier {
 
   Map<Dictionary, ValueNotifier<bool>> _notifiersByDictionary = {};
 
-  Widget buildDictionaryList(List<Dictionary> dictionaries) {
-    _notifiersByDictionary = {};
-    _selectedOrder ??= dictionaries.firstOrNull?.order;
+  ValueNotifier<bool> _notifierFor(Dictionary dictionary) =>
+      _notifiersByDictionary.putIfAbsent(
+        dictionary,
+        () => ValueNotifier<bool>(dictionary.order == _selectedOrder),
+      );
 
-    return RawScrollbar(
-      thickness: 3,
-      thumbVisibility: true,
-      controller: _scrollController,
-      child: ReorderableColumn(
-        scrollController: _scrollController,
-        children: List.generate(dictionaries.length, (index) {
-          Dictionary dictionary = dictionaries[index];
-
-          _notifiersByDictionary.putIfAbsent(
-            dictionaries[index],
-            () => ValueNotifier<bool>(dictionary.order == _selectedOrder),
-          );
-          return buildDictionaryTile(
-            dictionaries[index],
-            _notifiersByDictionary[dictionary]!,
-          );
-        }),
-        onReorder: (oldIndex, newIndex) {
-          List<Dictionary> cloneDictionaries = [];
-          cloneDictionaries.addAll(dictionaries);
-
-          Dictionary item = cloneDictionaries[oldIndex];
-          cloneDictionaries.remove(item);
-          cloneDictionaries.insert(newIndex, item);
-
-          cloneDictionaries.forEachIndexed((index, dictionary) {
-            dictionary.order = index;
-          });
-
-          _selectedOrder = newIndex;
-
-          appModel.updateDictionaryOrder(cloneDictionaries);
-          setState(() {});
-        },
+  /// The dictionaries shown for the target language, in priority order.
+  /// Drag a row by its handle, or long-press anywhere on it.
+  Widget buildDictionaryList(List<Dictionary> visible) {
+    return SliverReorderableList(
+      itemCount: visible.length,
+      // The dragged row is lifted into the overlay, away from the dialog's
+      // background; give it one so it does not float as bare text.
+      proxyDecorator: (child, index, animation) => Material(
+        elevation: 4,
+        color: theme.dialogTheme.backgroundColor ?? theme.colorScheme.surface,
+        child: child,
       ),
+      itemBuilder: (context, index) {
+        Dictionary dictionary = visible[index];
+        return ReorderableDelayedDragStartListener(
+          key: ValueKey(dictionary.name),
+          index: index,
+          child: buildDictionaryTile(
+            dictionary,
+            _notifierFor(dictionary),
+            dragIndex: index,
+          ),
+        );
+      },
+      onReorder: (oldIndex, newIndex) {
+        if (newIndex > oldIndex) {
+          newIndex -= 1;
+        }
+        _selectedOrder = appModel.reorderDictionariesForLanguage(
+          visible: visible,
+          oldIndex: oldIndex,
+          newIndex: newIndex,
+        );
+        setState(() {});
+      },
     );
   }
 
@@ -394,8 +434,9 @@ class _DictionaryDialogPageState extends BasePageState with ChangeNotifier {
 
   Widget buildDictionaryTile(
     Dictionary dictionary,
-    ValueNotifier<bool> notifier,
-  ) {
+    ValueNotifier<bool> notifier, {
+    int? dragIndex,
+  }) {
     DictionaryFormat dictionaryFormat =
         appModel.dictionaryFormats[dictionary.formatKey]!;
 
@@ -439,7 +480,18 @@ class _DictionaryDialogPageState extends BasePageState with ChangeNotifier {
                 ),
                 const Space.normal(),
                 if (_selectedOrder == dictionary.order)
-                  buildDictionaryTileTrailing(dictionary)
+                  buildDictionaryTileTrailing(dictionary),
+                if (dragIndex != null)
+                  ReorderableDragStartListener(
+                    index: dragIndex,
+                    child: Padding(
+                      padding: Spacing.of(context).insets.onlyLeft.small,
+                      child: Icon(
+                        Icons.drag_handle,
+                        color: theme.unselectedWidgetColor,
+                      ),
+                    ),
+                  ),
               ],
             ),
             onTap: () {

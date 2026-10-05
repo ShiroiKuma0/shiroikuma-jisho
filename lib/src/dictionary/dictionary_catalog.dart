@@ -15,6 +15,7 @@ class CatalogDictionary {
     required this.url,
     required this.approximateMegabytes,
     required this.titlePrefix,
+    this.exactTitles = const [],
     this.recommended = false,
   });
 
@@ -35,11 +36,18 @@ class CatalogDictionary {
   /// by prefix rather than by exact name.
   final String titlePrefix;
 
+  /// Further titles that identify an installed copy, for older releases
+  /// whose title did not follow [titlePrefix]. Matched exactly, so a bare
+  /// `JMdict` cannot be confused with `JMnedict` or `JMdict Forms`.
+  final List<String> exactTitles;
+
   /// Whether the entry is ticked by default.
   final bool recommended;
 
   /// Whether a dictionary named [dictionaryName] is a copy of this entry.
-  bool matches(String dictionaryName) => dictionaryName.startsWith(titlePrefix);
+  bool matches(String dictionaryName) =>
+      dictionaryName.startsWith(titlePrefix) ||
+      exactTitles.contains(dictionaryName);
 }
 
 /// Dictionaries offered for Japanese, in display order.
@@ -62,6 +70,7 @@ const List<CatalogDictionary> japaneseDictionaryCatalog = [
         'download/JMdict_english.zip',
     approximateMegabytes: 16,
     titlePrefix: 'JMdict [',
+    exactTitles: ['JMdict', 'JMdict (English)'],
   ),
   CatalogDictionary(
     name: 'KANJIDIC (English)',

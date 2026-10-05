@@ -4,9 +4,9 @@
 /// To regenerate, run: `dart run slang`
 ///
 /// Locales: 1
-/// Strings: 444
+/// Strings: 445
 ///
-/// Built on 2026-10-05 at 05:00 UTC
+/// Built on 2026-10-05 at 08:47 UTC
 
 // coverage:ignore-file
 // ignore_for_file: type=lint
@@ -213,6 +213,7 @@ class Translations implements BaseTranslations<AppLocale, Translations> {
 	String get catalog_delete_confirmation => 'This catalog will be deleted. Are you sure you want to do this?';
 	String get dictionaries_deleting_data => 'Deleting dictionary data...';
 	String get dictionaries_menu_empty => 'Import a dictionary for use';
+	String dictionaries_hidden_for_language({required Object language}) => 'Hidden for ${language}';
 	String get options_theme_light => 'Use light theme';
 	String get options_theme_dark => 'Use dark theme';
 	String get options_incognito_on => 'Turn on incognito mode';
@@ -689,6 +690,7 @@ extension on Translations {
 			case 'catalog_delete_confirmation': return 'This catalog will be deleted. Are you sure you want to do this?';
 			case 'dictionaries_deleting_data': return 'Deleting dictionary data...';
 			case 'dictionaries_menu_empty': return 'Import a dictionary for use';
+			case 'dictionaries_hidden_for_language': return ({required Object language}) => 'Hidden for ${language}';
 			case 'options_theme_light': return 'Use light theme';
 			case 'options_theme_dark': return 'Use dark theme';
 			case 'options_incognito_on': return 'Turn on incognito mode';

@@ -86,28 +86,44 @@ class _DictionaryDownloadDialogPageState
   Widget buildEntry(CatalogDictionary entry) {
     final bool installed = appModel.isCatalogDictionaryInstalled(entry);
 
+    // An installed dictionary gets no checkbox at all: a ticked box, even
+    // a disabled one, reads as "will be downloaded". An invisible checkbox
+    // keeps its text aligned with the others.
+    if (installed) {
+      return ListTile(
+        contentPadding: EdgeInsets.zero,
+        dense: true,
+        enabled: false,
+        leading: const Visibility(
+          visible: false,
+          maintainSize: true,
+          maintainAnimation: true,
+          maintainState: true,
+          child: Checkbox(value: false, onChanged: null),
+        ),
+        title: Text(t.download_dictionary_installed(name: entry.name)),
+        subtitle: Text(entry.description),
+      );
+    }
+
     // CheckboxListTile wraps title and subtitle, so long descriptions fit
     // the ~720 px Palma screen instead of clipping.
     return CheckboxListTile(
       contentPadding: EdgeInsets.zero,
       dense: true,
       controlAffinity: ListTileControlAffinity.leading,
-      value: installed || _selected.contains(entry),
-      onChanged: installed
-          ? null
-          : (value) {
-              setState(() {
-                if (value ?? false) {
-                  _selected.add(entry);
-                } else {
-                  _selected.remove(entry);
-                }
-              });
-            },
-      title: Text(installed
-          ? t.download_dictionary_installed(name: entry.name)
-          : t.download_dictionary_entry(
-              name: entry.name, megabytes: entry.approximateMegabytes)),
+      value: _selected.contains(entry),
+      onChanged: (value) {
+        setState(() {
+          if (value ?? false) {
+            _selected.add(entry);
+          } else {
+            _selected.remove(entry);
+          }
+        });
+      },
+      title: Text(t.download_dictionary_entry(
+          name: entry.name, megabytes: entry.approximateMegabytes)),
       subtitle: Text(entry.description),
     );
   }

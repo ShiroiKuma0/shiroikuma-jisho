@@ -14,9 +14,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   each Yomitan zip from its maintainer and imports it: Jitendex, JMdict
   (English), KANJIDIC (English), Kanjium pitch accents, JPDB frequency and
   JMnedict. Recommended ones come pre-ticked, sizes are shown, and
-  dictionaries already imported are marked “installed”. Nothing is bundled,
+  dictionaries already imported are listed as “installed” without a
+  checkbox, so only what will actually be fetched is ticked; an older
+  import titled just “JMdict” counts as installed too. Nothing is bundled,
   so the APK stays the same size. Only offered while the target language
   is Japanese.
+- **Each language keeps its own dictionary order, set by dragging.** The
+  dictionary menu lists the dictionaries shown for the current language
+  first, each with a drag handle (or long-press the row), and the
+  dictionaries hidden for that language below them under “Hidden for …”.
+  Dragging only reshuffles the shown ones, so ordering Japanese
+  dictionaries no longer has to work around the Czech or French ones,
+  and the list scrolls by itself while a row is dragged to its edge. The
+  order decides which dictionary's definitions come first under a word.
 
 ### Changed
 
