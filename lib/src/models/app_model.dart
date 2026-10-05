@@ -4141,6 +4141,10 @@ class AppModel with ChangeNotifier {
   /// Add the [searchTerm] to a search history with the given [historyKey]. If
   /// there are already a maximum number of items in history, this will be
   /// capped. Oldest items will be discarded in that scenario.
+  ///
+  /// The Stash shares this storage under [stashKey] but is NOT capped: it
+  /// holds words the user chose to keep, and trimming it silently threw
+  /// away the oldest of them once it passed [maximumSearchHistoryItems].
   void addToSearchHistory({
     required String historyKey,
     required String searchTerm,
@@ -4165,7 +4169,8 @@ class AppModel with ChangeNotifier {
           .historyKeyEqualTo(historyKey)
           .countSync();
 
-      if (maximumSearchHistoryItems < countInSameHistory) {
+      if (historyKey != stashKey &&
+          maximumSearchHistoryItems < countInSameHistory) {
         int surplus = countInSameHistory - maximumSearchHistoryItems;
         _database.searchHistoryItems
             .filter()
@@ -4357,7 +4362,7 @@ class AppModel with ChangeNotifier {
           .countSync();
 
       if (maximumMediaHistoryItems < countInSameHistory) {
-        int surplus = countInSameHistory - maximumSearchHistoryItems;
+        int surplus = countInSameHistory - maximumMediaHistoryItems;
         _database.mediaItems
             .filter()
             .mediaTypeIdentifierEqualTo(item.mediaTypeIdentifier)

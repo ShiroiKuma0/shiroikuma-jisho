@@ -15,6 +15,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   `shiroikuma-jisho-<kind>_<stamp>.log`. Bundles exported under the old
   `shiroikumanojisho_` names still import.
 
+### Fixed
+
+- **The Stash no longer forgets words.** It was stored with the search
+  histories and trimmed like them, so once it held more than 60 words,
+  adding one silently dropped the oldest. It now keeps everything until
+  you remove it.
+- **Media history no longer loses 41 entries at a time.** When a media
+  type's history went past its 100-entry limit, the trim used the search
+  history's limit of 60 to count the surplus and deleted the 41 oldest
+  entries instead of one.
+
 ## [1.5.0+081] - 2026-10-01
 
 ### Added
