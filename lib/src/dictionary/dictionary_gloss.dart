@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:isar_community/isar.dart';
+import 'package:shiroikumanojisho/dictionary.dart';
 
 part 'dictionary_gloss.g.dart';
 
@@ -9,11 +10,11 @@ part 'dictionary_gloss.g.dart';
 ///
 /// Definitions are stored compressed and as structured-content JSON, so they
 /// cannot be searched in place. This collection is derived from them: it is
-/// built by [buildGlossIndexHelper] for every dictionary whose glosses are
-/// in a Latin script, is not part of the export bundle, and is rebuilt after
-/// a restore. A row with [entryId] == [markerEntryId] records that a
-/// dictionary has been indexed, so dictionaries without English glosses are
-/// scanned only once.
+/// built once per dictionary used for Japanese: during its import (Yomitan
+/// format), or by [buildGlossIndexHelper] when the user indexes an already
+/// installed dictionary from its menu. It is not part of the export bundle.
+/// A row with [entryId] == [markerEntryId] records that a dictionary is
+/// fully indexed under [indexVersion]; only such dictionaries are searched.
 @Collection()
 class DictionaryGloss {
   /// Construct a row.
@@ -105,18 +106,10 @@ class DictionaryGloss {
   }
 
   /// Pull `(sense index, gloss)` pairs out of an entry's stored
-  /// [definitions] (the decoded form of `compressedDefinitions`).
-  ///
-  /// Structured content (Jitendex, current JMdict) marks its glosses with
-  /// `data: {content: glossary}` lists; each `li` is one gloss and each
-  /// glossary list one sense. Only those lists are read, so example
-  /// sentences, notes and cross-references never become matches. A plain
-  /// string definition is one sense, split on `;`, and is read only when
-  /// it is entirely Latin script.
+  /// [definitions] (the decoded form of `compressedDefinitions`), where
+  /// structured content is kept as a JSON string.
   static List<(int, String)> extractGlosses(List<String> definitions) {
-    final out = <(int, String)>[];
-    int sense = 0;
-
+    final collector = _GlossCollector();
     for (final String definition in definitions) {
       final String trimmed = definition.trimLeft();
       if (trimmed.startsWith('[') || trimmed.startsWith('{')) {
@@ -127,50 +120,35 @@ class DictionaryGloss {
           node = null;
         }
         if (node != null) {
-          void walk(Object? n) {
-            if (n is List) {
-              for (final child in n) {
-                walk(child);
-              }
-            } else if (n is Map) {
-              final data = n['data'];
-              if (data is Map && data['content'] == 'glossary') {
-                final items = n['content'];
-                for (final item in items is List ? items : [items]) {
-                  final text = _flatten(item).trim();
-                  if (text.isNotEmpty) {
-                    out.add((sense, text));
-                  }
-                }
-                sense++;
-              } else {
-                walk(n['content']);
-              }
-            }
-          }
-
-          walk(node);
+          collector.structured(node);
           continue;
         }
       }
+      collector.plain(definition);
+    }
+    return collector.out;
+  }
 
-      // Only a wholly English definition is a gloss list. Japanese–English
-      // dictionaries such as 新和英大辞典 write running text that mixes
-      // Japanese explanations, examples and English: split on ";", a
-      // fragment like "dog" out of 狙う's "shadow; follow; tail; dog"
-      // became an exact match and outranked 犬.
-      if (isLatinGloss(definition)) {
-        for (final String part in definition.split(';')) {
-          final text = part.trim();
-          if (text.isNotEmpty) {
-            out.add((sense, text));
-          }
+  /// The same, straight from a Yomitan term-bank row's glossary array
+  /// (strings, `{type: text}` and `{type: structured-content}` objects),
+  /// so an import indexes without encoding and re-parsing.
+  static List<(int, String)> extractGlossesFromYomichan(List<dynamic> raw) {
+    final collector = _GlossCollector();
+    for (final definition in raw) {
+      if (definition is String) {
+        collector.plain(definition);
+      } else if (definition is Map) {
+        switch (definition['type']) {
+          case 'text':
+            collector.plain('${definition['text'] ?? ''}');
+          case 'structured-content':
+            collector.structured(definition['content']);
+          default:
+            collector.sense++;
         }
       }
-      sense++;
     }
-
-    return out;
+    return collector.out;
   }
 
   static String _flatten(Object? node) {
@@ -180,30 +158,119 @@ class DictionaryGloss {
     return '';
   }
 
-  /// Build the row for one entry, or null when it has no Latin glosses.
+  /// Build the row for one entry from its stored [definitions], or null
+  /// when it has no Latin glosses.
   static DictionaryGloss? forEntry({
     required int entryId,
     required int dictionaryId,
     required List<String> definitions,
+  }) =>
+      forGlosses(
+        entryId: entryId,
+        dictionaryId: dictionaryId,
+        glosses: extractGlosses(definitions),
+      );
+
+  /// Build the row for one entry from extracted [glosses], or null when
+  /// none of them is a Latin gloss.
+  static DictionaryGloss? forGlosses({
+    required int entryId,
+    required int dictionaryId,
+    required List<(int, String)> glosses,
   }) {
-    final glosses = <String>[];
+    final kept = <String>[];
     final words = <String>{};
 
-    for (final (int sense, String text) in extractGlosses(definitions)) {
-      if (glosses.length >= maximumGlosses) break;
+    for (final (int sense, String text) in glosses) {
+      if (kept.length >= maximumGlosses) break;
       if (!isLatinGloss(text)) continue;
       final normalised = normalise(text);
       if (normalised.isEmpty) continue;
-      glosses.add('$sense\t$normalised');
+      kept.add('$sense\t$normalised');
       words.addAll(tokens(normalised));
     }
 
-    if (glosses.isEmpty) return null;
+    if (kept.isEmpty) return null;
     return DictionaryGloss(
       entryId: entryId,
       dictionaryId: dictionaryId,
       words: words.toList(),
-      glosses: glosses,
+      glosses: kept,
     );
+  }
+
+  /// The marker row recording that [dictionaryId] is indexed under the
+  /// current [indexVersion].
+  static DictionaryGloss marker(int dictionaryId) => DictionaryGloss(
+        entryId: markerEntryId,
+        dictionaryId: dictionaryId,
+        words: const [],
+        glosses: const [indexVersion],
+      );
+
+  /// Ids of the dictionaries indexed under the current [indexVersion].
+  /// Rows of any other dictionary — partial, stale or from an older
+  /// version — are never searched.
+  static Set<int> indexedDictionaryIds(Isar isar) => isar.dictionaryGloss
+      .where()
+      .entryIdEqualTo(markerEntryId)
+      .findAllSync()
+      .where((m) => m.glosses.contains(indexVersion))
+      .map((m) => m.dictionaryId)
+      .toSet();
+
+  /// Whether English search applies to [dictionary]: it exists only for
+  /// Japanese, so only dictionaries used for Japanese are indexed.
+  static bool isForJapanese(Dictionary dictionary) =>
+      dictionary.primaryLanguage.isNotEmpty
+          ? dictionary.primaryLanguage == 'ja'
+          : !dictionary.hiddenLanguages.contains('ja');
+}
+
+/// Accumulates `(sense, gloss)` pairs across one entry's definitions.
+class _GlossCollector {
+  final List<(int, String)> out = [];
+  int sense = 0;
+
+  /// A plain-text definition: one sense, split on `;`, read only when it
+  /// is wholly Latin script. Japanese–English dictionaries such as
+  /// 新和英大辞典 write running text mixing Japanese and English: split on
+  /// ";", a fragment like "dog" out of 狙う's "shadow; follow; tail; dog"
+  /// became an exact match and outranked 犬.
+  void plain(String definition) {
+    if (DictionaryGloss.isLatinGloss(definition)) {
+      for (final String part in definition.split(';')) {
+        final text = part.trim();
+        if (text.isNotEmpty) {
+          out.add((sense, text));
+        }
+      }
+    }
+    sense++;
+  }
+
+  /// Structured content: only `data: {content: glossary}` lists are read,
+  /// each `li` one gloss and each list one sense, so examples, notes and
+  /// references never become matches.
+  void structured(Object? node) {
+    if (node is List) {
+      for (final child in node) {
+        structured(child);
+      }
+    } else if (node is Map) {
+      final data = node['data'];
+      if (data is Map && data['content'] == 'glossary') {
+        final items = node['content'];
+        for (final item in items is List ? items : [items]) {
+          final text = DictionaryGloss._flatten(item).trim();
+          if (text.isNotEmpty) {
+            out.add((sense, text));
+          }
+        }
+        sense++;
+      } else {
+        structured(node['content']);
+      }
+    }
   }
 }

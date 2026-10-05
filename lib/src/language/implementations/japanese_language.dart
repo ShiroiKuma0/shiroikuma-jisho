@@ -405,7 +405,13 @@ SearchResultData? searchJapaneseByEnglishGloss({
 
   final String probe =
       words.reduce((a, b) => b.length > a.length ? b : a);
-  final Set<int> enabled = enabledDictionaryIds.toSet();
+  // Only fully indexed dictionaries answer: rows of a dictionary without a
+  // current marker are partial or stale.
+  final Set<int> indexed = DictionaryGloss.indexedDictionaryIds(database);
+  final Set<int> enabled = enabledDictionaryIds.isEmpty
+      ? indexed
+      : enabledDictionaryIds.toSet().intersection(indexed);
+  if (enabled.isEmpty) return null;
 
   final rows = database.dictionaryGloss
       .where()
@@ -416,7 +422,7 @@ SearchResultData? searchJapaneseByEnglishGloss({
   // entryId → (tier, sense bucket)
   final scores = <int, (int, int)>{};
   for (final DictionaryGloss row in rows) {
-    if (enabled.isNotEmpty && !enabled.contains(row.dictionaryId)) continue;
+    if (!enabled.contains(row.dictionaryId)) continue;
     if (!words.every(row.words.contains)) continue;
 
     (int, int)? best;

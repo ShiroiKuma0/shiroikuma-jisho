@@ -1,9 +1,9 @@
-import 'dart:io';
-
 import 'package:flutter/foundation.dart';
+import 'package:intl/intl.dart' as intl;
 import 'package:isar_community/isar.dart';
 import 'package:shiroikumanojisho/dictionary.dart';
 import 'package:shiroikumanojisho/models.dart';
+import 'package:shiroikumanojisho/utils.dart';
 
 /// FNV-1a 64-bit hash algorithm optimised for Dart Strings.
 ///
@@ -147,20 +147,30 @@ Future<void> deleteDictionaryHelper(DeleteDictionaryParams params) async {
 /// English gloss index.
 const int _kGlossBatch = 2000;
 
-/// Entries sampled before deciding a dictionary has no Latin glosses.
-const int _kGlossSample = 500;
+/// Parameters for [buildGlossIndexHelper].
+class GlossIndexParams extends IsolateParams {
+  /// Index the dictionary [dictionaryId].
+  GlossIndexParams({
+    required this.dictionaryId,
+    required super.sendPort,
+    required super.directoryPath,
+  });
 
-/// Top-level helper invoked through `compute()`: build [DictionaryGloss]
-/// rows for every dictionary that has no current marker row. Returns the
-/// number of dictionaries indexed, or -1 when another build is running.
+  /// The dictionary to index.
+  final int dictionaryId;
+}
+
+/// Top-level helper invoked through `compute()`: build the English gloss
+/// index of one dictionary that was installed before English search
+/// existed (imports index themselves). Started by the user from the
+/// dictionary's menu and run behind a progress dialog, so it is never left
+/// half-done in the background. Reports progress strings through
+/// [GlossIndexParams.sendPort] and returns the number of entries indexed.
 ///
-/// Dictionaries whose first [_kGlossSample] entries have no Latin glosses
-/// (monolingual Japanese, kanji, frequency and pitch dictionaries) are
-/// marked without a full scan. The rest are decoded in batches; Jitendex
-/// takes a minute or so on a phone, once. Runs beside the UI isolate, which
-/// keeps searching normally meanwhile, just without English results for
-/// the dictionary being indexed.
-Future<int> buildGlossIndexHelper(IsolateParams params) async {
+/// Also drops rows no search will read: those of dictionaries not used for
+/// Japanese, and of dictionaries without a current-version marker (older
+/// or interrupted builds).
+Future<int> buildGlossIndexHelper(GlossIndexParams params) async {
   final Isar isar = Isar.getInstance() ??
       await Isar.open(
         globalSchemas,
@@ -168,182 +178,73 @@ Future<int> buildGlossIndexHelper(IsolateParams params) async {
         maxSizeMiB: 8192,
       );
 
-  // Dart prints never reach logcat on the GRL-LX9, so the indexer keeps
-  // its own log beside the backup/restore logs. Appends are flushed so a
-  // killed run still leaves what it got through.
-  File? log;
-  try {
-    final Directory dir = Directory('/storage/emulated/0/tmp');
-    if (dir.existsSync()) {
-      final String stamp = DateTime.now()
-          .toIso8601String()
-          .replaceAll(':', '-')
-          .replaceAll('T', '_')
-          .split('.')
-          .first;
-      log = File('${dir.path}/shiroikuma-jisho-gloss-index_$stamp.log');
-    }
-  } catch (_) {
-    log = null;
-  }
-  void note(String line) {
-    try {
-      log?.writeAsStringSync(
-        '${DateTime.now().toIso8601String()} $line\n',
-        mode: FileMode.append,
-        flush: true,
-      );
-    } catch (_) {}
-  }
+  final Dictionary? dictionary = isar.dictionarys.getSync(params.dictionaryId);
+  if (dictionary == null) return 0;
 
-  // One build at a time. Reopening the app can start a second AppModel
-  // (and indexer) in the same process while the first is still running,
-  // and the two then index the same dictionaries side by side. A running
-  // build touches this file every batch; a fresh one means "busy".
-  final File heartbeat = File('${params.directoryPath}/gloss_index.heartbeat');
-  if (heartbeat.existsSync() &&
-      DateTime.now().difference(heartbeat.lastModifiedSync()) <
-          const Duration(minutes: 1)) {
-    return -1;
-  }
-  void beat() {
-    try {
-      heartbeat.writeAsStringSync(DateTime.now().toIso8601String(),
-          flush: true);
-    } catch (_) {}
-  }
-
-  beat();
-
-  final Stopwatch clock = Stopwatch()..start();
-  int indexed = 0;
-  bool loggedAnything = false;
-  for (final Dictionary dictionary
-      in isar.dictionarys.where().sortByOrder().findAllSync()) {
-    // English search exists only for Japanese, so only dictionaries used
-    // for Japanese are indexed. Others — an English–Czech dictionary's
-    // Czech glosses pass the Latin-script test — would cost minutes and
-    // never be searched; rows an earlier build gave them are dropped.
-    final bool forJapanese = dictionary.primaryLanguage.isNotEmpty
-        ? dictionary.primaryLanguage == 'ja'
-        : !dictionary.hiddenLanguages.contains('ja');
-    if (!forJapanese) {
-      if (isar.dictionaryGloss
-              .where()
-              .dictionaryIdEqualTo(dictionary.id)
-              .countSync() >
-          0) {
-        isar.writeTxnSync(() {
-          isar.dictionaryGloss
-              .where()
-              .dictionaryIdEqualTo(dictionary.id)
-              .deleteAllSync();
-        });
+  final Set<int> current = DictionaryGloss.indexedDictionaryIds(isar);
+  isar.writeTxnSync(() {
+    for (final Dictionary other in isar.dictionarys.where().findAllSync()) {
+      if (other.id == dictionary.id ||
+          (current.contains(other.id) && DictionaryGloss.isForJapanese(other))) {
+        continue;
       }
-      continue;
-    }
-
-    final markers = isar.dictionaryGloss
-        .where()
-        .entryIdEqualTo(DictionaryGloss.markerEntryId)
-        .filter()
-        .dictionaryIdEqualTo(dictionary.id)
-        .findAllSync();
-    if (markers.any((m) => m.glosses.contains(DictionaryGloss.indexVersion))) {
-      continue;
-    }
-
-    // Start from nothing: a stale index (older version, or a build that was
-    // interrupted) is dropped rather than patched.
-    isar.writeTxnSync(() {
       isar.dictionaryGloss
           .where()
-          .dictionaryIdEqualTo(dictionary.id)
+          .dictionaryIdEqualTo(other.id)
           .deleteAllSync();
-    });
-
-    if (!loggedAnything) {
-      loggedAnything = true;
-      note('start: index version ${DictionaryGloss.indexVersion}');
     }
-    final int startedAt = clock.elapsedMilliseconds;
-
-    final List<int> entryIds = isar.dictionaryEntrys
+    isar.dictionaryGloss
         .where()
         .dictionaryIdEqualTo(dictionary.id)
-        .idProperty()
-        .findAllSync();
+        .deleteAllSync();
+  });
 
-    bool anyGloss = false;
-    for (int start = 0; start < entryIds.length; start += _kGlossBatch) {
-      if (start >= _kGlossSample && !anyGloss) break;
+  final List<int> entryIds = isar.dictionaryEntrys
+      .where()
+      .dictionaryIdEqualTo(dictionary.id)
+      .idProperty()
+      .findAllSync();
 
-      final int end = (start + _kGlossBatch).clamp(0, entryIds.length);
-      final entries = isar.dictionaryEntrys
-          .getAllSync(entryIds.sublist(start, end))
-          .whereType<DictionaryEntry>();
+  final format = intl.NumberFormat.decimalPattern();
+  int indexed = 0;
+  for (int start = 0; start < entryIds.length; start += _kGlossBatch) {
+    final int end = (start + _kGlossBatch).clamp(0, entryIds.length);
+    final entries = isar.dictionaryEntrys
+        .getAllSync(entryIds.sublist(start, end))
+        .whereType<DictionaryEntry>();
 
-      final rows = <DictionaryGloss>[];
-      for (final DictionaryEntry entry in entries) {
-        List<String> definitions;
-        try {
-          definitions =
-              await DefinitionCodec.decode(entry.compressedDefinitions);
-        } catch (_) {
-          continue;
-        }
-        final row = DictionaryGloss.forEntry(
-          entryId: entry.id!,
-          dictionaryId: dictionary.id,
-          definitions: definitions,
-        );
-        if (row != null) rows.add(row);
+    final rows = <DictionaryGloss>[];
+    for (final DictionaryEntry entry in entries) {
+      List<String> definitions;
+      try {
+        definitions = await DefinitionCodec.decode(entry.compressedDefinitions);
+      } catch (_) {
+        continue;
       }
-
-      if (rows.isNotEmpty) {
-        anyGloss = true;
-        isar.writeTxnSync(() => isar.dictionaryGloss.putAllSync(rows));
-      }
-      if (anyGloss) {
-        params.send(['progress', dictionary.name, end, entryIds.length]);
-      }
-      beat();
-    }
-
-    final int rowCount = isar.dictionaryGloss
-        .where()
-        .dictionaryIdEqualTo(dictionary.id)
-        .countSync();
-    note('${dictionary.name}: ${entryIds.length} entries, $rowCount gloss '
-        'rows, ${clock.elapsedMilliseconds - startedAt} ms');
-
-    // The dictionary may have been deleted while it was being indexed.
-    if (isar.dictionarys.getSync(dictionary.id) == null) {
-      isar.writeTxnSync(() {
-        isar.dictionaryGloss
-            .where()
-            .dictionaryIdEqualTo(dictionary.id)
-            .deleteAllSync();
-      });
-      continue;
-    }
-
-    isar.writeTxnSync(() {
-      isar.dictionaryGloss.putSync(DictionaryGloss(
-        entryId: DictionaryGloss.markerEntryId,
+      final row = DictionaryGloss.forEntry(
+        entryId: entry.id!,
         dictionaryId: dictionary.id,
-        words: const [],
-        glosses: const [DictionaryGloss.indexVersion],
-      ));
-    });
-    indexed++;
+        definitions: definitions,
+      );
+      if (row != null) rows.add(row);
+    }
+    indexed += rows.length;
+    isar.writeTxnSync(() => isar.dictionaryGloss.putAllSync(rows));
+
+    // A monolingual dictionary shows no English in its first batch; stop
+    // there instead of decoding hundreds of thousands of entries for
+    // nothing. It is still marked, so it is not offered again.
+    if (indexed == 0) break;
+
+    params.send(t.gloss_index_progress(
+      name: dictionary.name,
+      done: format.format(end),
+      total: format.format(entryIds.length),
+    ));
   }
 
-  if (loggedAnything) {
-    note('done: $indexed dictionaries in ${clock.elapsedMilliseconds} ms');
-  }
-  try {
-    heartbeat.deleteSync();
-  } catch (_) {}
+  isar.writeTxnSync(() {
+    isar.dictionaryGloss.putSync(DictionaryGloss.marker(dictionary.id));
+  });
   return indexed;
 }

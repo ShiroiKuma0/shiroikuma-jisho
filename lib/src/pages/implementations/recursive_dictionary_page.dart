@@ -527,17 +527,10 @@ class _RecursiveDictionaryPageState
   }
 
   Widget buildNoSearchResultsPlaceholderMessage() {
-    // While the English index is being built, an English query has
-    // nothing to match yet; say so instead of a bare "no results".
-    return ValueListenableBuilder<String?>(
-      valueListenable: appModel.glossIndexStatus,
-      builder: (context, status, _) => Center(
-        child: JidoujishoPlaceholderMessage(
-          icon: Icons.search_off,
-          message: status == null
-              ? t.no_search_results
-              : t.no_search_results_while_indexing(status: status),
-        ),
+    return Center(
+      child: JidoujishoPlaceholderMessage(
+        icon: Icons.search_off,
+        message: t.no_search_results,
       ),
     );
   }

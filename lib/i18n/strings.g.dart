@@ -4,9 +4,9 @@
 /// To regenerate, run: `dart run slang`
 ///
 /// Locales: 1
-/// Strings: 449
+/// Strings: 448
 ///
-/// Built on 2026-10-05 at 09:21 UTC
+/// Built on 2026-10-05 at 12:15 UTC
 
 // coverage:ignore-file
 // ignore_for_file: type=lint
@@ -302,10 +302,9 @@ class Translations implements BaseTranslations<AppLocale, Translations> {
 	String get enter_search_term => 'Enter a search term...';
 	String searching_for({required Object searchTerm}) => 'Searching for 『${searchTerm}』...';
 	String get no_search_results => 'No search results found.';
-	String no_search_results_while_indexing({required Object status}) => 'No search results found.\n\nEnglish search is still being prepared — ${status}';
-	String get gloss_index_started => 'Preparing English search in the background…';
-	String get gloss_index_ready => 'English search is ready.';
-	String gloss_index_progress({required Object name, required Object done, required Object total}) => 'indexing 『${name}』: ${done} / ${total}';
+	String gloss_index_progress({required Object name, required Object done, required Object total}) => 'Indexing 『${name}』 for English search:\n${done} / ${total}';
+	String get gloss_index_option => 'Index for English search';
+	String gloss_index_done({required Object name}) => '『${name}』 can now be searched in English.';
 	String get edit_actions => 'Edit Dictionary Quick Actions';
 	String get remove_action => 'Remove Action';
 	String get assign_action => 'Assign Action';
@@ -783,10 +782,9 @@ extension on Translations {
 			case 'enter_search_term': return 'Enter a search term...';
 			case 'searching_for': return ({required Object searchTerm}) => 'Searching for 『${searchTerm}』...';
 			case 'no_search_results': return 'No search results found.';
-			case 'no_search_results_while_indexing': return ({required Object status}) => 'No search results found.\n\nEnglish search is still being prepared — ${status}';
-			case 'gloss_index_started': return 'Preparing English search in the background…';
-			case 'gloss_index_ready': return 'English search is ready.';
-			case 'gloss_index_progress': return ({required Object name, required Object done, required Object total}) => 'indexing 『${name}』: ${done} / ${total}';
+			case 'gloss_index_progress': return ({required Object name, required Object done, required Object total}) => 'Indexing 『${name}』 for English search:\n${done} / ${total}';
+			case 'gloss_index_option': return 'Index for English search';
+			case 'gloss_index_done': return ({required Object name}) => '『${name}』 can now be searched in English.';
 			case 'edit_actions': return 'Edit Dictionary Quick Actions';
 			case 'remove_action': return 'Remove Action';
 			case 'assign_action': return 'Assign Action';

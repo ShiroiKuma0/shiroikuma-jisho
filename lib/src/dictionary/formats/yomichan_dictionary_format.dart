@@ -187,12 +187,34 @@ Future<void> prepareEntriesYomichanFormat({
   final dictionaryId = params.dictionary.id;
   final pendingEntries = <DictionaryEntry>[];
 
+  // English search: a dictionary used for Japanese gets its gloss index
+  // built here, from the glossary already in hand, in the same write as
+  // its entries — one pass at import, nothing later. Parallel to
+  // [pendingEntries]; null for kanji rows, which have no glosses.
+  final bool indexGlosses = DictionaryGloss.isForJapanese(params.dictionary);
+  final pendingGlosses = <List<(int, String)>?>[];
+
   Future<void> flushPending() async {
     if (pendingEntries.isEmpty) return;
     final toWrite = List<DictionaryEntry>.from(pendingEntries);
+    final glosses = List<List<(int, String)>?>.from(pendingGlosses);
     pendingEntries.clear();
+    pendingGlosses.clear();
     isar.writeTxnSync(() {
-      isar.dictionaryEntrys.putAllSync(toWrite);
+      final List<int> ids = isar.dictionaryEntrys.putAllSync(toWrite);
+      if (!indexGlosses) return;
+      final rows = <DictionaryGloss>[];
+      for (int i = 0; i < toWrite.length; i++) {
+        final extracted = glosses[i];
+        if (extracted == null || extracted.isEmpty) continue;
+        final row = DictionaryGloss.forGlosses(
+          entryId: ids[i],
+          dictionaryId: dictionaryId,
+          glosses: extracted,
+        );
+        if (row != null) rows.add(row);
+      }
+      isar.dictionaryGloss.putAllSync(rows);
     });
   }
 
@@ -219,6 +241,9 @@ Future<void> prepareEntriesYomichanFormat({
 
         final compressed = await DefinitionCodec.encode(definitions);
 
+        pendingGlosses.add(indexGlosses
+            ? DictionaryGloss.extractGlossesFromYomichan(rawDefinitions)
+            : null);
         pendingEntries.add(DictionaryEntry(
           term: term,
           reading: reading,
@@ -276,6 +301,7 @@ Future<void> prepareEntriesYomichanFormat({
 
         final compressed = await DefinitionCodec.encode([definition]);
 
+        pendingGlosses.add(null);
         pendingEntries.add(DictionaryEntry(
           term: term,
           reading: '',
@@ -298,6 +324,11 @@ Future<void> prepareEntriesYomichanFormat({
   }
 
   await flushPending();
+  if (indexGlosses) {
+    isar.writeTxnSync(() {
+      isar.dictionaryGloss.putSync(DictionaryGloss.marker(dictionaryId));
+    });
+  }
   params.send(t.import_write_entry(count: n, total: total));
 }
 

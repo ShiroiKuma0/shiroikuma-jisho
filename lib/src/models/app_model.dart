@@ -1796,12 +1796,6 @@ class AppModel with ChangeNotifier {
       }
     }
 
-    /// Index the English glosses of any dictionary not yet indexed —
-    /// dictionaries imported before English search existed, and all of
-    /// them after a restore (the index is not in the backup). Runs in the
-    /// background; the app is usable meanwhile.
-    unawaited(refreshGlossIndex());
-
     /// Preload the in-memory term-index in memory on startup if the
     /// user has opted into that (default is `onBookOpen`, in which
     /// case this is skipped and the reader page kicks off the
@@ -2145,7 +2139,6 @@ class AppModel with ChangeNotifier {
 
       progressNotifier.value = t.import_complete;
       onImportSuccess();
-      unawaited(refreshGlossIndex());
       await Future.delayed(const Duration(seconds: 1), () {});
       return true;
     } catch (e) {
@@ -2159,78 +2152,40 @@ class AppModel with ChangeNotifier {
     }
   }
 
-  bool _glossIndexRunning = false;
-  bool _glossIndexAgain = false;
+  /// Whether [dictionary] is one English search could use but that has
+  /// no current gloss index — installed before English search existed, or
+  /// indexed under an older version. Its menu then offers indexing.
+  bool needsGlossIndex(Dictionary dictionary) =>
+      DictionaryGloss.isForJapanese(dictionary) &&
+      !DictionaryGloss.indexedDictionaryIds(_database).contains(dictionary.id);
 
-  /// What the English gloss indexer is doing, for the no-results message;
-  /// null when it is idle.
-  final ValueNotifier<String?> glossIndexStatus = ValueNotifier<String?>(null);
-
-  /// Build the English gloss index for every dictionary that lacks one, in
-  /// a background isolate. A call while a build is running schedules one
-  /// more pass instead of a second concurrent build, so several imports in
-  /// a row are all picked up.
-  Future<void> refreshGlossIndex() async {
-    if (_glossIndexRunning) {
-      _glossIndexAgain = true;
-      return;
-    }
-    _glossIndexRunning = true;
+  /// Build the English gloss index of an installed [dictionary] in a
+  /// worker isolate, reporting through [progressNotifier]. Returns whether
+  /// it finished.
+  Future<bool> buildGlossIndex({
+    required Dictionary dictionary,
+    required ValueNotifier<String> progressNotifier,
+  }) async {
+    final ReceivePort port = ReceivePort();
+    port.listen((message) => progressNotifier.value = '$message');
     try {
-      do {
-        _glossIndexAgain = false;
-        final ReceivePort port = ReceivePort();
-        bool announced = false;
-        port.listen((message) {
-          // ['progress', dictionary name, entries done, entries total]
-          if (message is List && message.length == 4) {
-            glossIndexStatus.value = t.gloss_index_progress(
-              name: message[1],
-              done: intl.NumberFormat.decimalPattern().format(message[2]),
-              total: intl.NumberFormat.decimalPattern().format(message[3]),
-            );
-            if (!announced) {
-              announced = true;
-              Fluttertoast.showToast(
-                msg: t.gloss_index_started,
-                toastLength: Toast.LENGTH_LONG,
-              );
-            }
-          }
-        });
-        try {
-          final int indexed = await compute(
-            buildGlossIndexHelper,
-            IsolateParams(
-              sendPort: port.sendPort,
-              directoryPath: _databaseDirectory.path,
-            ),
-          );
-          if (indexed < 0) {
-            // Another build holds the heartbeat — a previous engine in
-            // this process, or one killed less than a minute ago. Look
-            // again once its heartbeat would have gone stale.
-            Future.delayed(const Duration(seconds: 75), refreshGlossIndex);
-          }
-          if (indexed > 0) {
-            // Cached results for Latin queries predate the new index.
-            clearDictionaryResultsCache();
-          }
-          if (announced) {
-            Fluttertoast.showToast(
-              msg: t.gloss_index_ready,
-              toastLength: Toast.LENGTH_LONG,
-            );
-          }
-        } catch (e) {
-          debugPrint('Gloss index build failed: $e');
-        } finally {
-          port.close();
-        }
-      } while (_glossIndexAgain);
+      await compute(
+        buildGlossIndexHelper,
+        GlossIndexParams(
+          dictionaryId: dictionary.id,
+          sendPort: port.sendPort,
+          directoryPath: _databaseDirectory.path,
+        ),
+      );
+      // Cached results for Latin queries predate the index.
+      clearDictionaryResultsCache();
+      return true;
+    } catch (e) {
+      progressNotifier.value = '$e';
+      await Future.delayed(const Duration(seconds: 3), () {});
+      return false;
     } finally {
-      _glossIndexRunning = false;
-      glossIndexStatus.value = null;
+      port.close();
     }
   }
 

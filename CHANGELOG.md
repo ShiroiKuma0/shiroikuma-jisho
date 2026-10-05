@@ -22,12 +22,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   word frequency. A query that also reads as romaji is searched both ways:
   “sake” shows 酒 by its reading and by its meaning, with whichever matches
   the whole query first. Works with any dictionary that has English
-  meanings, such as Jitendex or JMdict; the first launch after updating
-  indexes the ones already installed in the background (about half a
-  minute for Jitendex), and new imports are indexed as they finish. A
-  toast says when that starts and when English search is ready, and an
-  English search made meanwhile says the index is still being built, with
-  its progress, instead of a bare “no results”.
+  meanings, such as Jitendex or JMdict. A dictionary is indexed once, as
+  part of its import; one installed earlier shows “Index for English
+  search” in its ⋮ menu in the dictionary list, which builds the index
+  behind a progress dialog (a few minutes for Jitendex) and then
+  disappears.
 
 - **Download dictionaries from inside the app.** The dictionary menu has a
   new “Download dictionaries” button, and a fresh install offers the same

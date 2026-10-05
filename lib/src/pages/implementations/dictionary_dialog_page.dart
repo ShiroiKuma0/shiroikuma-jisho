@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:change_notifier_builder/change_notifier_builder.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:fluttertoast/fluttertoast.dart';
 import 'package:spaces/spaces.dart';
 import 'package:shiroikumanojisho/dictionary.dart';
 import 'package:shiroikumanojisho/media.dart';
@@ -94,6 +95,38 @@ class _DictionaryDialogPageState extends BasePageState with ChangeNotifier {
       context: context,
       builder: (context) => alertDialog,
     );
+  }
+
+  /// Build [dictionary]'s English index behind the import progress
+  /// dialog, which cannot be dismissed until it is done.
+  Future<void> buildGlossIndex(Dictionary dictionary) async {
+    final ValueNotifier<String> progressNotifier =
+        ValueNotifier<String>(t.import_start);
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => DictionaryDialogImportPage(
+        progressNotifier: progressNotifier,
+        countNotifier: ValueNotifier<int?>(null),
+        totalNotifier: ValueNotifier<int?>(null),
+      ),
+    );
+
+    final bool done = await appModel.buildGlossIndex(
+      dictionary: dictionary,
+      progressNotifier: progressNotifier,
+    );
+
+    if (mounted) {
+      Navigator.pop(context);
+      setState(() {});
+    }
+    if (done) {
+      Fluttertoast.showToast(
+        msg: t.gloss_index_done(name: dictionary.name),
+        toastLength: Toast.LENGTH_LONG,
+      );
+    }
   }
 
   Future<void> showDictionaryDeleteDialog(Dictionary dictionary) async {
@@ -606,6 +639,15 @@ class _DictionaryDialogPageState extends BasePageState with ChangeNotifier {
               !_notifiersByDictionary[dictionary]!.value;
         },
       ),
+      // Dictionaries installed before English search existed: a one-time
+      // build of their English index. Imports from now on index
+      // themselves, so this disappears once done.
+      if (appModel.needsGlossIndex(dictionary))
+        buildPopupItem(
+          label: t.gloss_index_option,
+          icon: Icons.translate,
+          action: () => buildGlossIndex(dictionary),
+        ),
       buildPopupItem(
         label: t.options_delete,
         icon: Icons.delete,
