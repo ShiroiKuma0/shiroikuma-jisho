@@ -8,6 +8,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Added
 
+- **Pinch to resize dictionary results.** Pinch anywhere on a result list
+  — the dictionary tab or a pop-up over the reader or player — to make the
+  text larger or smaller. Headwords, furigana, definitions and
+  translations scale together, the size is shown while you pinch, and it
+  is remembered, just like the existing left-edge swipe.
+
 - **Search in English to find Japanese words.** Typing “eat” now finds
   食べる, 食う and 口にする; “give up” finds 諦める; “thank you” finds
   ありがとう. Matches are ranked by how closely a meaning fits (the whole

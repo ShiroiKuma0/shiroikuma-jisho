@@ -124,82 +124,130 @@ class _DictionaryResultPageState extends BasePageState<DictionaryResultPage> {
   static const double _rubySizeMin = 6;
   static const Duration _refreshThrottle = Duration(milliseconds: 50);
 
-  void _onFontDragUpdate(DragUpdateDetails d) {
-    // First tick of a new drag: capture starting entry size and
-    // the current heading:entry ratio. `_lastRefreshAt` doubles
-    // as the first-tick marker because it's nulled in
-    // `_onFontDragEnd` and throttling below also reads it.
-    if (_lastRefreshAt == null) {
-      _gestureEntryFontSize = appModel.dictionaryFontSize;
-      final double headingNow = appModel.dictionaryHeadingFontSize;
-      _gestureRatio = _gestureEntryFontSize > 0
-          ? headingNow / _gestureEntryFontSize
-          : (28.0 / 24.0);
-      // Translation glosses have their own size but ride along on
-      // the same drag, keeping whatever proportion to the entry size
-      // they were set to — otherwise a swipe would grow the 国語
-      // definitions and leave the bilingual ones behind.
-      _gestureTranslationRatio = _gestureEntryFontSize > 0
-          ? appModel.dictionaryTranslationFontSize / _gestureEntryFontSize
-          : 1;
-      // Furigana rides along on the same terms. Leaving it out would
-      // grow the heading away from the reading printed above it,
-      // which is the exact mismatch its own setting exists to fix.
-      _gestureRubyRatio = _gestureEntryFontSize > 0
-          ? appModel.dictionaryHeadingRubyFontSize / _gestureEntryFontSize
-          : (14.0 / 24.0);
-    }
+  /// Capture the starting entry size and the proportions of the other
+  /// three sizes to it, so a gesture scales them all together.
+  void _beginFontGesture() {
+    _gestureEntryFontSize = appModel.dictionaryFontSize;
+    _gestureStartEntryFontSize = _gestureEntryFontSize;
+    final double headingNow = appModel.dictionaryHeadingFontSize;
+    _gestureRatio = _gestureEntryFontSize > 0
+        ? headingNow / _gestureEntryFontSize
+        : (28.0 / 24.0);
+    // Translation glosses have their own size but ride along on
+    // the same gesture, keeping whatever proportion to the entry size
+    // they were set to — otherwise a swipe would grow the 国語
+    // definitions and leave the bilingual ones behind.
+    _gestureTranslationRatio = _gestureEntryFontSize > 0
+        ? appModel.dictionaryTranslationFontSize / _gestureEntryFontSize
+        : 1;
+    // Furigana rides along on the same terms. Leaving it out would
+    // grow the heading away from the reading printed above it,
+    // which is the exact mismatch its own setting exists to fix.
+    _gestureRubyRatio = _gestureEntryFontSize > 0
+        ? appModel.dictionaryHeadingRubyFontSize / _gestureEntryFontSize
+        : (14.0 / 24.0);
+  }
 
-    final double step = -d.delta.dy / 12;
-    _gestureEntryFontSize = (_gestureEntryFontSize + step)
-        .clamp(_fontSizeMin, _fontSizeMax);
-    final double newHeading = (_gestureEntryFontSize * _gestureRatio)
-        .clamp(_fontSizeMin, _headingSizeMax);
-    final double newTranslation =
-        (_gestureEntryFontSize * _gestureTranslationRatio)
-            .clamp(_fontSizeMin, _fontSizeMax);
-    final double newRuby = (_gestureEntryFontSize * _gestureRubyRatio)
-        .clamp(_rubySizeMin, _fontSizeMax);
-
+  /// Persist [_gestureEntryFontSize] and the sizes derived from it, and
+  /// rebuild. Mid-gesture calls are throttled; [commit] always writes.
+  void _applyFontGesture({bool commit = false}) {
     // Overlay updates take the fast path — they do not call
     // setState so the dictionary subtree is untouched.
     _indicatorSize.value = _gestureEntryFontSize;
     _indicatorVisible.value = true;
 
     final DateTime now = DateTime.now();
-    if (_lastRefreshAt == null ||
-        now.difference(_lastRefreshAt!) >= _refreshThrottle) {
-      appModel.setDictionaryFontSize(_gestureEntryFontSize);
-      appModel.setDictionaryHeadingFontSize(newHeading);
-      appModel.setDictionaryTranslationFontSize(newTranslation);
-      appModel.setDictionaryHeadingRubyFontSize(newRuby);
-      appModel.refresh();
-      _lastRefreshAt = now;
+    if (!commit &&
+        _lastRefreshAt != null &&
+        now.difference(_lastRefreshAt!) < _refreshThrottle) {
+      return;
     }
+
+    appModel.setDictionaryFontSize(_gestureEntryFontSize);
+    appModel.setDictionaryHeadingFontSize((_gestureEntryFontSize * _gestureRatio)
+        .clamp(_fontSizeMin, _headingSizeMax));
+    appModel.setDictionaryTranslationFontSize(
+        (_gestureEntryFontSize * _gestureTranslationRatio)
+            .clamp(_fontSizeMin, _fontSizeMax));
+    appModel.setDictionaryHeadingRubyFontSize(
+        (_gestureEntryFontSize * _gestureRubyRatio)
+            .clamp(_rubySizeMin, _fontSizeMax));
+    appModel.refresh();
+    _lastRefreshAt = commit ? null : now;
   }
 
-  void _onFontDragEnd(DragEndDetails d) {
+  void _endFontGesture() {
     // Always commit the final value regardless of throttle so the
-    // drag's last few ticks (if they landed inside the throttle
+    // gesture's last few ticks (if they landed inside the throttle
     // window) aren't lost.
-    final double finalHeading = (_gestureEntryFontSize * _gestureRatio)
-        .clamp(_fontSizeMin, _headingSizeMax);
-    final double finalTranslation =
-        (_gestureEntryFontSize * _gestureTranslationRatio)
-            .clamp(_fontSizeMin, _fontSizeMax);
-    final double finalRuby = (_gestureEntryFontSize * _gestureRubyRatio)
-        .clamp(_rubySizeMin, _fontSizeMax);
-    appModel.setDictionaryFontSize(_gestureEntryFontSize);
-    appModel.setDictionaryHeadingFontSize(finalHeading);
-    appModel.setDictionaryTranslationFontSize(finalTranslation);
-    appModel.setDictionaryHeadingRubyFontSize(finalRuby);
-    appModel.refresh();
-    _lastRefreshAt = null;
+    _applyFontGesture(commit: true);
     _hideIndicatorTimer?.cancel();
     _hideIndicatorTimer = Timer(const Duration(milliseconds: 600), () {
       if (!mounted) return;
       _indicatorVisible.value = false;
     });
+  }
+
+  void _onFontDragUpdate(DragUpdateDetails d) {
+    // `_lastRefreshAt` doubles as the first-tick marker: it is null
+    // between gestures.
+    if (_lastRefreshAt == null) {
+      _beginFontGesture();
+    }
+    final double step = -d.delta.dy / 12;
+    _gestureEntryFontSize = (_gestureEntryFontSize + step)
+        .clamp(_fontSizeMin, _fontSizeMax);
+    _applyFontGesture();
+  }
+
+  void _onFontDragEnd(DragEndDetails d) => _endFontGesture();
+
+  // Pinch state. Raw pointers through a Listener rather than a
+  // ScaleGestureRecognizer: a recognizer would enter the gesture arena
+  // against the scroll view and the expandables, and lose or steal
+  // one-finger scrolls. A Listener sees every pointer without competing,
+  // and scrolling is switched off only while two fingers are down.
+  final Map<int, Offset> _pointers = {};
+  double? _pinchStartDistance;
+  double _gestureStartEntryFontSize = 24;
+  bool _pinching = false;
+
+  double get _pointerSpan {
+    final positions = _pointers.values.toList();
+    return (positions[0] - positions[1]).distance;
+  }
+
+  void _onPointerDown(PointerDownEvent e) {
+    _pointers[e.pointer] = e.position;
+    if (_pointers.length == 2) {
+      _pinchStartDistance = _pointerSpan;
+      _beginFontGesture();
+      setState(() => _pinching = true);
+    }
+  }
+
+  void _onPointerMove(PointerMoveEvent e) {
+    if (!_pointers.containsKey(e.pointer)) {
+      return;
+    }
+    _pointers[e.pointer] = e.position;
+    final double? start = _pinchStartDistance;
+    if (_pointers.length != 2 || start == null || start < 1) {
+      return;
+    }
+
+    _gestureEntryFontSize = (_gestureStartEntryFontSize * _pointerSpan / start)
+        .clamp(_fontSizeMin, _fontSizeMax);
+    _applyFontGesture();
+  }
+
+  void _onPointerUp(PointerEvent e) {
+    _pointers.remove(e.pointer);
+    if (_pinching && _pointers.length < 2) {
+      _pinchStartDistance = null;
+      _endFontGesture();
+      setState(() => _pinching = false);
+    }
   }
 
   @override
@@ -256,9 +304,11 @@ class _DictionaryResultPageState extends BasePageState<DictionaryResultPage> {
       // ignore: deprecated_member_use
       cacheExtent: 999999999999999,
             controller: _scrollController,
-            physics: const AlwaysScrollableScrollPhysics(
-              parent: BouncingScrollPhysics(),
-            ),
+            physics: _pinching
+                ? const NeverScrollableScrollPhysics()
+                : const AlwaysScrollableScrollPhysics(
+                    parent: BouncingScrollPhysics(),
+                  ),
             slivers: [
               SliverPadding(
                   padding: widget.spaceBeforeFirstResult
@@ -299,7 +349,15 @@ class _DictionaryResultPageState extends BasePageState<DictionaryResultPage> {
 
     return Stack(
       children: [
-        content,
+        // Pinch anywhere on the results to resize them; the size is the
+        // same persisted setting the edge swipe and the settings page use.
+        Listener(
+          onPointerDown: _onPointerDown,
+          onPointerMove: _onPointerMove,
+          onPointerUp: _onPointerUp,
+          onPointerCancel: _onPointerUp,
+          child: content,
+        ),
         if (appModel.dictionaryFontSizeSwipeEnabled)
           Positioned(
             left: 0,
