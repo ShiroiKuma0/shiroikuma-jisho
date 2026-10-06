@@ -8,6 +8,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Added
 
+- **Conjugation tables.** Verbs and i-adjectives get a “活用” chip after
+  the dictionary chips; it shows the word's forms — non-past, past,
+  te-form, potential, passive, causative, causative-passive, imperative,
+  volitional, both conditionals and -たい — as plain, negative, polite and
+  polite negative. All verb classes are covered, including 行く, ある,
+  いらっしゃる, 問う, 来る, する and nouns taking する (勉強 → 勉強した), and
+  いい (よかった). The word's class is read from the dictionaries' own
+  part-of-speech marks, so nothing needs re-importing.
+
 - **A kanji page.** Tap a kanji in a headword, or in the new kanji
   breakdown under it (犬 dog · 小 small · 屋 roof), to open its page: the
   kanji large, its meanings, 音 and 訓 readings, stroke count, school

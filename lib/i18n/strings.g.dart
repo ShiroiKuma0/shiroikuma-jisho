@@ -4,9 +4,9 @@
 /// To regenerate, run: `dart run slang`
 ///
 /// Locales: 1
-/// Strings: 457
+/// Strings: 461
 ///
-/// Built on 2026-10-06 at 13:02 UTC
+/// Built on 2026-10-06 at 13:24 UTC
 
 // coverage:ignore-file
 // ignore_for_file: type=lint
@@ -186,6 +186,10 @@ class Translations implements BaseTranslations<AppLocale, Translations> {
 	String get dialog_delete => 'DELETE';
 	String get dialog_cancel => 'CANCEL';
 	String get dialog_skip => 'SKIP';
+	String get conjugation_plain => 'plain';
+	String get conjugation_plain_negative => 'negative';
+	String get conjugation_polite => 'polite';
+	String get conjugation_polite_negative => 'polite negative';
 	String get radical_search => 'Find kanji by radicals';
 	String get radical_search_hint => 'Pick the parts the kanji contains.';
 	String get kanji_stroke_order_download => 'Download stroke order (KanjiVG, 3.6 MB)';
@@ -675,6 +679,10 @@ extension on Translations {
 			case 'dialog_delete': return 'DELETE';
 			case 'dialog_cancel': return 'CANCEL';
 			case 'dialog_skip': return 'SKIP';
+			case 'conjugation_plain': return 'plain';
+			case 'conjugation_plain_negative': return 'negative';
+			case 'conjugation_polite': return 'polite';
+			case 'conjugation_polite_negative': return 'polite negative';
 			case 'radical_search': return 'Find kanji by radicals';
 			case 'radical_search_hint': return 'Pick the parts the kanji contains.';
 			case 'kanji_stroke_order_download': return 'Download stroke order (KanjiVG, 3.6 MB)';

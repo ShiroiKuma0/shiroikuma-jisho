@@ -8,6 +8,7 @@ import 'package:visibility_detector/visibility_detector.dart';
 import 'package:shiroikumanojisho/creator.dart';
 import 'package:shiroikumanojisho/dictionary.dart';
 import 'package:shiroikumanojisho/pages.dart';
+import 'package:shiroikumanojisho/src/language/implementations/japanese_conjugation.dart';
 import 'package:shiroikumanojisho/src/models/app_model.dart';
 import 'package:shiroikumanojisho/src/models/creator_model.dart';
 import 'package:shiroikumanojisho/utils.dart';
@@ -147,6 +148,84 @@ class DictionaryTermPage extends ConsumerWidget {
 final selectedDictionaryProvider =
     StateProvider.family<String?, DictionaryHeading>((ref, heading) => null);
 
+/// The chip value that selects the conjugation table.
+const String _conjugationTab = '\u0000活用';
+
+/// Part-of-speech codes of [entries]: their tag fields (JMdict puts v5k,
+/// adj-i … there) and the codes on Jitendex's part-of-speech spans in the
+/// definitions.
+Set<String> _partOfSpeechCodes(List<DictionaryEntry> entries) {
+  final codes = <String>{};
+  final code = RegExp(r'"code"\s*:\s*"([^"]+)"');
+  for (final e in entries) {
+    codes.addAll('${e.entryTagsRaw} ${e.headingTagsRaw}'.split(' '));
+    for (final d in e.definitions) {
+      if (!d.contains('part-of-speech-info')) continue;
+      codes.addAll(code.allMatches(d).map((m) => m.group(1)!));
+    }
+  }
+  return codes;
+}
+
+/// A word's conjugations: one row per form, columns plain, plain
+/// negative, polite, polite negative.
+class _ConjugationTable extends ConsumerWidget {
+  const _ConjugationTable({required this.rows});
+
+  final List<(String, String, String, String, String)> rows;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final appModel = ref.watch(appProvider);
+    final color = Color(appModel.dictionaryFontColor);
+    final muted = color.withValues(alpha: 0.6);
+    final size = appModel.dictionaryFontSize * 0.75;
+
+    Widget cell(String text, {bool label = false}) => Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 1),
+      child: Text(
+        text,
+        style: TextStyle(
+          fontSize: label ? size * 0.8 : size,
+          color: label ? muted : color,
+        ),
+      ),
+    );
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 4, bottom: 6),
+      child: Table(
+        defaultColumnWidth: const IntrinsicColumnWidth(),
+        defaultVerticalAlignment: TableCellVerticalAlignment.middle,
+        border: TableBorder(
+          horizontalInside: BorderSide(color: color.withValues(alpha: 0.12)),
+        ),
+        children: [
+          TableRow(
+            children: [
+              cell('', label: true),
+              cell(t.conjugation_plain, label: true),
+              cell(t.conjugation_plain_negative, label: true),
+              cell(t.conjugation_polite, label: true),
+              cell(t.conjugation_polite_negative, label: true),
+            ],
+          ),
+          for (final (name, a, b, c, d) in rows)
+            TableRow(
+              children: [
+                cell(name, label: true),
+                cell(a),
+                cell(b),
+                cell(c),
+                cell(d),
+              ],
+            ),
+        ],
+      ),
+    );
+  }
+}
+
 /// A dictionary name short enough for a chip: release dates in brackets
 /// and edition notes in parentheses are dropped ("Jitendex.org
 /// [2026-10-03]" → "Jitendex.org").
@@ -189,8 +268,21 @@ class _DictionaryTabs extends ConsumerWidget {
       dictionaries[dictionary.name] = dictionary;
     }
 
+    // A verb or adjective gets a "活用" chip after the dictionaries,
+    // selecting its conjugation table instead of a dictionary.
+    final String? conjugationClass = JapaneseConjugation.classOf(
+      _partOfSpeechCodes(entries),
+    );
+    final conjugation = conjugationClass == null
+        ? null
+        : JapaneseConjugation.table(heading.term, conjugationClass);
+
     String? selected = ref.watch(selectedDictionaryProvider(heading));
-    if (selected == null || !byDictionary.containsKey(selected)) {
+    final bool showConjugation =
+        selected == _conjugationTab && conjugation != null;
+    if (showConjugation) {
+      // keep it
+    } else if (selected == null || !byDictionary.containsKey(selected)) {
       selected =
           dictionaries.values
               .firstWhereOrNull((d) => !d.isCollapsed(appModel.targetLanguage))
@@ -227,6 +319,33 @@ class _DictionaryTabs extends ConsumerWidget {
       );
     }).toList();
 
+    if (conjugation != null) {
+      chips.add(
+        GestureDetector(
+          onTap: () =>
+              ref.read(selectedDictionaryProvider(heading).notifier).state =
+                  _conjugationTab,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 1),
+            decoration: BoxDecoration(
+              color: showConjugation ? color : Colors.transparent,
+              border: Border.all(color: color.withValues(alpha: 0.6)),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Text(
+              '活用',
+              style: TextStyle(
+                fontSize: appModel.dictionaryFontSize * 0.62,
+                color: showConjugation
+                    ? Colors.black
+                    : color.withValues(alpha: 0.8),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -242,29 +361,33 @@ class _DictionaryTabs extends ConsumerWidget {
             crossAxisAlignment: WrapCrossAlignment.center,
             children: [
               ...chips,
-              for (final tag in {
-                for (final e in byDictionary[selected]!) ...e.tags,
-              })
-                JidoujishoTag(
-                  text: tag.name,
-                  message: tag.notes,
-                  backgroundColor: tag.color,
-                ),
+              if (!showConjugation)
+                for (final tag in {
+                  for (final e in byDictionary[selected]!) ...e.tags,
+                })
+                  JidoujishoTag(
+                    text: tag.name,
+                    message: tag.notes,
+                    backgroundColor: tag.color,
+                  ),
             ],
           ),
         ),
-        ...byDictionary[selected]!.map(
-          (entry) => DictionaryEntryPage(
-            key: ValueKey(entry.id),
-            entry: entry,
-            heading: heading,
-            onSearch: onSearch,
-            onStash: onStash,
-            onShare: onShare,
-            compact: true,
-            showTags: false,
+        if (showConjugation)
+          _ConjugationTable(rows: conjugation)
+        else
+          ...byDictionary[selected]!.map(
+            (entry) => DictionaryEntryPage(
+              key: ValueKey(entry.id),
+              entry: entry,
+              heading: heading,
+              onSearch: onSearch,
+              onStash: onStash,
+              onShare: onShare,
+              compact: true,
+              showTags: false,
+            ),
           ),
-        ),
       ],
     );
   }
@@ -625,9 +748,7 @@ class _DictionaryTermHeaderLine extends ConsumerWidget {
         ),
       // Several dictionaries (or both of a word's entries) can carry the
       // same tag; show each once.
-      for (final tag in {
-        for (final tag in heading.tags) tag.name: tag,
-      }.values)
+      for (final tag in {for (final tag in heading.tags) tag.name: tag}.values)
         marker(tag.name, tooltip: tag.notes),
       if (frequency != null)
         marker(
