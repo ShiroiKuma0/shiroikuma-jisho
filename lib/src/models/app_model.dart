@@ -1306,8 +1306,10 @@ class AppModel with ChangeNotifier {
     final Map<Field, List<Enhancement>> availableEnhancements = {
       AudioField.instance: [
         ClearFieldEnhancement(field: AudioField.instance),
+        LocalAudioEnhancement(),
         JapanesePod101AudioEnhancement(),
         ForvoAudioEnhancement(),
+        TtsAudioEnhancement(),
         PickAudioEnhancement(field: AudioField.instance),
         AudioRecorderEnhancement(field: AudioField.instance),
       ],
@@ -5411,6 +5413,24 @@ class AppModel with ChangeNotifier {
   /// Sets the font size of the furigana above a dictionary heading.
   void setDictionaryHeadingRubyFontSize(double fontSize) async {
     await _preferences.put('dictionary_heading_ruby_font_size', fontSize);
+  }
+
+  /// Where the local audio collection (`android.db`, see
+  /// [LocalAudioEnhancement]) is read from.
+  String get localAudioDatabasePath => _preferences.get(
+        'local_audio_database_path',
+        defaultValue: defaultLocalAudioDatabasePath,
+      );
+
+  /// Default [localAudioDatabasePath]: shared storage, where both this app
+  /// and a file manager can reach it (AnkiConnect Android's own folder
+  /// under Android/data is closed to other apps).
+  static const String defaultLocalAudioDatabasePath =
+      '/storage/emulated/0/AnkiconnectAndroid/android.db';
+
+  /// Sets [localAudioDatabasePath].
+  void setLocalAudioDatabasePath(String value) async {
+    await _preferences.put('local_audio_database_path', value);
   }
 
   /// Whether dragging the left edge of dictionary results changes font size.

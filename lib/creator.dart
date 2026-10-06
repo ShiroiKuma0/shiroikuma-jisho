@@ -48,6 +48,8 @@ export 'src/creator/fields/pitch_accent_field.dart';
 export 'src/creator/fields/furigana_field.dart';
 export 'src/creator/enhancements/bing_images_search_enhancement.dart';
 export 'src/creator/enhancements/japanesepod101_audio_enhancement.dart';
+export 'src/creator/enhancements/local_audio_enhancement.dart';
+export 'src/creator/enhancements/tts_audio_enhancement.dart';
 export 'src/creator/fields/collapsed_meaning_field.dart';
 export 'src/creator/fields/expanded_meaning_field.dart';
 export 'src/creator/fields/hidden_meaning_field.dart';

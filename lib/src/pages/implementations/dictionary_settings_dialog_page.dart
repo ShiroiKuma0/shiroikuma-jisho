@@ -15,6 +15,7 @@ class DictionarySettingsDialogPage extends BasePage {
 
 class _DictionaryDialogPageState extends BasePageState {
   late TextEditingController _debounceDelayController;
+  late TextEditingController _localAudioPathController;
   late TextEditingController _maximumTermsController;
 
   /// Label size for every row in this dialog. Deliberately larger
@@ -36,6 +37,8 @@ class _DictionaryDialogPageState extends BasePageState {
         text: appModelNoUpdate.searchDebounceDelay.toString());
     _maximumTermsController =
         TextEditingController(text: appModelNoUpdate.maximumTerms.toString());
+    _localAudioPathController = TextEditingController(
+        text: appModelNoUpdate.localAudioDatabasePath);
   }
 
   @override
@@ -87,6 +90,7 @@ class _DictionaryDialogPageState extends BasePageState {
               buildMaximumTermsField(),
               buildIndexPrewarmMode(),
               buildManageDuplicateChecks(),
+              buildLocalAudioPathField(),
             ],
           ),
         ),
@@ -147,6 +151,34 @@ class _DictionaryDialogPageState extends BasePageState {
         appModel.setDictionaryFontSizeSwipeEnabled(value);
         setState(() {});
       },
+    );
+  }
+
+  /// Path of the offline audio collection read by the Local Audio
+  /// source and the play button's fallback.
+  Widget buildLocalAudioPathField() {
+    return TextField(
+      onChanged: (value) => appModel.setLocalAudioDatabasePath(value.trim()),
+      controller: _localAudioPathController,
+      style: _labelStyle.copyWith(fontSize: _labelFontSize * 0.8),
+      decoration: InputDecoration(
+        isDense: true,
+        contentPadding: const EdgeInsets.only(top: 2, bottom: 4),
+        floatingLabelBehavior: FloatingLabelBehavior.always,
+        suffixIcon: JidoujishoIconButton(
+          tooltip: t.reset,
+          size: 18,
+          onTap: () async {
+            _localAudioPathController.text =
+                AppModel.defaultLocalAudioDatabasePath;
+            appModel.setLocalAudioDatabasePath(
+                AppModel.defaultLocalAudioDatabasePath);
+            FocusScope.of(context).unfocus();
+          },
+          icon: Icons.undo,
+        ),
+        labelText: t.local_audio_database_path,
+      ),
     );
   }
 

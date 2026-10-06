@@ -38,6 +38,7 @@
     "dialog_delete": "DELETE",
     "dialog_cancel": "CANCEL",
     "dialog_skip": "SKIP",
+    "local_audio_database_path": "Local audio database (android.db)",
     "dialog_download": "DOWNLOAD",
     "dialog_select": "SELECT",
     "dialog_stash": "STASH",

@@ -57,6 +57,16 @@ class PlayAudioAction extends QuickAction {
       ),
     );
 
+    // Offline fallbacks after whatever the profile configures: the local
+    // audio collection when there is one, then the device voice, so a
+    // word plays without a network or a configured audio source.
+    for (final key in [LocalAudioEnhancement.key, TtsAudioEnhancement.key]) {
+      final fallback = appModel.enhancements[AudioField.instance]?[key];
+      if (fallback != null && !audioEnhancements.contains(fallback)) {
+        audioEnhancements.add(fallback);
+      }
+    }
+
     if (audioEnhancements.isEmpty) {
       Fluttertoast.showToast(
         msg: t.no_audio_enhancements,

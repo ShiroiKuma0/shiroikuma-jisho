@@ -8,6 +8,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Added
 
+- **Offline word audio.** Two new audio sources: **Text-to-Speech**, the
+  phone's own Japanese voice (offline once a Japanese voice is installed),
+  which speaks the word's reading so kanji are never misread; and **Local
+  Audio**, which plays recordings from a local audio collection — the
+  `android.db` that local-audio-yomichan builds for AnkiConnect Android,
+  read from `/storage/emulated/0/AnkiconnectAndroid/android.db` by default
+  (changeable in the dictionary settings), best recordings (NHK) first.
+  The play button now falls back to local audio and then the phone's
+  voice when the export profile's audio sources find nothing, so every
+  word can be heard without a network. Both can also fill a card's audio
+  field.
+
 - **A compact result card: one header line and dictionary tabs.** Each
   result now opens with a single line — the headword, its reading with
   the pitch drawn on it and the accent number, and small markers for the

@@ -4,9 +4,9 @@
 /// To regenerate, run: `dart run slang`
 ///
 /// Locales: 1
-/// Strings: 448
+/// Strings: 449
 ///
-/// Built on 2026-10-05 at 12:15 UTC
+/// Built on 2026-10-06 at 11:58 UTC
 
 // coverage:ignore-file
 // ignore_for_file: type=lint
@@ -186,6 +186,7 @@ class Translations implements BaseTranslations<AppLocale, Translations> {
 	String get dialog_delete => 'DELETE';
 	String get dialog_cancel => 'CANCEL';
 	String get dialog_skip => 'SKIP';
+	String get local_audio_database_path => 'Local audio database (android.db)';
 	String get dialog_download => 'DOWNLOAD';
 	String get dialog_select => 'SELECT';
 	String get dialog_stash => 'STASH';
@@ -666,6 +667,7 @@ extension on Translations {
 			case 'dialog_delete': return 'DELETE';
 			case 'dialog_cancel': return 'CANCEL';
 			case 'dialog_skip': return 'SKIP';
+			case 'local_audio_database_path': return 'Local audio database (android.db)';
 			case 'dialog_download': return 'DOWNLOAD';
 			case 'dialog_select': return 'SELECT';
 			case 'dialog_stash': return 'STASH';
