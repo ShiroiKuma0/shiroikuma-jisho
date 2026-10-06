@@ -148,6 +148,10 @@ class KanjiPage extends ConsumerWidget {
               ),
             ],
           ),
+          Padding(
+            padding: const EdgeInsets.only(top: 10),
+            child: _StrokeOrderSection(character: character, color: color),
+          ),
           if (words.isNotEmpty) ...[
             Padding(
               padding: const EdgeInsets.only(top: 12, bottom: 4),
@@ -297,6 +301,92 @@ class KanjiBreakdown extends ConsumerWidget {
     return Padding(
       padding: const EdgeInsets.only(top: 2),
       child: Wrap(spacing: 12, runSpacing: 0, children: spans),
+    );
+  }
+}
+
+/// The stroke order of a kanji, or a button to download the KanjiVG data
+/// when it is not there yet.
+class _StrokeOrderSection extends StatefulWidget {
+  const _StrokeOrderSection({required this.character, required this.color});
+
+  final String character;
+  final Color color;
+
+  @override
+  State<_StrokeOrderSection> createState() => _StrokeOrderSectionState();
+}
+
+class _StrokeOrderSectionState extends State<_StrokeOrderSection> {
+  final ValueNotifier<String> _progress = ValueNotifier('');
+  bool _downloading = false;
+  String? _error;
+  late Future<(bool, List<String>?)> _load = _read();
+
+  Future<(bool, List<String>?)> _read() async => (
+        await KanjiStrokes.isInstalled(),
+        await KanjiStrokes.strokesFor(widget.character),
+      );
+
+  Future<void> _download() async {
+    setState(() {
+      _downloading = true;
+      _error = null;
+    });
+    try {
+      await KanjiStrokes.download(_progress);
+    } catch (e) {
+      _error = '$e';
+    }
+    if (!mounted) return;
+    setState(() {
+      _downloading = false;
+      _load = _read();
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final muted = widget.color.withValues(alpha: 0.65);
+    return FutureBuilder<(bool, List<String>?)>(
+      future: _load,
+      builder: (context, snapshot) {
+        final data = snapshot.data;
+        if (data == null) return const SizedBox.shrink();
+        final (installed, strokes) = data;
+
+        if (_downloading) {
+          return ValueListenableBuilder<String>(
+            valueListenable: _progress,
+            builder: (_, value, __) => Text(value, style: TextStyle(color: muted)),
+          );
+        }
+        if (!installed) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              TextButton.icon(
+                icon: const Icon(Icons.download),
+                label: Text(t.kanji_stroke_order_download),
+                onPressed: _download,
+              ),
+              if (_error != null)
+                Text(_error!, style: TextStyle(color: muted, fontSize: 12)),
+            ],
+          );
+        }
+        if (strokes == null || strokes.isEmpty) return const SizedBox.shrink();
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            KanjiStrokeOrder(strokes: strokes, color: widget.color),
+            const SizedBox(height: 2),
+            Text(KanjiStrokes.attribution,
+                style: TextStyle(color: muted, fontSize: 9)),
+          ],
+        );
+      },
     );
   }
 }

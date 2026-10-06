@@ -1,7 +1,7 @@
 name: shiroikumanojisho
 description: A full-featured immersion language learning suite for mobile.
 publish_to: 'none'
-version: 1.5.0+102
+version: 1.5.0+103
 environment:
   sdk: ">=3.12.0 <4.0.0"
   flutter: "^3.44.0"
@@ -119,6 +119,7 @@ dependencies:
     path: vendor/nowplaying
   package_info_plus: ^10.2.1
   path: ^1.8.2
+  path_parsing: ^1.1.0
   path_provider: ^2.0.13
   permission_handler: ^12.0.3
   progress_indicators: ^1.0.0
@@ -209,6 +210,7 @@ flutter:
     - assets/mokuro-template/
     - assets/mokuro-template/icons/
     - assets/language/japanese/ipadic/
+    - assets/language/japanese/radicals/
     - assets/ttu-ebook-reader/
     - assets/ttu-ebook-reader/_app/
     - assets/ttu-ebook-reader/_app/immutable/

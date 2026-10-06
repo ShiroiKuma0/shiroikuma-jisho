@@ -18,6 +18,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   deleted and imported again (Download dictionaries) for the page to show
   them. Kanji frequency dictionaries now import, and “JPDB kanji
   frequency” is in the download list.
+- **Stroke order on the kanji page.** The kanji is drawn stroke by stroke
+  (tap to replay), with a row of numbered frames, each new stroke in red.
+  The data is KanjiVG; the page offers a one-time 3.6 MB download the
+  first time.
+- **Find a kanji by its radicals.** A new button in the dictionary search
+  bar opens a grid of radicals by stroke count: pick the parts a kanji
+  contains and the matching kanji appear, fewest strokes first, with
+  radicals that no longer combine dimmed. Tapping a kanji adds it to the
+  search. Uses EDRDG's RADKFILE, built in.
 
 - **Offline word audio.** Two new audio sources: **Text-to-Speech**, the
   phone's own Japanese voice (offline once a Japanese voice is installed),

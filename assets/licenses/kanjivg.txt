@@ -1,0 +1,6 @@
+KanjiVG (stroke-order data, downloaded on request, not bundled)
+
+Copyright (C) 2009-2026 Ulrich Apel and contributors,
+https://kanjivg.tagaini.net — used under the Creative Commons
+Attribution-ShareAlike 3.0 Unported licence
+(https://creativecommons.org/licenses/by-sa/3.0/).

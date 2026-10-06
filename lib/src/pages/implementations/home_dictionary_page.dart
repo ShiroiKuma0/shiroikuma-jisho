@@ -123,6 +123,7 @@ class _HomeDictionaryPageState<T extends BaseTabPage> extends BaseTabPageState {
         buildBackButton(),
       ],
       actions: [
+        buildRadicalSearchButton(),
         buildDictionarySettingsButton(),
         buildClearButton(),
         buildSearchClearButton(),
@@ -276,6 +277,25 @@ class _HomeDictionaryPageState<T extends BaseTabPage> extends BaseTabPageState {
         tooltip: t.clear_search_title,
         icon: Icons.manage_search,
         onTap: showDeleteSearchHistoryPrompt,
+      ),
+    );
+  }
+
+  /// Opens the radical picker; the chosen kanji is appended to the query.
+  Widget buildRadicalSearchButton() {
+    return FloatingSearchBarAction(
+      showIfOpened: true,
+      child: JidoujishoIconButton(
+        size: Theme.of(context).textTheme.titleLarge?.fontSize,
+        tooltip: t.radical_search,
+        icon: Icons.grid_view,
+        onTap: () async {
+          final String? kanji = await RadicalSearchPage.open(context);
+          if (kanji == null || !mounted) return;
+          final controller = mediaType.floatingSearchBarController;
+          controller.query = controller.query + kanji;
+          controller.open();
+        },
       ),
     );
   }

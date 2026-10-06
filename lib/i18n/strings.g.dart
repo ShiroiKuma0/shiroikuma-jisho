@@ -4,9 +4,9 @@
 /// To regenerate, run: `dart run slang`
 ///
 /// Locales: 1
-/// Strings: 451
+/// Strings: 454
 ///
-/// Built on 2026-10-06 at 12:12 UTC
+/// Built on 2026-10-06 at 12:39 UTC
 
 // coverage:ignore-file
 // ignore_for_file: type=lint
@@ -186,6 +186,9 @@ class Translations implements BaseTranslations<AppLocale, Translations> {
 	String get dialog_delete => 'DELETE';
 	String get dialog_cancel => 'CANCEL';
 	String get dialog_skip => 'SKIP';
+	String get radical_search => 'Find kanji by radicals';
+	String get radical_search_hint => 'Pick the parts the kanji contains.';
+	String get kanji_stroke_order_download => 'Download stroke order (KanjiVG, 3.6 MB)';
 	String get kanji_page_no_data => 'No kanji dictionary data. Import KANJIDIC (Manage dictionaries → Download dictionaries) — a copy imported before this version must be deleted and imported again.';
 	String kanji_page_words({required Object kanji}) => 'Common words beginning with ${kanji}';
 	String get local_audio_database_path => 'Local audio database (android.db)';
@@ -669,6 +672,9 @@ extension on Translations {
 			case 'dialog_delete': return 'DELETE';
 			case 'dialog_cancel': return 'CANCEL';
 			case 'dialog_skip': return 'SKIP';
+			case 'radical_search': return 'Find kanji by radicals';
+			case 'radical_search_hint': return 'Pick the parts the kanji contains.';
+			case 'kanji_stroke_order_download': return 'Download stroke order (KanjiVG, 3.6 MB)';
 			case 'kanji_page_no_data': return 'No kanji dictionary data. Import KANJIDIC (Manage dictionaries → Download dictionaries) — a copy imported before this version must be deleted and imported again.';
 			case 'kanji_page_words': return ({required Object kanji}) => 'Common words beginning with ${kanji}';
 			case 'local_audio_database_path': return 'Local audio database (android.db)';

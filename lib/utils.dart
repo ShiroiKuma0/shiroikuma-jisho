@@ -30,6 +30,7 @@ export 'src/utils/player/player_basic_options.dart';
 export 'src/utils/player/youtube_quality.dart';
 export 'src/utils/player/playback_mode.dart';
 
+export 'src/utils/misc/kanji_strokes.dart';
 export 'src/utils/misc/jidoujisho_color.dart';
 export 'src/utils/misc/jidoujisho_time_format.dart';
 export 'src/utils/misc/jidoujisho_lyrics_parameters.dart';

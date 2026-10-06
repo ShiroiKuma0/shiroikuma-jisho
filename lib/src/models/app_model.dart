@@ -1587,7 +1587,9 @@ class AppModel with ChangeNotifier {
     final packageNames = [
       'ebook-reader',
       'ipadic',
+      'kanjivg',
       'ppocr',
+      'radkfile',
       've',
     ];
 

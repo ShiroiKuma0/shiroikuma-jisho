@@ -1,0 +1,11 @@
+RADKFILE (radical-to-kanji decomposition data)
+
+Copyright the Electronic Dictionary Research and Development Group
+(EDRDG), https://www.edrdg.org/krad/kradinf.html — used under the
+Creative Commons Attribution-ShareAlike 4.0 International licence
+(https://creativecommons.org/licenses/by-sa/4.0/), as the EDRDG licence
+statement (https://www.edrdg.org/edrdg/licence.html) provides.
+
+Taken in JSON form from jmdict-simplified 3.6.2+20261005200550
+(https://github.com/scriptin/jmdict-simplified) and reduced to
+radical → [stroke count, kanji] for this app.
