@@ -70,6 +70,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Changed
 
+- **Text shared to the app is looked up in the dictionary.** Sharing a
+  word or sentence from another app now opens it as a dictionary search,
+  like “Look up” in the text-selection menu, instead of the Anki card
+  creator with the text as its sentence. A card can still be made from the
+  result. Shared links behave as before.
+
 - **Conjugated words are recognised the way current Yomitan does it.** The
   rules for turning 食べさせられた, 書かれました or しなければ back into
   食べる, 書く and する are now Yomitan's current set (55 kinds of

@@ -771,17 +771,10 @@ class _JidoujishoAppState extends ConsumerState<JidoujishoApp>
         });
       }
     } else {
-      if (data.trim().isNotEmpty) {
-        appModel.openCreator(
-          creatorFieldValues: CreatorFieldValues(
-            textValues: {
-              SentenceField.instance: data,
-            },
-          ),
-          killOnPop: true,
-          ref: ref,
-        );
-      }
+      // Shared text is looked up, as from the text-selection menu; it used
+      // to open the Anki card creator with the text as the sentence. A
+      // card can still be made from the result.
+      textContextMenuAction(data);
     }
   }
 
