@@ -70,6 +70,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Changed
 
+- **Conjugated words are recognised the way current Yomitan does it.** The
+  rules for turning 食べさせられた, 書かれました or しなければ back into
+  食べる, 書く and する are now Yomitan's current set (55 kinds of
+  inflection, 889 rules) instead of a copy of old Yomichan's, and only
+  real dictionary forms are looked up.
+- **Japanese searches skip dictionaries you hid for Japanese.** Their hits
+  used to take up the ten result slots and then be dropped from the
+  display, pushing real matches off the list.
+
 - **The project is now called shiroikuma-jisho everywhere.** The GitHub
   repository moved to `ShiroiKuma0/shiroikuma-jisho` (old links redirect),
   and the files the app writes to `/sdcard/tmp/` follow the new name:

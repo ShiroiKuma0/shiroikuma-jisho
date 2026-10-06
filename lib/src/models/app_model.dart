@@ -2912,9 +2912,11 @@ class AppModel with ChangeNotifier {
     final currentLanguageCode = targetLanguage.languageCode;
     final languageDictIds = <int>[];
     for (final d in dictionaries) {
-      final bool included = d.primaryLanguage.isNotEmpty
-          ? d.primaryLanguage == currentLanguageCode
-          : !d.hiddenLanguages.contains(currentLanguageCode);
+      // A dictionary hidden for this language is left out too: its
+      // entries would be dropped at display after taking result slots.
+      final bool included = !d.hiddenLanguages.contains(currentLanguageCode) &&
+          (d.primaryLanguage.isEmpty ||
+              d.primaryLanguage == currentLanguageCode);
       if (included) languageDictIds.add(d.id);
     }
 
