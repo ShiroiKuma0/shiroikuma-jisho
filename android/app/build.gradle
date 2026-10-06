@@ -11,9 +11,10 @@ plugins {
 // has code 1 — installer rejects as a downgrade).
 //
 // Pack `X.Y.Z+N` into a single integer with per-component slots:
-//   code = X * 100_000_000 + Y * 1_000_000 + Z * 10_000 + min(N, 99)
-// Headroom: X ≤ 21 (int32 ceiling), 99 minors, 99 patches, 99 dev
-// iterations. The 1_000s digit is deliberately left at zero: under
+//   code = X * 100_000_000 + Y * 1_000_000 + Z * 10_000 + min(N, 999)
+// Headroom: X ≤ 21 (int32 ceiling), 99 minors, 99 patches, 999 dev
+// iterations (the units, tens and hundreds digits). The 1_000s digit is
+// deliberately left at zero: under
 // `--split-per-abi` Flutter's Gradle plugin unconditionally adds
 // `abi * 1000` (armeabi-v7a 1, arm64-v8a 2, x86-64 4) through the
 // legacy versionCodeOverride, whose first write FINALIZES the
@@ -68,10 +69,11 @@ def pubspecBuildN = pubspecVersionMatcher[0][4] != null
 def pubspecVersionName = pubspecVersionMatcher[0][4] != null
     ? "${pubspecMajor}.${pubspecMinor}.${pubspecPatch}+${pubspecVersionMatcher[0][4]}"
     : "${pubspecMajor}.${pubspecMinor}.${pubspecPatch}"
-// Clamp dev-iteration count to 99. More than 99 dev builds between
-// two releases would indicate something weird; capping prevents
-// the dev slot from spilling into the next patch's slot.
-if (pubspecBuildN > 99) pubspecBuildN = 99
+// Clamp the dev-iteration count to the three digits below Flutter's
+// ABI digit, so it can never spill into that digit or the patch slot.
+// (It was clamped to 99 until 1.5.0+104, which froze every build from
+// +099 to +103 at the same versionCode, 105_002_099 on arm64.)
+if (pubspecBuildN > 999) pubspecBuildN = 999
 def computedVersionCode =
     pubspecMajor * 100000000 +
     pubspecMinor * 1000000 +

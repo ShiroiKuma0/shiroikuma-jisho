@@ -126,6 +126,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Fixed
 
+- **Each build installs as newer than the last again.** The version code
+  stopped growing at build +099: every build from +099 to +103 carried the
+  same code, so Android could not tell them apart as updates. From +104
+  the code increases with every build.
+- **The kanji page fixes an out-of-date KANJIDIC itself.** For a KANJIDIC
+  imported before the kanji page existed it said no kanji dictionary was
+  installed; it now explains that the copy predates the kanji data and
+  offers “Update KANJIDIC”, which replaces it in one tap.
+
 - **Tapping a “See also” link opens the word it points to.** A link with
   furigana, such as 相撲取り, searched its text with the readings mixed in
   (“相撲すもう取とり”) and found nothing useful. Links now search their

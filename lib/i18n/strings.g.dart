@@ -4,9 +4,9 @@
 /// To regenerate, run: `dart run slang`
 ///
 /// Locales: 1
-/// Strings: 454
+/// Strings: 457
 ///
-/// Built on 2026-10-06 at 12:39 UTC
+/// Built on 2026-10-06 at 13:02 UTC
 
 // coverage:ignore-file
 // ignore_for_file: type=lint
@@ -189,7 +189,10 @@ class Translations implements BaseTranslations<AppLocale, Translations> {
 	String get radical_search => 'Find kanji by radicals';
 	String get radical_search_hint => 'Pick the parts the kanji contains.';
 	String get kanji_stroke_order_download => 'Download stroke order (KanjiVG, 3.6 MB)';
-	String get kanji_page_no_data => 'No kanji dictionary data. Import KANJIDIC (Manage dictionaries → Download dictionaries) — a copy imported before this version must be deleted and imported again.';
+	String get kanji_page_no_data => 'No kanji dictionary installed.';
+	String kanji_page_outdated({required Object name}) => '${name} was imported before its kanji data (readings, stroke counts, grades, JLPT levels) was kept. Update it to fill this page.';
+	String get kanji_page_update_kanjidic => 'Update KANJIDIC (1 MB)';
+	String get kanji_page_download_kanjidic => 'Download KANJIDIC (1 MB)';
 	String kanji_page_words({required Object kanji}) => 'Common words beginning with ${kanji}';
 	String get local_audio_database_path => 'Local audio database (android.db)';
 	String get dialog_download => 'DOWNLOAD';
@@ -675,7 +678,10 @@ extension on Translations {
 			case 'radical_search': return 'Find kanji by radicals';
 			case 'radical_search_hint': return 'Pick the parts the kanji contains.';
 			case 'kanji_stroke_order_download': return 'Download stroke order (KanjiVG, 3.6 MB)';
-			case 'kanji_page_no_data': return 'No kanji dictionary data. Import KANJIDIC (Manage dictionaries → Download dictionaries) — a copy imported before this version must be deleted and imported again.';
+			case 'kanji_page_no_data': return 'No kanji dictionary installed.';
+			case 'kanji_page_outdated': return ({required Object name}) => '${name} was imported before its kanji data (readings, stroke counts, grades, JLPT levels) was kept. Update it to fill this page.';
+			case 'kanji_page_update_kanjidic': return 'Update KANJIDIC (1 MB)';
+			case 'kanji_page_download_kanjidic': return 'Download KANJIDIC (1 MB)';
 			case 'kanji_page_words': return ({required Object kanji}) => 'Common words beginning with ${kanji}';
 			case 'local_audio_database_path': return 'Local audio database (android.db)';
 			case 'dialog_download': return 'DOWNLOAD';

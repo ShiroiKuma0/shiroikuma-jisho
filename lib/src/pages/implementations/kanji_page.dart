@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:isar_community/isar.dart';
 import 'package:shiroikumanojisho/dictionary.dart';
 import 'package:shiroikumanojisho/models.dart';
+import 'package:shiroikumanojisho/pages.dart';
 import 'package:shiroikumanojisho/utils.dart';
 
 /// Everything about one kanji: its readings, meanings and stats from the
@@ -126,7 +127,7 @@ class KanjiPage extends ConsumerWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     if (main == null)
-                      Text(t.kanji_page_no_data, style: text(0.75, c: muted))
+                      _KanjiDataMissing(color: color)
                     else ...[
                       if (main.meanings.isNotEmpty)
                         Text(main.meanings.join('; '),
@@ -387,6 +388,76 @@ class _StrokeOrderSectionState extends State<_StrokeOrderSection> {
           ],
         );
       },
+    );
+  }
+}
+
+/// Shown when no kanji dictionary has kanji data: either none is
+/// installed, or KANJIDIC was imported before its kanji data was kept.
+/// Offers to fetch KANJIDIC again, in place of the old copy.
+class _KanjiDataMissing extends ConsumerStatefulWidget {
+  const _KanjiDataMissing({required this.color});
+
+  final Color color;
+
+  @override
+  ConsumerState<_KanjiDataMissing> createState() => _KanjiDataMissingState();
+}
+
+class _KanjiDataMissingState extends ConsumerState<_KanjiDataMissing> {
+  Future<void> _update(CatalogDictionary entry, Dictionary? old) async {
+    final appModel = ref.read(appProvider);
+    final progress = ValueNotifier<String>(t.import_start);
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => DictionaryDialogImportPage(
+        progressNotifier: progress,
+        countNotifier: ValueNotifier<int?>(null),
+        totalNotifier: ValueNotifier<int?>(null),
+      ),
+    );
+    if (old != null) {
+      progress.value = t.delete_dictionary_data;
+      await appModel.deleteDictionary(old);
+    }
+    await appModel.downloadAndImportCatalogDictionary(
+      entry: entry,
+      progressNotifier: progress,
+      onImportSuccess: () {},
+    );
+    if (!mounted) return;
+    Navigator.pop(context);
+    // Rebuild the page around the new data.
+    appModel.refresh();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final appModel = ref.watch(appProvider);
+    final muted = widget.color.withValues(alpha: 0.65);
+    final entry = japaneseDictionaryCatalog
+        .firstWhere((e) => e.titlePrefix == 'KANJIDIC');
+    final Dictionary? installed =
+        appModel.dictionaries.where((d) => entry.matches(d.name)).firstOrNull;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          installed == null
+              ? t.kanji_page_no_data
+              : t.kanji_page_outdated(name: installed.name),
+          style: TextStyle(color: muted, fontSize: appModel.dictionaryFontSize * 0.7),
+        ),
+        TextButton.icon(
+          icon: const Icon(Icons.download),
+          label: Text(installed == null
+              ? t.kanji_page_download_kanjidic
+              : t.kanji_page_update_kanjidic),
+          onPressed: () => _update(entry, installed),
+        ),
+      ],
     );
   }
 }
