@@ -549,6 +549,26 @@ class _DictionaryTermHeaderLine extends ConsumerWidget {
 
     final bool showReading =
         heading.reading.isNotEmpty && heading.reading != heading.term;
+
+    // Other written forms of this word, from the first visible dictionary
+    // (in the user's order) that lists them — Jitendex's 犬、狗、イヌ.
+    final List<String> otherForms = [];
+    final visibleEntries =
+        heading.entries.where((e) => visible(e.dictionary.value)).toList()
+          ..sort(
+            (a, b) =>
+                a.dictionary.value!.order.compareTo(b.dictionary.value!.order),
+          );
+    for (final entry in visibleEntries) {
+      final forms = extractWrittenForms(entry.definitions);
+      if (forms.isEmpty) continue;
+      for (final form in forms) {
+        if (form != heading.term && !otherForms.contains(form)) {
+          otherForms.add(form);
+        }
+      }
+      break;
+    }
     final double readingSize = appModel.dictionaryFontSize;
 
     Widget marker(String text, {String? tooltip}) {
@@ -578,6 +598,11 @@ class _DictionaryTermHeaderLine extends ConsumerWidget {
           appModel: appModel,
           heading: heading,
           onSearch: onSearch,
+        ),
+      if (otherForms.isNotEmpty)
+        Text(
+          '、${otherForms.join('、')}',
+          style: TextStyle(fontSize: readingSize * 0.85, color: muted),
         ),
       if (downsteps.isNotEmpty)
         for (final downstep in downsteps.take(2))

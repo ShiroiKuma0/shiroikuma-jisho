@@ -51,6 +51,60 @@ const Set<String> _blockTags = {
   'h5', 'h6', 'blockquote', 'pre', 'details', 'summary',
 };
 
+/// The written forms a dictionary lists for an entry — Jitendex's
+/// `data-sc-content="forms"` list (犬、狗、イヌ) — read from its stored
+/// [definitions]. Empty when the dictionary has no such list, or gives
+/// its forms as a table (forms restricted to particular readings), which
+/// stays in the definition.
+List<String> extractWrittenForms(List<String> definitions) {
+  final forms = <String>[];
+
+  String flatten(Object? node) {
+    if (node is String) return node;
+    if (node is List) return node.map(flatten).join();
+    if (node is Map) return flatten(node['content']);
+    return '';
+  }
+
+  void collectItems(Object? node) {
+    if (node is List) {
+      node.forEach(collectItems);
+    } else if (node is Map) {
+      if (node['tag'] == 'table') return;
+      if (node['tag'] == 'li') {
+        final text = flatten(node).trim();
+        if (text.isNotEmpty) forms.add(text);
+        return;
+      }
+      collectItems(node['content']);
+    }
+  }
+
+  void walk(Object? node) {
+    if (forms.isNotEmpty) return;
+    if (node is List) {
+      node.forEach(walk);
+    } else if (node is Map) {
+      final data = node['data'];
+      if (data is Map && data['content'] == 'forms') {
+        collectItems(node['content']);
+      } else {
+        walk(node['content']);
+      }
+    }
+  }
+
+  for (final definition in definitions) {
+    final trimmed = definition.trimLeft();
+    if (!trimmed.startsWith('[') && !trimmed.startsWith('{')) continue;
+    try {
+      walk(jsonDecode(trimmed));
+    } catch (_) {}
+    if (forms.isNotEmpty) break;
+  }
+  return forms;
+}
+
 /// Run each glossary list (`data-sc-content="glossary"`, as Jitendex and
 /// JMdict mark them) together as one line, its glosses joined by "; ",
 /// instead of one gloss per line. Lists whose items hold blocks of their
@@ -64,6 +118,15 @@ void inlineGlossaries(dom.Element root) {
     for (final l in root.querySelectorAll('[data-sc-content="forms"] > ul'))
       (l, '、'),
   ];
+  // A simple forms list is shown on the result card's header line
+  // (extractWrittenForms), so it is hidden here; a forms table, which
+  // ties forms to readings, stays.
+  for (final forms in root.querySelectorAll('[data-sc-content="forms"]')) {
+    if (forms.querySelector('table') == null &&
+        forms.querySelector('ul') != null) {
+      forms.attributes['data-forms-in-header'] = '';
+    }
+  }
   for (final (list, separator) in lists) {
     final items = list.children.where((e) => e.localName == 'li').toList();
     if (items.isEmpty ||
@@ -133,6 +196,25 @@ Map<String, Style> compactStructuredContentStyles(Color textColor) => {
   'ul': Style(margin: Margins.zero),
   'ol': Style(margin: Margins.zero),
   'li': Style(margin: Margins.zero),
+  '[data-forms-in-header]': Style(display: Display.none),
+  // Jitendex's boxes — examples, notes, cross-references — as a thin
+  // coloured left rule over a faint tint. Its stylesheet draws them with
+  // color-mix() and calc(), which the renderer cannot evaluate, so they
+  // are restyled here; the colours are lightened to read on black.
+  '[data-sc-content="example-sentence"]': _box(
+    textColor.withValues(alpha: 0.45),
+    textColor,
+  ),
+  '[data-sc-content="info-gloss"]': _box(const Color(0xFF4CAF50), textColor),
+  '[data-sc-content="sense-note"]': _box(const Color(0xFFDAA520), textColor),
+  '[data-sc-content="lang-source"]': _box(const Color(0xFFB388FF), textColor),
+  '[data-sc-content="xref"]': _box(const Color(0xFF5AA9FF), textColor),
+  '[data-sc-content="antonym"]': _box(const Color(0xFFD08050), textColor),
+  // The looked-up word inside an example sentence.
+  '[data-sc-content="example-keyword"]': Style(
+    fontWeight: FontWeight.bold,
+    textDecoration: TextDecoration.underline,
+  ),
   '[data-sc-class="extra-box"]': Style(
     margin: Margins.symmetric(vertical: 2),
     padding: HtmlPaddings.only(left: 6, top: 1, bottom: 1),
@@ -160,18 +242,21 @@ Map<String, Style> compactStructuredContentStyles(Color textColor) => {
   '[data-sc-content="xref-content"]': Style(fontSize: FontSize(1, Unit.em)),
   '[data-sc-content="antonym-content"]': Style(fontSize: FontSize(1, Unit.em)),
   '[data-sc-content="xref-glossary"]': Style(fontSize: FontSize(0.9, Unit.em)),
-  '[data-sc-content="antonym-glossary"]':
-      Style(fontSize: FontSize(0.9, Unit.em)),
-  '[data-sc-content="forms"] ul': Style(fontSize: FontSize(1, Unit.em)),
-  '[data-sc-content="example-sentence"]': Style(
-    margin: Margins.symmetric(vertical: 1),
+  '[data-sc-content="antonym-glossary"]': Style(
+    fontSize: FontSize(0.9, Unit.em),
   ),
+  '[data-sc-content="forms"] ul': Style(fontSize: FontSize(1, Unit.em)),
   '[data-gloss-separator]': Style(color: textColor.withValues(alpha: 0.6)),
   '[data-sc-content="attribution"]': Style(
     fontSize: FontSize(0.6, Unit.em),
     color: textColor.withValues(alpha: 0.6),
   ),
 };
+
+Style _box(Color rule, Color text) => Style(
+  border: Border(left: BorderSide(color: rule, width: 2)),
+  backgroundColor: text.withValues(alpha: 0.06),
+);
 
 /// Get the [Directory] used as a resource directory for a certain [Dictionary].
 final dictionaryResourceDirectoryProvider = Provider.family<Directory, int>((

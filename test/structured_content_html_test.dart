@@ -77,4 +77,29 @@ void main() {
     expect(sheet.keys.where((k) => k.contains('extra-box')), isEmpty);
     expect(sheet.keys.where((k) => k.contains('::')), isEmpty);
   });
+
+  test('written forms come from a simple forms list, not a forms table', () {
+    final list = jsonEncode([
+      {
+        'tag': 'div',
+        'data': {'content': 'forms'},
+        'content': {
+          'tag': 'ul',
+          'content': [
+            {'tag': 'li', 'content': '犬'},
+            {'tag': 'li', 'content': '狗'},
+            {'tag': 'li', 'content': 'イヌ'},
+          ],
+        },
+      },
+    ]);
+    expect(extractWrittenForms([list]), ['犬', '狗', 'イヌ']);
+
+    final table = jsonEncode({
+      'tag': 'div',
+      'data': {'content': 'forms'},
+      'content': {'tag': 'table', 'content': []},
+    });
+    expect(extractWrittenForms([table]), isEmpty);
+  });
 }

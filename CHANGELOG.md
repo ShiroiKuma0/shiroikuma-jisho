@@ -21,7 +21,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   forms read “犬、狗、イヌ”, examples sit a step smaller with a dimmed
   translation, the blank lines around every list are gone, and indents are
   minimal — part of speech and ①②③ sit flush left, only examples and
-  notes step in. An English
+  notes step in. The header line also lists the word's other spellings
+  (犬、狗、イヌ) from the dictionary's forms list, and example sentences,
+  notes and cross-references sit in boxes with a thin coloured rule, the
+  looked-up word in bold. An English
   search now shows every dictionary's entry for each word it finds, not
   only the one whose English matched.
 
