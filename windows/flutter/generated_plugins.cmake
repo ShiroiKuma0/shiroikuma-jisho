@@ -7,6 +7,7 @@ list(APPEND FLUTTER_PLUGIN_LIST
   ffmpeg_kit_flutter_new
   file_selector_windows
   flutter_inappwebview_windows
+  flutter_tts
   isar_community_flutter_libs
   permission_handler_windows
   restart_app
