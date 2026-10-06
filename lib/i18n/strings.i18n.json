@@ -38,6 +38,8 @@
     "dialog_delete": "DELETE",
     "dialog_cancel": "CANCEL",
     "dialog_skip": "SKIP",
+    "kanji_page_no_data": "No kanji dictionary data. Import KANJIDIC (Manage dictionaries → Download dictionaries) — a copy imported before this version must be deleted and imported again.",
+    "kanji_page_words": "Common words beginning with $kanji",
     "local_audio_database_path": "Local audio database (android.db)",
     "dialog_download": "DOWNLOAD",
     "dialog_select": "SELECT",

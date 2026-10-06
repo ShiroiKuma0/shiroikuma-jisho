@@ -4,9 +4,9 @@
 /// To regenerate, run: `dart run slang`
 ///
 /// Locales: 1
-/// Strings: 449
+/// Strings: 451
 ///
-/// Built on 2026-10-06 at 11:58 UTC
+/// Built on 2026-10-06 at 12:12 UTC
 
 // coverage:ignore-file
 // ignore_for_file: type=lint
@@ -186,6 +186,8 @@ class Translations implements BaseTranslations<AppLocale, Translations> {
 	String get dialog_delete => 'DELETE';
 	String get dialog_cancel => 'CANCEL';
 	String get dialog_skip => 'SKIP';
+	String get kanji_page_no_data => 'No kanji dictionary data. Import KANJIDIC (Manage dictionaries → Download dictionaries) — a copy imported before this version must be deleted and imported again.';
+	String kanji_page_words({required Object kanji}) => 'Common words beginning with ${kanji}';
 	String get local_audio_database_path => 'Local audio database (android.db)';
 	String get dialog_download => 'DOWNLOAD';
 	String get dialog_select => 'SELECT';
@@ -667,6 +669,8 @@ extension on Translations {
 			case 'dialog_delete': return 'DELETE';
 			case 'dialog_cancel': return 'CANCEL';
 			case 'dialog_skip': return 'SKIP';
+			case 'kanji_page_no_data': return 'No kanji dictionary data. Import KANJIDIC (Manage dictionaries → Download dictionaries) — a copy imported before this version must be deleted and imported again.';
+			case 'kanji_page_words': return ({required Object kanji}) => 'Common words beginning with ${kanji}';
 			case 'local_audio_database_path': return 'Local audio database (android.db)';
 			case 'dialog_download': return 'DOWNLOAD';
 			case 'dialog_select': return 'SELECT';

@@ -48,6 +48,7 @@ final List<CollectionSchema> globalSchemas = [
   DictionarySchema,
   DictionaryEntrySchema,
   DictionaryGlossSchema,
+  DictionaryKanjiSchema,
   DictionaryPitchSchema,
   DictionaryFrequencySchema,
   DictionaryTagSchema,

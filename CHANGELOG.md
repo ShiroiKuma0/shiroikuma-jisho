@@ -8,6 +8,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Added
 
+- **A kanji page.** Tap a kanji in a headword, or in the new kanji
+  breakdown under it (犬 dog · 小 small · 屋 roof), to open its page: the
+  kanji large, its meanings, 音 and 訓 readings, stroke count, school
+  grade, JLPT level, newspaper and JPDB frequency ranks and SKIP code, and
+  the most common words beginning with it, each with its English meaning;
+  tap one to look it up. KANJIDIC's stroke counts, grades and levels used
+  to be discarded at import, so a KANJIDIC imported earlier must be
+  deleted and imported again (Download dictionaries) for the page to show
+  them. Kanji frequency dictionaries now import, and “JPDB kanji
+  frequency” is in the download list.
+
 - **Offline word audio.** Two new audio sources: **Text-to-Speech**, the
   phone's own Japanese voice (offline once a Japanese voice is installed),
   which speaks the word's reading so kanji are never misread; and **Local

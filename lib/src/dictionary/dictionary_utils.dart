@@ -98,6 +98,7 @@ Future<void> deleteDictionariesHelper(DeleteDictionaryParams params) async {
     database.dictionaryTags.clearSync();
     database.dictionaryEntrys.clearSync();
     database.dictionaryGloss.clearSync();
+    database.dictionaryKanjis.clearSync();
     database.dictionaryPitchs.clearSync();
     database.dictionaryFrequencys.clearSync();
     database.dictionarys.clearSync();
@@ -128,6 +129,10 @@ Future<void> deleteDictionaryHelper(DeleteDictionaryParams params) async {
         .dictionaryIdEqualTo(id)
         .deleteAllSync();
     database.dictionaryGloss
+        .where()
+        .dictionaryIdEqualTo(id)
+        .deleteAllSync();
+    database.dictionaryKanjis
         .where()
         .dictionaryIdEqualTo(id)
         .deleteAllSync();

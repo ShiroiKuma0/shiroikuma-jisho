@@ -117,6 +117,11 @@ class DictionaryTermPage extends ConsumerWidget {
                   dictionaryNamesByHidden: dictionaryNamesByHidden,
                 ),
               ),
+              // Each kanji of the headword with its first meaning, opening
+              // the kanji page.
+              SliverToBoxAdapter(
+                child: KanjiBreakdown(term: heading.term, onSearch: onSearch),
+              ),
               // One chip per dictionary; only the selected dictionary's
               // definitions are shown.
               SliverToBoxAdapter(
@@ -641,7 +646,7 @@ class _DictionaryTermHeaderLine extends ConsumerWidget {
 }
 
 /// The headword without furigana (the reading follows it, with its
-/// pitch); tapping a kanji looks that kanji up, as on the furigana form.
+/// pitch); tapping a kanji opens its kanji page.
 class _PlainHeadword extends ConsumerWidget {
   const _PlainHeadword({required this.heading, required this.onSearch});
 
@@ -670,7 +675,11 @@ class _PlainHeadword extends ConsumerWidget {
                   alignment: PlaceholderAlignment.baseline,
                   baseline: TextBaseline.alphabetic,
                   child: GestureDetector(
-                    onTap: () => onSearch(c),
+                    onTap: () => KanjiPage.open(
+                      context,
+                      character: c,
+                      onSearch: onSearch,
+                    ),
                     child: Text(c, style: style),
                   ),
                 )

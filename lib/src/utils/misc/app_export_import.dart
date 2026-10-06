@@ -1233,6 +1233,7 @@ class AppExportImport {
       'dictionary_tags': await db.dictionaryTags.count(),
       'dictionary_frequencies': await db.dictionaryFrequencys.count(),
       'dictionary_pitches': await db.dictionaryPitchs.count(),
+      'dictionary_kanji': await db.dictionaryKanjis.count(),
       'anki_mappings': await db.ankiMappings.count(),
       'media_items': await db.mediaItems.count(),
       'search_history_items': await db.searchHistoryItems.count(),
@@ -1286,6 +1287,14 @@ class AppExportImport {
       tracker: tracker,
       progressLabel: 'Exporting frequencies...',
       progressTotal: counts['dictionary_frequencies'],
+    );
+
+    tracker.detail('Exporting kanji...');
+    await _dumpJsonl(
+      File(path.join(outDir.path, 'dictionary_kanji.jsonl')),
+      db.dictionaryKanjis,
+      _kanjiToJson,
+      log,
     );
 
     tracker.detail('Exporting pitches...');
@@ -1404,6 +1413,10 @@ class AppExportImport {
         'dictionary_frequencies', db.dictionaryFrequencys, _frequencyFromJson);
     await doOne('dictionary_pitches.jsonl', 'pitches', 'dictionary_pitches',
         db.dictionaryPitchs, _pitchFromJson);
+    // Absent from bundles made before the kanji page; doOne skips a
+    // missing file, and re-importing the kanji dictionary fills it.
+    await doOne('dictionary_kanji.jsonl', 'kanji', 'dictionary_kanji',
+        db.dictionaryKanjis, _kanjiFromJson);
     await doOne('anki_mappings.jsonl', 'AnkiMappings', 'anki_mappings',
         db.ankiMappings, (j) {
       final m = AnkiMapping.fromJson(j);
@@ -1796,6 +1809,35 @@ class AppExportImport {
         'value': f.value,
         'displayValue': f.displayValue,
       };
+
+  static Map<String, dynamic> _kanjiToJson(DictionaryKanji k) => {
+        'id': k.id,
+        'character': k.character,
+        'dictionaryId': k.dictionaryId,
+        'onyomi': k.onyomi,
+        'kunyomi': k.kunyomi,
+        'meanings': k.meanings,
+        'tags': k.tags,
+        'statKeys': k.statKeys,
+        'statValues': k.statValues,
+      };
+
+  static DictionaryKanji _kanjiFromJson(Map<String, dynamic> j) {
+    List<String> list(String key) => List<String>.from(j[key] ?? const []);
+    final k = DictionaryKanji(
+      character: j['character'] as String,
+      dictionaryId: j['dictionaryId'] as int,
+      onyomi: list('onyomi'),
+      kunyomi: list('kunyomi'),
+      meanings: list('meanings'),
+      tags: list('tags'),
+      statKeys: list('statKeys'),
+      statValues: list('statValues'),
+    );
+    final id = j['id'];
+    if (id is int) k.id = id;
+    return k;
+  }
 
   static DictionaryFrequency _frequencyFromJson(Map<String, dynamic> j) {
     final f = DictionaryFrequency(

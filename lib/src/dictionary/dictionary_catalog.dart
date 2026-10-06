@@ -102,6 +102,15 @@ const List<CatalogDictionary> japaneseDictionaryCatalog = [
     recommended: true,
   ),
   CatalogDictionary(
+    name: 'JPDB kanji frequency',
+    description: 'How common each kanji is, for the kanji page.',
+    url: 'https://github.com/MarvNC/yomichan-dictionaries/raw/master/dl/'
+        '%5BKanji%20Frequency%5D%20JPDB%20Kanji.zip',
+    approximateMegabytes: 1,
+    titlePrefix: 'JPDB Kanji Freq',
+    recommended: true,
+  ),
+  CatalogDictionary(
     name: 'JMnedict',
     description: 'Names of people and places. Large, and only useful when '
         'reading names.',

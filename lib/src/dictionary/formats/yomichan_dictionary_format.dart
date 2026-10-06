@@ -193,6 +193,7 @@ Future<void> prepareEntriesYomichanFormat({
   // [pendingEntries]; null for kanji rows, which have no glosses.
   final bool indexGlosses = DictionaryGloss.isForJapanese(params.dictionary);
   final pendingGlosses = <List<(int, String)>?>[];
+  final pendingKanji = <DictionaryKanji>[];
 
   Future<void> flushPending() async {
     if (pendingEntries.isEmpty) return;
@@ -273,6 +274,26 @@ Future<void> prepareEntriesYomichanFormat({
         final String spaceSeparatedHeadingTags = item[3] as String;
         final List<String> meanings = List<String>.from(item[4]);
 
+        // Keep the kanji's fields and stats too (strokes, grade, JLPT,
+        // frequency, …) for the kanji page; the flattened text below only
+        // serves the search results.
+        final Map<String, dynamic> stats = item.length > 5 && item[5] is Map
+            ? Map<String, dynamic>.from(item[5])
+            : const {};
+        pendingKanji.add(DictionaryKanji(
+          character: term,
+          dictionaryId: dictionaryId,
+          onyomi: onyomis.where((e) => e.trim().isNotEmpty).toList(),
+          kunyomi: kunyomis.where((e) => e.trim().isNotEmpty).toList(),
+          meanings: meanings,
+          tags: spaceSeparatedHeadingTags
+              .split(' ')
+              .where((e) => e.isNotEmpty)
+              .toList(),
+          statKeys: stats.keys.toList(),
+          statValues: stats.values.map((v) => '$v').toList(),
+        ));
+
         final buffer = StringBuffer();
         if (onyomis.join().trim().isNotEmpty) {
           buffer.writeln('音読み');
@@ -324,6 +345,9 @@ Future<void> prepareEntriesYomichanFormat({
   }
 
   await flushPending();
+  if (pendingKanji.isNotEmpty) {
+    isar.writeTxnSync(() => isar.dictionaryKanjis.putAllSync(pendingKanji));
+  }
   if (indexGlosses) {
     isar.writeTxnSync(() {
       isar.dictionaryGloss.putSync(DictionaryGloss.marker(dictionaryId));
@@ -451,7 +475,8 @@ Future<void> prepareFrequenciesYomichanFormat({
   int count = 0;
   for (final file in files) {
     final filename = path.basename(file.path);
-    if (filename.startsWith('term_meta_bank')) {
+    if ((filename.startsWith('term_meta_bank') ||
+            filename.startsWith('kanji_meta_bank'))) {
       final List<dynamic> items = jsonDecode(file.readAsStringSync());
       count += items.length;
       params.send(t.import_found_frequency(count: count));
@@ -463,7 +488,8 @@ Future<void> prepareFrequenciesYomichanFormat({
 
   for (final file in files) {
     final filename = path.basename(file.path);
-    if (!filename.startsWith('term_meta_bank')) continue;
+    if (!(filename.startsWith('term_meta_bank') ||
+            filename.startsWith('kanji_meta_bank'))) continue;
 
     final List<dynamic> items = jsonDecode(file.readAsStringSync());
 
