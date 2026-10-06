@@ -4,9 +4,9 @@
 /// To regenerate, run: `dart run slang`
 ///
 /// Locales: 1
-/// Strings: 461
+/// Strings: 479
 ///
-/// Built on 2026-10-06 at 13:24 UTC
+/// Built on 2026-10-06 at 17:47 UTC
 
 // coverage:ignore-file
 // ignore_for_file: type=lint
@@ -606,6 +606,24 @@ class Translations implements BaseTranslations<AppLocale, Translations> {
 	String get player_option_font_weight => 'Subtitle font weight';
 	String get player_option_outline_color => 'Subtitle outline color';
 	String get pick_color => 'Pick Color';
+	String get word_lists => 'Word lists';
+	String get word_list_new => 'NEW LIST';
+	String get word_list_name => 'List name';
+	String get word_list_name_taken => 'A list needs a name no other list has.';
+	String get word_list_rename => 'Rename list';
+	String get word_list_delete => 'Delete list';
+	String word_list_delete_description({required Object name, required Object count}) => 'Delete “${name}” and the ${count} words in it?';
+	String get word_list_empty => 'No words yet — add them with ★ on a dictionary result.';
+	String word_list_removed({required Object term}) => '『${term}』removed.';
+	String get word_list_undo => 'UNDO';
+	String get word_list_csv => 'Export as CSV';
+	String get word_list_tsv => 'Export as TSV';
+	String get word_list_anki => 'Send to Anki';
+	String word_list_anki_description({required Object count, required Object profile, required Object deck}) => 'Make a card for each of the ${count} words with the “${profile}” profile in the deck “${deck}”. Words already in Anki are skipped.';
+	String get word_list_send => 'SEND';
+	String get word_list_preparing => 'Looking up';
+	String get word_list_sending => 'Sending';
+	String word_list_anki_done({required Object added, required Object skipped, required Object missing}) => 'Sent ${added}; ${skipped} already in Anki; ${missing} not in any dictionary.';
 }
 
 // Path: retrying_in
@@ -1105,6 +1123,24 @@ extension on Translations {
 			case 'player_option_font_weight': return 'Subtitle font weight';
 			case 'player_option_outline_color': return 'Subtitle outline color';
 			case 'pick_color': return 'Pick Color';
+			case 'word_lists': return 'Word lists';
+			case 'word_list_new': return 'NEW LIST';
+			case 'word_list_name': return 'List name';
+			case 'word_list_name_taken': return 'A list needs a name no other list has.';
+			case 'word_list_rename': return 'Rename list';
+			case 'word_list_delete': return 'Delete list';
+			case 'word_list_delete_description': return ({required Object name, required Object count}) => 'Delete “${name}” and the ${count} words in it?';
+			case 'word_list_empty': return 'No words yet — add them with ★ on a dictionary result.';
+			case 'word_list_removed': return ({required Object term}) => '『${term}』removed.';
+			case 'word_list_undo': return 'UNDO';
+			case 'word_list_csv': return 'Export as CSV';
+			case 'word_list_tsv': return 'Export as TSV';
+			case 'word_list_anki': return 'Send to Anki';
+			case 'word_list_anki_description': return ({required Object count, required Object profile, required Object deck}) => 'Make a card for each of the ${count} words with the “${profile}” profile in the deck “${deck}”. Words already in Anki are skipped.';
+			case 'word_list_send': return 'SEND';
+			case 'word_list_preparing': return 'Looking up';
+			case 'word_list_sending': return 'Sending';
+			case 'word_list_anki_done': return ({required Object added, required Object skipped, required Object missing}) => 'Sent ${added}; ${skipped} already in Anki; ${missing} not in any dictionary.';
 			default: return null;
 		}
 	}

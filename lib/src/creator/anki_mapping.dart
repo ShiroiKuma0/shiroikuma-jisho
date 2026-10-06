@@ -219,6 +219,7 @@ class AnkiMapping {
       3: CopyToClipboardAction.key,
       4: ShareAction.key,
       5: PlayAudioAction.key,
+      6: AddToListAction.key,
     },
     'en-US': {
       0: CardCreatorAction.key,
@@ -227,6 +228,7 @@ class AnkiMapping {
       3: CopyToClipboardAction.key,
       4: ShareAction.key,
       5: PlayAudioAction.key,
+      6: AddToListAction.key,
     }
   };
 

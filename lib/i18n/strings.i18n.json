@@ -494,5 +494,23 @@
     "player_option_font_color": "Subtitle font color",
     "player_option_font_weight": "Subtitle font weight",
     "player_option_outline_color": "Subtitle outline color",
-    "pick_color": "Pick Color"
-  }
+    "pick_color": "Pick Color",
+    "word_lists": "Word lists",
+    "word_list_new": "NEW LIST",
+    "word_list_name": "List name",
+    "word_list_name_taken": "A list needs a name no other list has.",
+    "word_list_rename": "Rename list",
+    "word_list_delete": "Delete list",
+    "word_list_delete_description": "Delete “$name” and the $count words in it?",
+    "word_list_empty": "No words yet — add them with ★ on a dictionary result.",
+    "word_list_removed": "『$term』removed.",
+    "word_list_undo": "UNDO",
+    "word_list_csv": "Export as CSV",
+    "word_list_tsv": "Export as TSV",
+    "word_list_anki": "Send to Anki",
+    "word_list_anki_description": "Make a card for each of the $count words with the “$profile” profile in the deck “$deck”. Words already in Anki are skipped.",
+    "word_list_send": "SEND",
+    "word_list_preparing": "Looking up",
+    "word_list_sending": "Sending",
+    "word_list_anki_done": "Sent $added; $skipped already in Anki; $missing not in any dictionary."
+}

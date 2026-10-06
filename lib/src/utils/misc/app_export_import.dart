@@ -1239,6 +1239,8 @@ class AppExportImport {
       'search_history_items': await db.searchHistoryItems.count(),
       'browser_bookmarks': await db.browserBookmarks.count(),
       'mokuro_catalogs': await db.mokuroCatalogs.count(),
+      'word_lists': await db.wordLists.count(),
+      'word_list_entries': await db.wordListEntrys.count(),
     };
 
     tracker.detail('Exporting dictionaries...');
@@ -1357,6 +1359,26 @@ class AppExportImport {
       log,
     );
 
+    tracker.detail('Exporting word lists...');
+    await _dumpJsonl(
+      File(path.join(outDir.path, 'word_lists.jsonl')),
+      db.wordLists,
+      (l) => {'_id': l.id, 'name': l.name, 'created': l.created},
+      log,
+    );
+    await _dumpJsonl(
+      File(path.join(outDir.path, 'word_list_entries.jsonl')),
+      db.wordListEntrys,
+      (e) => {
+        '_id': e.id,
+        'listId': e.listId,
+        'term': e.term,
+        'reading': e.reading,
+        'added': e.added,
+      },
+      log,
+    );
+
     return counts;
   }
 
@@ -1442,6 +1464,22 @@ class AppExportImport {
         'browser_bookmarks', db.browserBookmarks, _browserBookmarkFromJson);
     await doOne('mokuro_catalogs.jsonl', 'mokuro catalogs', 'mokuro_catalogs',
         db.mokuroCatalogs, _mokuroCatalogFromJson);
+    // Absent from bundles made before word lists; doOne skips them.
+    await doOne('word_lists.jsonl', 'word lists', 'word_lists', db.wordLists,
+        (j) => WordList(
+              id: j['_id'] as int?,
+              name: j['name'] as String,
+              created: j['created'] as int,
+            ));
+    await doOne('word_list_entries.jsonl', 'word list entries',
+        'word_list_entries', db.wordListEntrys,
+        (j) => WordListEntry(
+              id: j['_id'] as int?,
+              listId: j['listId'] as int,
+              term: j['term'] as String,
+              reading: j['reading'] as String,
+              added: j['added'] as int,
+            ));
   }
 
   /// Dump every row of [col] to [outFile] as JSONL. Loads the

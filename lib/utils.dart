@@ -32,6 +32,7 @@ export 'src/utils/player/youtube_quality.dart';
 export 'src/utils/player/playback_mode.dart';
 
 export 'src/utils/misc/example_sentences.dart';
+export 'src/utils/misc/word_lists.dart';
 export 'src/utils/misc/kanji_strokes.dart';
 export 'src/utils/misc/jidoujisho_color.dart';
 export 'src/utils/misc/jidoujisho_time_format.dart';

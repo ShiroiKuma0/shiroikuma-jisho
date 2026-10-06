@@ -8,6 +8,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Added
 
+- **Word lists.** A ★ button on each dictionary result (new, leftmost)
+  puts the word in one or more named lists — “Favourites” is there from
+  the start, NEW LIST makes more — and turns red once the word is in
+  one. Words are kept with their reading, so 生 (なま) and 生 (せい) are
+  separate. The ★ in the search bar opens the lists: each shows its
+  words with the first dictionary's meaning, a tap looks the word up,
+  a swipe removes it (with undo). A list's menu exports it as CSV or
+  TSV (term, reading, meaning; shared through the usual share sheet),
+  sends it to Anki — one card per word with the current profile and
+  deck, as Instant Export makes them, skipping words Anki already has —
+  renames or deletes it. Lists travel in the backup bundle.
 - **Offline example sentences.** “Download dictionaries” now also offers
   the Tatoeba example sentences (about 148,000 Japanese–English pairs,
   10 MB) and the KanjiVG stroke order. Once downloaded, words get a

@@ -50,6 +50,8 @@ final List<CollectionSchema> globalSchemas = [
   DictionaryGlossSchema,
   DictionaryKanjiSchema,
   ExampleSentenceSchema,
+  WordListSchema,
+  WordListEntrySchema,
   DictionaryPitchSchema,
   DictionaryFrequencySchema,
   DictionaryTagSchema,
@@ -362,7 +364,7 @@ class AppModel with ChangeNotifier {
   final int maximumFieldEnhancements = 5;
 
   /// Maximum number of quick actions.
-  final int maximumQuickActions = 6;
+  final int maximumQuickActions = 7;
 
   /// Maximum number of search history items.
   final int maximumSearchHistoryItems = 60;
@@ -1424,6 +1426,7 @@ class AppModel with ChangeNotifier {
       CardCreatorAction(),
       InstantExportAction(),
       AddToStashAction(),
+      AddToListAction(),
       CopyToClipboardAction(),
       ShareAction(),
       PlayAudioAction(),
@@ -1498,6 +1501,29 @@ class AppModel with ChangeNotifier {
         );
       }
     }
+  }
+
+  /// Give existing export profiles the ★ (Add To List) button once, in
+  /// the slot added for it, so it appears without a trip to the quick
+  /// actions settings; a profile that later drops it keeps it dropped.
+  void addWordListActionOnce() {
+    if (_preferences.get('word_list_action_added', defaultValue: false)) {
+      return;
+    }
+    final slot = maximumQuickActions - 1;
+    _database.writeTxnSync(() {
+      for (final mapping in _database.ankiMappings.where().findAllSync()) {
+        final actions = mapping.actions;
+        if (actions == null ||
+            actions.containsValue(AddToListAction.key) ||
+            actions[slot] != null) {
+          continue;
+        }
+        mapping.actions = {...actions, slot: AddToListAction.key};
+        _database.ankiMappings.putSync(mapping);
+      }
+    });
+    _preferences.put('word_list_action_added', true);
   }
 
   /// Populate list of bookmarks included with the app by default.
@@ -1724,6 +1750,8 @@ class AppModel with ChangeNotifier {
         minRatio: 1.5, // and file is at least 1.5x larger than data
       ),
     );
+
+    addWordListActionOnce();
 
     /// Dictionary schema migrations.
     ///

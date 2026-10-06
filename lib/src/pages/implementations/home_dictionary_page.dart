@@ -123,6 +123,7 @@ class _HomeDictionaryPageState<T extends BaseTabPage> extends BaseTabPageState {
         buildBackButton(),
       ],
       actions: [
+        buildWordListsButton(),
         buildRadicalSearchButton(),
         buildDictionarySettingsButton(),
         buildClearButton(),
@@ -277,6 +278,19 @@ class _HomeDictionaryPageState<T extends BaseTabPage> extends BaseTabPageState {
         tooltip: t.clear_search_title,
         icon: Icons.manage_search,
         onTap: showDeleteSearchHistoryPrompt,
+      ),
+    );
+  }
+
+  /// Opens the named word lists.
+  Widget buildWordListsButton() {
+    return FloatingSearchBarAction(
+      showIfOpened: true,
+      child: JidoujishoIconButton(
+        size: Theme.of(context).textTheme.titleLarge?.fontSize,
+        tooltip: t.word_lists,
+        icon: Icons.star,
+        onTap: () => WordListsPage.open(context),
       ),
     );
   }

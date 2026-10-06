@@ -14,6 +14,7 @@ export 'src/creator/audio_export_field.dart';
 export 'src/creator/actions/card_creator_action.dart';
 export 'src/creator/actions/instant_export_action.dart';
 export 'src/creator/actions/add_to_stash_action.dart';
+export 'src/creator/actions/add_to_list_action.dart';
 export 'src/creator/actions/share_action.dart';
 export 'src/creator/actions/play_audio_action.dart';
 export 'src/creator/actions/copy_to_clipboard_action.dart';
