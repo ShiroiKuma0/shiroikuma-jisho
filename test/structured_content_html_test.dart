@@ -102,4 +102,13 @@ void main() {
     });
     expect(extractWrittenForms([table]), isEmpty);
   });
+
+  test('a cross-reference searches its href query, not its furigana', () {
+    final link = dom.Element.html(
+        '<a href="?query=相撲取り&amp;wildcards=off">'
+        '<ruby>相撲<rt>すもう</rt></ruby><ruby>取<rt>と</rt></ruby>り</a>');
+    expect(anchorSearchTerm({'href': '?query=相撲取り&wildcards=off'}, link),
+        '相撲取り');
+    expect(anchorSearchTerm({}, link), '相撲取り');
+  });
 }

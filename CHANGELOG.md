@@ -79,6 +79,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Fixed
 
+- **Tapping a “See also” link opens the word it points to.** A link with
+  furigana, such as 相撲取り, searched its text with the readings mixed in
+  (“相撲すもう取とり”) and found nothing useful. Links now search their
+  real target. A word's header line also no longer repeats tags such as
+  ★, ichi and news2k when two dictionaries give the same ones.
+
 - **Jitendex, JMdict and other Yomitan dictionaries look the way they are
   meant to.** Definitions came out as several nested bulleted lists with
   stray “•” and “▪” markers, tags such as “derogatory” and “kana” ran

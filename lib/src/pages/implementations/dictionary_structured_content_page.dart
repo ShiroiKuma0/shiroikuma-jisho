@@ -258,6 +258,33 @@ Style _box(Color rule, Color text) => Style(
   backgroundColor: text.withValues(alpha: 0.06),
 );
 
+/// The term a tapped cross-reference link should search for.
+///
+/// Yomitan-format links carry their target in the href
+/// (`?query=相撲取り&wildcards=off`). The visible text is only a fallback,
+/// read without its furigana: the link text of a ruby-annotated reference
+/// is "相撲すもう取とり", which is what used to be searched.
+@visibleForTesting
+String anchorSearchTerm(Map<String, String> attributes, dom.Element? element) {
+  final direct = attributes['query'];
+  if (direct != null && direct.isNotEmpty) return direct;
+
+  final href = attributes['href'];
+  if (href != null && href.isNotEmpty) {
+    try {
+      final query = Uri.parse(href).queryParameters['query'];
+      if (query != null && query.isNotEmpty) return query;
+    } catch (_) {}
+  }
+
+  if (element == null) return '';
+  final copy = element.clone(true);
+  for (final reading in copy.querySelectorAll('rt, rp')) {
+    reading.remove();
+  }
+  return copy.text.trim();
+}
+
 /// Get the [Directory] used as a resource directory for a certain [Dictionary].
 final dictionaryResourceDirectoryProvider = Provider.family<Directory, int>((
   ref,
@@ -501,7 +528,8 @@ class DictionaryHtmlWidget extends ConsumerWidget {
       data: ref.watch(dictionaryEntryScannedHtmlProvider(entry)),
       shrinkWrap: true,
       onAnchorTap: (url, attributes, element) {
-        onSearch.call(attributes['query'] ?? element?.text ?? 'f');
+        final query = anchorSearchTerm(attributes, element);
+        if (query.isNotEmpty) onSearch.call(query);
       },
       style: {
         // Base text on body and inherited, not on '*': a size set on every

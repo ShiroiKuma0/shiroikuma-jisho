@@ -618,7 +618,12 @@ class _DictionaryTermHeaderLine extends ConsumerWidget {
           heading.reading,
           style: TextStyle(fontSize: readingSize, color: muted),
         ),
-      ...heading.tags.map((tag) => marker(tag.name, tooltip: tag.notes)),
+      // Several dictionaries (or both of a word's entries) can carry the
+      // same tag; show each once.
+      for (final tag in {
+        for (final tag in heading.tags) tag.name: tag,
+      }.values)
+        marker(tag.name, tooltip: tag.notes),
       if (frequency != null)
         marker(
           '#${frequency.displayValue.split(RegExp(r'[,，、\s]')).first}',
