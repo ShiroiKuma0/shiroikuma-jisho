@@ -19,7 +19,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   and per-dictionary blocks are gone, and the definitions themselves are
   tightened: a sense's glosses run on one line joined by “;”, Jitendex's
   forms read “犬、狗、イヌ”, examples sit a step smaller with a dimmed
-  translation, and the blank lines around every list are gone. An English
+  translation, the blank lines around every list are gone, and indents are
+  minimal — part of speech and ①②③ sit flush left, only examples and
+  notes step in. An English
   search now shows every dictionary's entry for each word it finds, not
   only the one whose English matched.
 

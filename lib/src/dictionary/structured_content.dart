@@ -62,8 +62,16 @@ sealed class StructuredContent with StructuredContentMappable {
 /// [StructuredContentStyledContainer.toNode]: items whose marker is
 /// already in their text, and the items of a list styled `none`.
 Map<String, Style> get listMarkerStyles => {
-      'li[data-no-marker]': Style(marker: Marker(content: Content.none)),
-      '[data-no-markers] > li': Style(marker: Marker(content: Content.none)),
+      // Inside, so a hidden marker reserves no column: outside markers
+      // keep their width even when empty, indenting every nested list.
+      'li[data-no-marker]': Style(
+        marker: Marker(content: Content.none),
+        listStylePosition: ListStylePosition.inside,
+      ),
+      '[data-no-markers] > li': Style(
+        marker: Marker(content: Content.none),
+        listStylePosition: ListStylePosition.inside,
+      ),
     };
 
 /// A structured-content `data` map as HTML attributes. Yomitan renders

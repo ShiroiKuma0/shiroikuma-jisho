@@ -82,8 +82,14 @@ Map<String, Style> parseDictionaryStylesheet(String css) {
       }
     }
     if (marker != null) {
-      add('${rule.selector} > li',
-          Style(marker: Marker(content: listMarker(marker))));
+      add(
+        '${rule.selector} > li',
+        Style(
+          marker: Marker(content: listMarker(marker)),
+          // A hidden marker drawn inside reserves no column.
+          listStylePosition: marker.isEmpty ? ListStylePosition.inside : null,
+        ),
+      );
     }
   }
 

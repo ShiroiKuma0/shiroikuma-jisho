@@ -137,7 +137,17 @@ Map<String, Style> compactStructuredContentStyles(Color textColor) => {
     margin: Margins.symmetric(vertical: 2),
     padding: HtmlPaddings.only(left: 6, top: 1, bottom: 1),
   ),
-  '[data-sc-content="extra-info"]': Style(margin: Margins.only(left: 4)),
+  // Minimal indents: part-of-speech groups without their "＊" column and
+  // senses flush under them; only examples and notes step in.
+  'ul[data-sc-content="sense-groups"]': Style(padding: HtmlPaddings.zero),
+  'ul[data-sc-content="sense-groups"] > li': Style(
+    marker: Marker(content: Content.none),
+    listStylePosition: ListStylePosition.inside,
+    padding: HtmlPaddings.zero,
+  ),
+  '[data-sc-content="sense-group"] ol': Style(padding: HtmlPaddings.zero),
+  'li[data-sc-content="sense"]': Style(padding: HtmlPaddings.zero),
+  '[data-sc-content="extra-info"]': Style(margin: Margins.only(left: 10)),
   '[data-sc-content="example-sentence-a"]': Style(
     fontSize: FontSize(0.9, Unit.em),
   ),
