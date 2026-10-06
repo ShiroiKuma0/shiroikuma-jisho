@@ -16,8 +16,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   that dictionary's definitions, long-press it for its own actions
   (formerly the ⋮ by the dictionary name). The first dictionary that is
   not set to collapsed is shown by default. The separate frequency, pitch
-  and per-dictionary blocks are gone, so far more of the screen is
-  meaning.
+  and per-dictionary blocks are gone, and the definitions themselves are
+  tightened: a sense's glosses run on one line joined by “;”, Jitendex's
+  forms read “犬、狗、イヌ”, examples sit a step smaller with a dimmed
+  translation, and the blank lines around every list are gone. An English
+  search now shows every dictionary's entry for each word it finds, not
+  only the one whose English matched.
 
 - **Pinch to resize dictionary results.** Pinch anywhere on a result list
   — the dictionary tab or a pop-up over the reader or player — to make the

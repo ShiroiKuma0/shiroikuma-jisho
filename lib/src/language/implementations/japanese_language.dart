@@ -529,6 +529,21 @@ SearchResultData? searchJapaneseByEnglishGloss({
   for (final key in keys) {
     builder.addEntries(groupEntries[key]!);
   }
+  // Only entries whose English matched were collected, so 犬 arrived with
+  // Jitendex alone. Bring in every enabled dictionary's entries for each
+  // shown headword, as a Japanese search for it would.
+  final Set<int> shownDictionaries = enabledDictionaryIds.toSet();
+  for (final key in keys.take(maxGroups)) {
+    final first = groupEntries[key]!.first;
+    builder.addEntries(database.dictionaryEntrys
+        .where()
+        .termEqualTo(first.term)
+        .findAllSync()
+        .where((e) =>
+            e.reading == first.reading &&
+            (shownDictionaries.isEmpty ||
+                shownDictionaries.contains(e.dictionaryId))));
+  }
   builder.recordMatchLength(query.length);
   return builder.buildFromOrderedGroups(database, builder.rawGroups());
 }

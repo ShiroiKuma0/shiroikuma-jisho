@@ -229,7 +229,24 @@ class _DictionaryTabs extends ConsumerWidget {
           padding: EdgeInsets.symmetric(
             vertical: Spacing.of(context).spaces.extraSmall,
           ),
-          child: Wrap(spacing: 6, runSpacing: 4, children: chips),
+          // The selected dictionary's own entry tags (★, priority form…)
+          // ride on the chip row instead of taking a row of their own.
+          child: Wrap(
+            spacing: 6,
+            runSpacing: 4,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              ...chips,
+              for (final tag in {
+                for (final e in byDictionary[selected]!) ...e.tags,
+              })
+                JidoujishoTag(
+                  text: tag.name,
+                  message: tag.notes,
+                  backgroundColor: tag.color,
+                ),
+            ],
+          ),
         ),
         ...byDictionary[selected]!.map(
           (entry) => DictionaryEntryPage(
@@ -240,6 +257,7 @@ class _DictionaryTabs extends ConsumerWidget {
             onStash: onStash,
             onShare: onShare,
             compact: true,
+            showTags: false,
           ),
         ),
       ],
@@ -563,23 +581,12 @@ class _DictionaryTermHeaderLine extends ConsumerWidget {
         ),
       if (downsteps.isNotEmpty)
         for (final downstep in downsteps.take(2))
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              appModel.targetLanguage.getPitchWidget(
-                appModel: appModel,
-                context: context,
-                reading: heading.reading.isEmpty
-                    ? heading.term
-                    : heading.reading,
-                downstep: downstep,
-              ),
-              Text(
-                ' [$downstep]',
-                style: TextStyle(fontSize: readingSize * 0.75, color: muted),
-              ),
-            ],
+          // The pitch widget prints the reading and its [n] itself.
+          appModel.targetLanguage.getPitchWidget(
+            appModel: appModel,
+            context: context,
+            reading: heading.reading.isEmpty ? heading.term : heading.reading,
+            downstep: downstep,
           )
       else if (showReading)
         Text(

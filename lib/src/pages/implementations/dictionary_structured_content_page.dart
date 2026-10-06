@@ -15,13 +15,16 @@ import 'package:shiroikumanojisho/utils.dart';
 
 /// Provides and caches the processed HTML of a [DictionaryEntry] to improve
 /// performance.
-final dictionaryEntryHtmlProvider =
-    Provider.family<String, DictionaryEntry>((ref, entry) {
+final dictionaryEntryHtmlProvider = Provider.family<String, DictionaryEntry>((
+  ref,
+  entry,
+) {
   return entry.definitions
       .map((e) {
         try {
-          final node =
-              StructuredContent.processContent(jsonDecode(e))?.toNode();
+          final node = StructuredContent.processContent(
+            jsonDecode(e),
+          )?.toNode();
           if (node == null) {
             return '';
           }
@@ -29,6 +32,7 @@ final dictionaryEntryHtmlProvider =
           final document = dom.Document.html('');
           document.body?.append(node);
           if (document.body != null) {
+            inlineGlossaries(document.body!);
             blockifyListItems(document.body!);
           }
           final html = document.body?.innerHtml ?? '';
@@ -47,6 +51,41 @@ const Set<String> _blockTags = {
   'h5', 'h6', 'blockquote', 'pre', 'details', 'summary',
 };
 
+/// Run each glossary list (`data-sc-content="glossary"`, as Jitendex and
+/// JMdict mark them) together as one line, its glosses joined by "; ",
+/// instead of one gloss per line. Lists whose items hold blocks of their
+/// own are left alone.
+@visibleForTesting
+void inlineGlossaries(dom.Element root) {
+  // Jitendex's list of written forms runs inline too, joined by "、".
+  final lists = [
+    for (final l in root.querySelectorAll('ul[data-sc-content="glossary"]'))
+      (l, '; '),
+    for (final l in root.querySelectorAll('[data-sc-content="forms"] > ul'))
+      (l, '、'),
+  ];
+  for (final (list, separator) in lists) {
+    final items = list.children.where((e) => e.localName == 'li').toList();
+    if (items.isEmpty ||
+        items.any((li) => li.querySelector(_blockTags.join(',')) != null)) {
+      continue;
+    }
+    final line = dom.Element.tag('span')
+      ..attributes['data-sc-content'] = 'glossary-inline';
+    for (int i = 0; i < items.length; i++) {
+      if (i > 0) {
+        line.append(
+          dom.Element.tag('span')
+            ..attributes['data-gloss-separator'] = ''
+            ..text = separator,
+        );
+      }
+      line.nodes.addAll(List<dom.Node>.from(items[i].nodes));
+    }
+    list.replaceWith(line);
+  }
+}
+
 /// Wrap each run of inline content in a list item that also holds block
 /// content in a `<div>` of its own.
 ///
@@ -59,15 +98,17 @@ const Set<String> _blockTags = {
 void blockifyListItems(dom.Element root) {
   for (final li in root.querySelectorAll('li')) {
     final nodes = List<dom.Node>.from(li.nodes);
-    final hasBlock = nodes.any((n) =>
-        n is dom.Element && _blockTags.contains(n.localName?.toLowerCase()));
+    final hasBlock = nodes.any(
+      (n) =>
+          n is dom.Element && _blockTags.contains(n.localName?.toLowerCase()),
+    );
     if (!hasBlock) continue;
 
     final rebuilt = <dom.Node>[];
     dom.Element? run;
     for (final n in nodes) {
-      final isBlock = n is dom.Element &&
-          _blockTags.contains(n.localName?.toLowerCase());
+      final isBlock =
+          n is dom.Element && _blockTags.contains(n.localName?.toLowerCase());
       if (isBlock) {
         run = null;
         rebuilt.add(n);
@@ -86,21 +127,64 @@ void blockifyListItems(dom.Element root) {
   }
 }
 
+/// Spacing overrides applied after a dictionary's stylesheet; see
+/// [DictionaryHtmlWidget].
+Map<String, Style> compactStructuredContentStyles(Color textColor) => {
+  'ul': Style(margin: Margins.zero),
+  'ol': Style(margin: Margins.zero),
+  'li': Style(margin: Margins.zero),
+  '[data-sc-class="extra-box"]': Style(
+    margin: Margins.symmetric(vertical: 2),
+    padding: HtmlPaddings.only(left: 6, top: 1, bottom: 1),
+  ),
+  '[data-sc-content="extra-info"]': Style(margin: Margins.only(left: 4)),
+  '[data-sc-content="example-sentence-a"]': Style(
+    fontSize: FontSize(0.9, Unit.em),
+  ),
+  '[data-sc-content="example-sentence-b"]': Style(
+    fontSize: FontSize(0.9, Unit.em),
+    color: textColor.withValues(alpha: 0.7),
+  ),
+  // Cross-references and forms back at text size (Jitendex sets
+  // them to 1.2–1.3em).
+  '[data-sc-content="xref-content"]': Style(fontSize: FontSize(1, Unit.em)),
+  '[data-sc-content="antonym-content"]': Style(fontSize: FontSize(1, Unit.em)),
+  '[data-sc-content="xref-glossary"]': Style(fontSize: FontSize(0.9, Unit.em)),
+  '[data-sc-content="antonym-glossary"]':
+      Style(fontSize: FontSize(0.9, Unit.em)),
+  '[data-sc-content="forms"] ul': Style(fontSize: FontSize(1, Unit.em)),
+  '[data-sc-content="example-sentence"]': Style(
+    margin: Margins.symmetric(vertical: 1),
+  ),
+  '[data-gloss-separator]': Style(color: textColor.withValues(alpha: 0.6)),
+  '[data-sc-content="attribution"]': Style(
+    fontSize: FontSize(0.6, Unit.em),
+    color: textColor.withValues(alpha: 0.6),
+  ),
+};
+
 /// Get the [Directory] used as a resource directory for a certain [Dictionary].
-final dictionaryResourceDirectoryProvider =
-    Provider.family<Directory, int>((ref, dictionaryId) {
+final dictionaryResourceDirectoryProvider = Provider.family<Directory, int>((
+  ref,
+  dictionaryId,
+) {
   final appModel = ref.watch(appProvider);
 
   return Directory(
-      path.join(appModel.dictionaryResourceDirectory.path, '$dictionaryId'));
+    path.join(appModel.dictionaryResourceDirectory.path, '$dictionaryId'),
+  );
 });
 
 /// The dictionary's own `styles.css`, converted for the renderer (see
 /// [parseDictionaryStylesheet]); empty when it ships none. Read once per
 /// dictionary — the file sits in its resource directory from the import.
-final dictionaryStylesheetProvider =
-    Provider.family<Map<String, Style>, int>((ref, dictionaryId) {
-  final directory = ref.watch(dictionaryResourceDirectoryProvider(dictionaryId));
+final dictionaryStylesheetProvider = Provider.family<Map<String, Style>, int>((
+  ref,
+  dictionaryId,
+) {
+  final directory = ref.watch(
+    dictionaryResourceDirectoryProvider(dictionaryId),
+  );
   final file = File(path.join(directory.path, 'styles.css'));
   try {
     if (!file.existsSync()) return const {};
@@ -125,16 +209,16 @@ final dictionaryStylesheetProvider =
 /// around a plain [Text] that inherits the surrounding body style.
 final dictionaryEntryScannedHtmlProvider =
     Provider.family<String, DictionaryEntry>((ref, entry) {
-  final baseHtml = ref.watch(dictionaryEntryHtmlProvider(entry));
-  final language = ref.watch(appProvider).targetLanguage;
-  try {
-    return _injectScanWords(baseHtml, language);
-  } catch (_) {
-    // If anything about the DOM walk or segmenter fails, fall back to
-    // the unmodified HTML so the entry still renders.
-    return baseHtml;
-  }
-});
+      final baseHtml = ref.watch(dictionaryEntryHtmlProvider(entry));
+      final language = ref.watch(appProvider).targetLanguage;
+      try {
+        return _injectScanWords(baseHtml, language);
+      } catch (_) {
+        // If anything about the DOM walk or segmenter fails, fall back to
+        // the unmodified HTML so the entry still renders.
+        return baseHtml;
+      }
+    });
 
 /// Walks [html] as a DOM fragment and returns a copy with every visible
 /// text node segmented via [language] and each Japanese-script token
@@ -278,7 +362,8 @@ bool _containsJapanese(String text) {
         (code >= 0x4E00 && code <= 0x9FFF) || // CJK Unified Ideographs
         (code >= 0x3400 && code <= 0x4DBF) || // CJK Extension A
         (code >= 0xF900 && code <= 0xFAFF) || // CJK Compatibility Ideographs
-        (code >= 0x31F0 && code <= 0x31FF)) { // Katakana Phonetic Extensions
+        (code >= 0x31F0 && code <= 0x31FF)) {
+      // Katakana Phonetic Extensions
       return true;
     }
   }
@@ -315,9 +400,7 @@ class DictionaryHtmlWidget extends ConsumerWidget {
     final fontFamily = style.family;
     const tableWidth = 0.3;
     final tableBorder = Border.all(color: textColor, width: tableWidth);
-    final tableStyle = Style(
-      border: tableBorder,
-    );
+    final tableStyle = Style(border: tableBorder);
 
     return Html(
       data: ref.watch(dictionaryEntryScannedHtmlProvider(entry)),
@@ -326,7 +409,9 @@ class DictionaryHtmlWidget extends ConsumerWidget {
         onSearch.call(attributes['query'] ?? element?.text ?? 'f');
       },
       style: {
-        '*': Style(
+        // Base text on body and inherited, not on '*': a size set on every
+        // element overrode each relative (em) size below it.
+        'body': Style(
           fontSize: fontSize,
           fontFamily: fontFamily,
           color: textColor,
@@ -343,15 +428,17 @@ class DictionaryHtmlWidget extends ConsumerWidget {
           padding: HtmlPaddings.only(inlineStart: 1.2, unit: Unit.em),
         ),
         '[data-no-markers]': Style(padding: HtmlPaddings.zero),
-        'li': Style(
-          padding: HtmlPaddings.zero,
-        ),
+        'li': Style(padding: HtmlPaddings.zero),
         'a': Style(color: linkColor),
         ...listMarkerStyles,
-        // The dictionary's own stylesheet last, so it wins over the
-        // defaults above where it says something.
-        ...ref.watch(
-            dictionaryStylesheetProvider(entry.dictionary.value!.id)),
+        // The dictionary's own stylesheet, so it wins over the defaults
+        // above where it says something…
+        ...ref.watch(dictionaryStylesheetProvider(entry.dictionary.value!.id)),
+        // …except for spacing: these tighten what browsers and
+        // dictionary stylesheets spread out — the renderer's 1em margins
+        // around every list, Jitendex's example boxes and their 1.3em
+        // sentences — to keep the result card dense.
+        ...compactStructuredContentStyles(textColor),
       },
       extensions: [
         const TableHtmlExtension(),
@@ -407,16 +494,27 @@ class JidoujishoDictionaryImage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final src = (extensionContext.attributes['src'] ?? '')
-        .replaceFirst('jidoujisho://', '');
+    final src = (extensionContext.attributes['src'] ?? '').replaceFirst(
+      'jidoujisho://',
+      '',
+    );
 
-    final width = double.tryParse((extensionContext.attributes['width'] ?? '')
-        .replaceAll(RegExp(r'\D'), ''));
-    final height = double.tryParse((extensionContext.attributes['height'] ?? '')
-        .replaceAll(RegExp(r'\D'), ''));
+    final width = double.tryParse(
+      (extensionContext.attributes['width'] ?? '').replaceAll(
+        RegExp(r'\D'),
+        '',
+      ),
+    );
+    final height = double.tryParse(
+      (extensionContext.attributes['height'] ?? '').replaceAll(
+        RegExp(r'\D'),
+        '',
+      ),
+    );
 
-    final directory = ref
-        .read(dictionaryResourceDirectoryProvider(entry.dictionary.value!.id));
+    final directory = ref.read(
+      dictionaryResourceDirectoryProvider(entry.dictionary.value!.id),
+    );
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
@@ -425,7 +523,7 @@ class JidoujishoDictionaryImage extends ConsumerWidget {
           height: height,
           width: width,
           scale: 3,
-        )
+        ),
       ],
     );
   }
@@ -435,15 +533,13 @@ class JidoujishoDictionaryImage extends ConsumerWidget {
 class DictionarySelectionDelegate
     extends MultiSelectableSelectionContainerDelegate {
   /// Initialise this widget.
-  DictionarySelectionDelegate({
-    required this.onTextSelectionGuessLength,
-  });
+  DictionarySelectionDelegate({required this.onTextSelectionGuessLength});
 
   /// Callback with a [JidoujishoTextSelection] which contains the text of all
   /// selectables as well as a [TextRange] representing the substring to use
   /// for dictionary search. Returns the guess length of the text selection.
   final JidoujishoTextSelection Function(JidoujishoTextSelection)
-      onTextSelectionGuessLength;
+  onTextSelectionGuessLength;
 
   // This method is called when newly added selectable is in the current
   // selected range.
@@ -452,16 +548,19 @@ class DictionarySelectionDelegate
 
   /// Handles a [JidoujishoTextSelection].
   SelectionResult handleTextSelection(
-      SelectWordSelectionEvent event, JidoujishoTextSelection selection) {
+    SelectWordSelectionEvent event,
+    JidoujishoTextSelection selection,
+  ) {
     handleClearSelection(const ClearSelectionEvent());
 
     super.handleSelectWord(event);
     while ((getSelectedContent()?.plainText ?? '').length > 1) {
       super.handleGranularlyExtendSelection(
         const GranularlyExtendSelectionEvent(
-            forward: false,
-            isEnd: true,
-            granularity: TextGranularity.character),
+          forward: false,
+          isEnd: true,
+          granularity: TextGranularity.character,
+        ),
       );
     }
 
@@ -561,10 +660,7 @@ class DictionarySelectionDelegate
 
     final eventSelection = JidoujishoTextSelection(
       text: text,
-      range: TextRange(
-        start: textBefore.length,
-        end: text.length,
-      ),
+      range: TextRange(start: textBefore.length, end: text.length),
     );
 
     late SelectionResult result;

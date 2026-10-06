@@ -20,6 +20,7 @@ class DictionaryEntryPage extends ConsumerStatefulWidget {
     required this.onShare,
     this.expandableController,
     this.compact = false,
+    this.showTags = true,
     super.key,
   });
 
@@ -48,6 +49,10 @@ class DictionaryEntryPage extends ConsumerStatefulWidget {
   /// dictionary chips already name and select the dictionary.
   final bool compact;
 
+  /// Whether a [compact] entry shows its own tags; the result card shows
+  /// them on its dictionary chip row instead.
+  final bool showTags;
+
   @override
   ConsumerState<ConsumerStatefulWidget> createState() =>
       _DictionaryEntryPageState();
@@ -64,7 +69,7 @@ class _DictionaryEntryPageState extends ConsumerState<DictionaryEntryPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            if (widget.entry.tags.isNotEmpty)
+            if (widget.showTags && widget.entry.tags.isNotEmpty)
               Wrap(
                 children: widget.entry.tags
                     .map(
