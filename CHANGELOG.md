@@ -8,6 +8,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Added
 
+- **Offline example sentences.** “Download dictionaries” now also offers
+  the Tatoeba example sentences (about 148,000 Japanese–English pairs,
+  10 MB) and the KanjiVG stroke order. Once downloaded, words get a
+  “例文 N” chip after the dictionary chips listing sentences that use
+  the word, shortest first, with the word marked as it is written in
+  the sentence (会えない for 会う). Sentences are matched by dictionary
+  form, so inflected uses are found too. Credit: Tatoeba, CC BY 2.0 FR.
 - **Conjugation tables.** Verbs and i-adjectives get a “活用” chip after
   the dictionary chips; it shows the word's forms — non-past, past,
   te-form, potential, passive, causative, causative-passive, imperative,

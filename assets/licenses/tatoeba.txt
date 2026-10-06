@@ -1,0 +1,7 @@
+Tatoeba example sentences (Tanaka Corpus; downloaded on request, not bundled)
+
+Sentences from the Tatoeba Project (https://tatoeba.org), released under
+the Creative Commons Attribution 2.0 France licence
+(https://creativecommons.org/licenses/by/2.0/fr/), in the Tanaka Corpus
+form distributed by the Electronic Dictionary Research and Development
+Group (https://www.edrdg.org/wiki/index.php/Tanaka_Corpus).

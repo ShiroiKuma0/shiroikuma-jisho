@@ -151,6 +151,80 @@ final selectedDictionaryProvider =
 /// The chip value that selects the conjugation table.
 const String _conjugationTab = '\u0000活用';
 
+/// The chip value that selects the example sentences.
+const String _examplesTab = '\u0000例文';
+
+/// Example sentences for a word: the Japanese with the word in bold, the
+/// English under it, dimmer.
+class _ExampleList extends ConsumerWidget {
+  const _ExampleList({required this.term, required this.examples});
+
+  final String term;
+  final List<ExampleSentence> examples;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final appModel = ref.watch(appProvider);
+    final color = Color(appModel.dictionaryFontColor);
+    final size = appModel.dictionaryFontSize * 0.85;
+
+    Widget sentence(ExampleSentence e) {
+      final word = ExampleSentences.surfaceIn(e, term);
+      final at = e.japanese.indexOf(word);
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 4),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text.rich(
+              TextSpan(
+                style: TextStyle(fontSize: size, color: color),
+                children: at < 0
+                    ? [TextSpan(text: e.japanese)]
+                    : [
+                        TextSpan(text: e.japanese.substring(0, at)),
+                        TextSpan(
+                          text: word,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            decoration: TextDecoration.underline,
+                          ),
+                        ),
+                        TextSpan(text: e.japanese.substring(at + word.length)),
+                      ],
+              ),
+            ),
+            Text(
+              e.english,
+              style: TextStyle(
+                fontSize: size * 0.85,
+                color: color.withValues(alpha: 0.65),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 4, bottom: 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          ...examples.map(sentence),
+          Text(
+            'Tatoeba (CC BY 2.0 FR)',
+            style: TextStyle(
+              fontSize: size * 0.6,
+              color: color.withValues(alpha: 0.5),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 /// Part-of-speech codes of [entries]: their tag fields (JMdict puts v5k,
 /// adj-i … there) and the codes on Jitendex's part-of-speech spans in the
 /// definitions.
@@ -277,10 +351,18 @@ class _DictionaryTabs extends ConsumerWidget {
         ? null
         : JapaneseConjugation.table(heading.term, conjugationClass);
 
+    // Offline example sentences (when downloaded) behind a "例文" chip.
+    final examples = ExampleSentences.forWord(
+      appModel.database,
+      heading.term,
+      heading.reading,
+    );
+
     String? selected = ref.watch(selectedDictionaryProvider(heading));
     final bool showConjugation =
         selected == _conjugationTab && conjugation != null;
-    if (showConjugation) {
+    final bool showExamples = selected == _examplesTab && examples.isNotEmpty;
+    if (showConjugation || showExamples) {
       // keep it
     } else if (selected == null || !byDictionary.containsKey(selected)) {
       selected =
@@ -319,31 +401,32 @@ class _DictionaryTabs extends ConsumerWidget {
       );
     }).toList();
 
-    if (conjugation != null) {
-      chips.add(
+    GestureDetector extraChip(String label, String tab, bool isSelected) =>
         GestureDetector(
           onTap: () =>
               ref.read(selectedDictionaryProvider(heading).notifier).state =
-                  _conjugationTab,
+                  tab,
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 1),
             decoration: BoxDecoration(
-              color: showConjugation ? color : Colors.transparent,
+              color: isSelected ? color : Colors.transparent,
               border: Border.all(color: color.withValues(alpha: 0.6)),
               borderRadius: BorderRadius.circular(10),
             ),
             child: Text(
-              '活用',
+              label,
               style: TextStyle(
                 fontSize: appModel.dictionaryFontSize * 0.62,
-                color: showConjugation
-                    ? Colors.black
-                    : color.withValues(alpha: 0.8),
+                color: isSelected ? Colors.black : color.withValues(alpha: 0.8),
               ),
             ),
           ),
-        ),
-      );
+        );
+    if (conjugation != null) {
+      chips.add(extraChip('活用', _conjugationTab, showConjugation));
+    }
+    if (examples.isNotEmpty) {
+      chips.add(extraChip('例文 ${examples.length}', _examplesTab, showExamples));
     }
 
     return Column(
@@ -361,7 +444,7 @@ class _DictionaryTabs extends ConsumerWidget {
             crossAxisAlignment: WrapCrossAlignment.center,
             children: [
               ...chips,
-              if (!showConjugation)
+              if (!showConjugation && !showExamples)
                 for (final tag in {
                   for (final e in byDictionary[selected]!) ...e.tags,
                 })
@@ -375,6 +458,8 @@ class _DictionaryTabs extends ConsumerWidget {
         ),
         if (showConjugation)
           _ConjugationTable(rows: conjugation)
+        else if (showExamples)
+          _ExampleList(term: heading.term, examples: examples)
         else
           ...byDictionary[selected]!.map(
             (entry) => DictionaryEntryPage(

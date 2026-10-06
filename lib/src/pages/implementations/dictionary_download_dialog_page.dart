@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 import 'package:spaces/spaces.dart';
 import 'package:shiroikumanojisho/dictionary.dart';
+import 'package:shiroikumanojisho/models.dart';
 import 'package:shiroikumanojisho/pages.dart';
 import 'package:shiroikumanojisho/utils.dart';
 
@@ -31,6 +32,27 @@ class _DictionaryDownloadDialogPageState
           entry.recommended && !appModel.isCatalogDictionaryInstalled(entry))
       .toSet();
 
+  /// Offline data that is not a dictionary: example sentences and stroke
+  /// order. Installed state is read asynchronously; until then the
+  /// entries show as not installed and unticked.
+  final Map<_Extra, bool> _extraInstalled = {};
+  final Set<_Extra> _extraSelected = {};
+
+  @override
+  void initState() {
+    super.initState();
+    () async {
+      for (final extra in _Extra.values) {
+        _extraInstalled[extra] = await extra.isInstalled();
+      }
+      if (!mounted) return;
+      setState(() {
+        _extraSelected.addAll(
+            _Extra.values.where((e) => _extraInstalled[e] == false));
+      });
+    }();
+  }
+
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
@@ -45,7 +67,8 @@ class _DictionaryDownloadDialogPageState
           onPressed: () => Navigator.pop(context),
         ),
         TextButton(
-          onPressed: _selected.isEmpty ? null : download,
+          onPressed:
+              _selected.isEmpty && _extraSelected.isEmpty ? null : download,
           child: Text(t.dialog_download),
         ),
       ],
@@ -54,7 +77,8 @@ class _DictionaryDownloadDialogPageState
 
   Widget buildContent() {
     final int megabytes = _selected.fold<int>(
-        0, (sum, entry) => sum + entry.approximateMegabytes);
+            0, (sum, entry) => sum + entry.approximateMegabytes) +
+        _extraSelected.fold<int>(0, (sum, e) => sum + e.megabytes);
 
     return SizedBox(
       width: double.maxFinite,
@@ -72,6 +96,7 @@ class _DictionaryDownloadDialogPageState
             ),
             const Space.normal(),
             ...appModel.dictionaryCatalog.map(buildEntry),
+            ..._Extra.values.map(buildExtra),
             const Space.normal(),
             Text(
               t.download_dictionaries_total(megabytes: megabytes),
@@ -128,6 +153,41 @@ class _DictionaryDownloadDialogPageState
     );
   }
 
+  Widget buildExtra(_Extra extra) {
+    if (_extraInstalled[extra] == true) {
+      return ListTile(
+        contentPadding: EdgeInsets.zero,
+        dense: true,
+        enabled: false,
+        leading: const Visibility(
+          visible: false,
+          maintainSize: true,
+          maintainAnimation: true,
+          maintainState: true,
+          child: Checkbox(value: false, onChanged: null),
+        ),
+        title: Text(t.download_dictionary_installed(name: extra.label)),
+        subtitle: Text(extra.description),
+      );
+    }
+    return CheckboxListTile(
+      contentPadding: EdgeInsets.zero,
+      dense: true,
+      controlAffinity: ListTileControlAffinity.leading,
+      value: _extraSelected.contains(extra),
+      onChanged: (value) => setState(() {
+        if (value ?? false) {
+          _extraSelected.add(extra);
+        } else {
+          _extraSelected.remove(extra);
+        }
+      }),
+      title: Text(t.download_dictionary_entry(
+          name: extra.label, megabytes: extra.megabytes)),
+      subtitle: Text(extra.description),
+    );
+  }
+
   Future<void> download() async {
     final List<CatalogDictionary> queue = appModel.dictionaryCatalog
         .where(_selected.contains)
@@ -136,8 +196,9 @@ class _DictionaryDownloadDialogPageState
     final ValueNotifier<String> progressNotifier =
         ValueNotifier<String>(t.import_start);
     final ValueNotifier<int?> countNotifier = ValueNotifier<int?>(null);
+    final extras = _Extra.values.where(_extraSelected.contains).toList();
     final ValueNotifier<int?> totalNotifier =
-        ValueNotifier<int?>(queue.length);
+        ValueNotifier<int?>(queue.length + extras.length);
 
     // The progress dialog goes on top of this one, and both close only when
     // every download has finished — the caller refreshes the dictionary
@@ -165,6 +226,17 @@ class _DictionaryDownloadDialogPageState
       }
     }
 
+    for (int i = 0; i < extras.length; i++) {
+      countNotifier.value = queue.length + i + 1;
+      try {
+        await extras[i].download(appModel, progressNotifier);
+      } catch (e) {
+        progressNotifier.value = '$e';
+        await Future.delayed(const Duration(seconds: 3));
+        failures++;
+      }
+    }
+
     if (failures > 0) {
       Fluttertoast.showToast(
         msg: t.download_dictionaries_failed(n: failures),
@@ -179,4 +251,40 @@ class _DictionaryDownloadDialogPageState
       Navigator.pop(context);
     }
   }
+}
+
+/// Downloadable offline data that is not a Yomitan dictionary.
+enum _Extra {
+  examples,
+  strokes;
+
+  String get label => switch (this) {
+        _Extra.examples => 'Example sentences (Tatoeba)',
+        _Extra.strokes => 'Stroke order (KanjiVG)',
+      };
+
+  String get description => switch (this) {
+        _Extra.examples => '148,000 Japanese–English sentence pairs, shown '
+            'under a 例文 chip on each word.',
+        _Extra.strokes => 'Animated stroke order for the kanji page.',
+      };
+
+  int get megabytes => switch (this) {
+        _Extra.examples => ExampleSentences.approximateMegabytes,
+        _Extra.strokes => 4,
+      };
+
+  Future<bool> isInstalled() => switch (this) {
+        _Extra.examples => ExampleSentences.isInstalled(),
+        _Extra.strokes => KanjiStrokes.isInstalled(),
+      };
+
+  Future<void> download(AppModel appModel, ValueNotifier<String> progress) =>
+      switch (this) {
+        _Extra.examples => ExampleSentences.download(
+            directoryPath: appModel.databaseDirectory.path,
+            progress: progress,
+          ),
+        _Extra.strokes => KanjiStrokes.download(progress),
+      };
 }

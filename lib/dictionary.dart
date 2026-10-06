@@ -3,6 +3,7 @@ export 'src/dictionary/dictionary_catalog.dart';
 export 'src/dictionary/dictionary_entry.dart';
 export 'src/dictionary/dictionary_gloss.dart';
 export 'src/dictionary/dictionary_kanji.dart';
+export 'src/dictionary/example_sentence.dart';
 export 'src/dictionary/dictionary_heading.dart';
 export 'src/dictionary/dictionary_search_result.dart';
 export 'src/dictionary/dictionary_utils.dart';

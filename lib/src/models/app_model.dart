@@ -49,6 +49,7 @@ final List<CollectionSchema> globalSchemas = [
   DictionaryEntrySchema,
   DictionaryGlossSchema,
   DictionaryKanjiSchema,
+  ExampleSentenceSchema,
   DictionaryPitchSchema,
   DictionaryFrequencySchema,
   DictionaryTagSchema,
@@ -1590,6 +1591,7 @@ class AppModel with ChangeNotifier {
       'kanjivg',
       'ppocr',
       'radkfile',
+      'tatoeba',
       've',
     ];
 
