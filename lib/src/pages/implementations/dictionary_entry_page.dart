@@ -18,7 +18,8 @@ class DictionaryEntryPage extends ConsumerStatefulWidget {
     required this.onSearch,
     required this.onStash,
     required this.onShare,
-    required this.expandableController,
+    this.expandableController,
+    this.compact = false,
     super.key,
   });
 
@@ -39,8 +40,13 @@ class DictionaryEntryPage extends ConsumerStatefulWidget {
   /// Action to be done upon selecting the stash option.
   final Function(String) onShare;
 
-  /// Controller specific to a dictionary name.
-  final ExpandableController expandableController;
+  /// Controller specific to a dictionary name. Unused when [compact].
+  final ExpandableController? expandableController;
+
+  /// Render only this entry's tags and definitions, without the
+  /// collapsible header carrying the dictionary name: the result card's
+  /// dictionary chips already name and select the dictionary.
+  final bool compact;
 
   @override
   ConsumerState<ConsumerStatefulWidget> createState() =>
@@ -52,6 +58,30 @@ class _DictionaryEntryPageState extends ConsumerState<DictionaryEntryPage> {
 
   @override
   Widget build(BuildContext context) {
+    if (widget.compact) {
+      return Padding(
+        padding: EdgeInsets.only(bottom: Spacing.of(context).spaces.small),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (widget.entry.tags.isNotEmpty)
+              Wrap(
+                children: widget.entry.tags
+                    .map(
+                      (tag) => JidoujishoTag(
+                        text: tag.name,
+                        message: tag.notes,
+                        backgroundColor: tag.color,
+                      ),
+                    )
+                    .toList(),
+              ),
+            buildBody(),
+          ],
+        ),
+      );
+    }
+
     return Padding(
       padding: EdgeInsets.only(
         top: Spacing.of(context).spaces.extraSmall,
@@ -78,70 +108,71 @@ class _DictionaryEntryPageState extends ConsumerState<DictionaryEntryPage> {
             top: Spacing.of(context).spaces.small,
             left: Spacing.of(context).spaces.normal,
           ),
-          child: SelectionArea(
-            onSelectionChanged: (selection) {
-              if (selection?.plainText != null && selection?.plainText != '_') {
-                selectedText = selection?.plainText ?? '';
-              }
-            },
-            contextMenuBuilder: (context, state) {
-              return AdaptiveTextSelectionToolbar.buttonItems(
-                anchors: TextSelectionToolbarAnchors(
-                  primaryAnchor: state.contextMenuAnchors.primaryAnchor,
-                ),
-                buttonItems: <ContextMenuButtonItem>[
-                  ContextMenuButtonItem(
-                    onPressed: () {
-                      widget.onSearch(selectedText);
-                      state.hideToolbar();
-                    },
-                    label: t.search,
-                  ),
-                  ContextMenuButtonItem(
-                    onPressed: () {
-                      widget.onStash(selectedText);
-                      state.hideToolbar();
-                    },
-                    label: t.stash,
-                  ),
-                  ...AdaptiveTextSelectionToolbar.selectableRegion(
-                              selectableRegionState: state)
-                          .buttonItems
-                          ?.where(
-                              (e) => e.type == ContextMenuButtonType.copy) ??
-                      [],
-                  ...AdaptiveTextSelectionToolbar.selectableRegion(
-                              selectableRegionState: state)
-                          .buttonItems
-                          ?.where((e) =>
-                              e.type == ContextMenuButtonType.selectAll) ??
-                      [],
-                  ContextMenuButtonItem(
-                    onPressed: () {
-                      widget.onShare(selectedText);
-                      state.hideToolbar();
-                    },
-                    label: t.share,
-                  ),
-                ],
-              );
-            },
-            child: DictionaryHtmlWidget(
-              entry: widget.entry,
-              onSearch: widget.onSearch,
-            ),
-          ),
+          child: buildBody(),
         ),
+      ),
+    );
+  }
+
+  Widget buildBody() {
+    return SelectionArea(
+      onSelectionChanged: (selection) {
+        if (selection?.plainText != null && selection?.plainText != '_') {
+          selectedText = selection?.plainText ?? '';
+        }
+      },
+      contextMenuBuilder: (context, state) {
+        return AdaptiveTextSelectionToolbar.buttonItems(
+          anchors: TextSelectionToolbarAnchors(
+            primaryAnchor: state.contextMenuAnchors.primaryAnchor,
+          ),
+          buttonItems: <ContextMenuButtonItem>[
+            ContextMenuButtonItem(
+              onPressed: () {
+                widget.onSearch(selectedText);
+                state.hideToolbar();
+              },
+              label: t.search,
+            ),
+            ContextMenuButtonItem(
+              onPressed: () {
+                widget.onStash(selectedText);
+                state.hideToolbar();
+              },
+              label: t.stash,
+            ),
+            ...AdaptiveTextSelectionToolbar.selectableRegion(
+                  selectableRegionState: state,
+                ).buttonItems?.where(
+                  (e) => e.type == ContextMenuButtonType.copy,
+                ) ??
+                [],
+            ...AdaptiveTextSelectionToolbar.selectableRegion(
+                  selectableRegionState: state,
+                ).buttonItems?.where(
+                  (e) => e.type == ContextMenuButtonType.selectAll,
+                ) ??
+                [],
+            ContextMenuButtonItem(
+              onPressed: () {
+                widget.onShare(selectedText);
+                state.hideToolbar();
+              },
+              label: t.share,
+            ),
+          ],
+        );
+      },
+      child: DictionaryHtmlWidget(
+        entry: widget.entry,
+        onSearch: widget.onSearch,
       ),
     );
   }
 }
 
 class _DictionaryEntryTagsWrap extends ConsumerWidget {
-  const _DictionaryEntryTagsWrap({
-    required this.entry,
-    required this.heading,
-  });
+  const _DictionaryEntryTagsWrap({required this.entry, required this.heading});
 
   final DictionaryEntry entry;
   final DictionaryHeading heading;
@@ -160,7 +191,7 @@ class _DictionaryEntryTagsWrap extends ConsumerWidget {
           message: tag.notes,
           backgroundColor: tag.color,
         );
-      })
+      }),
     ];
 
     Widget last = children.removeLast();
@@ -190,14 +221,12 @@ class _DictionaryEntryTagsWrap extends ConsumerWidget {
                 heading: heading,
               ),
             ),
-          )
+          ),
         ],
       ),
     );
 
-    return Wrap(
-      children: children,
-    );
+    return Wrap(children: children);
   }
 
   List<PopupMenuEntry<VoidCallback>> getMenuItems({

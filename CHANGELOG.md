@@ -8,6 +8,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Added
 
+- **A compact result card: one header line and dictionary tabs.** Each
+  result now opens with a single line — the headword, its reading with
+  the pitch drawn on it and the accent number, and small markers for the
+  word's tags (★…) and its frequency rank — with the quick actions at its
+  end. Below it, one chip per dictionary in your order; tap a chip to show
+  that dictionary's definitions, long-press it for its own actions
+  (formerly the ⋮ by the dictionary name). The first dictionary that is
+  not set to collapsed is shown by default. The separate frequency, pitch
+  and per-dictionary blocks are gone, so far more of the screen is
+  meaning.
+
 - **Pinch to resize dictionary results.** Pinch anywhere on a result list
   — the dictionary tab or a pop-up over the reader or player — to make the
   text larger or smaller. Headwords, furigana, definitions and
