@@ -12,11 +12,7 @@ import 'package:shiroikumanojisho/utils.dart';
 /// a result's kanji breakdown.
 class KanjiPage extends ConsumerWidget {
   /// Create the page for [character].
-  const KanjiPage({
-    required this.character,
-    required this.onSearch,
-    super.key,
-  });
+  const KanjiPage({required this.character, required this.onSearch, super.key});
 
   /// The kanji shown.
   final String character;
@@ -30,9 +26,11 @@ class KanjiPage extends ConsumerWidget {
     required String character,
     required Function(String) onSearch,
   }) {
-    return Navigator.of(context).push(MaterialPageRoute(
-      builder: (_) => KanjiPage(character: character, onSearch: onSearch),
-    ));
+    return Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => KanjiPage(character: character, onSearch: onSearch),
+      ),
+    );
   }
 
   @override
@@ -50,15 +48,18 @@ class KanjiPage extends ConsumerWidget {
         dictionaries[id] != null &&
         !dictionaries[id]!.isHidden(appModel.targetLanguage);
 
-    final kanji = db.dictionaryKanjis
-        .where()
-        .characterEqualTo(character)
-        .findAllSync()
-        .where((k) => visible(k.dictionaryId))
-        .toList()
-      ..sort((a, b) => dictionaries[a.dictionaryId]!
-          .order
-          .compareTo(dictionaries[b.dictionaryId]!.order));
+    final kanji =
+        db.dictionaryKanjis
+            .where()
+            .characterEqualTo(character)
+            .findAllSync()
+            .where((k) => visible(k.dictionaryId))
+            .toList()
+          ..sort(
+            (a, b) => dictionaries[a.dictionaryId]!.order.compareTo(
+              dictionaries[b.dictionaryId]!.order,
+            ),
+          );
     final DictionaryKanji? main = kanji.firstOrNull;
 
     final frequencies = db.dictionaryFrequencys
@@ -70,16 +71,26 @@ class KanjiPage extends ConsumerWidget {
 
     final words = _commonWords(db, visible);
 
-    TextStyle text(double scale, {Color? c, FontWeight? weight}) =>
-        TextStyle(fontSize: size * scale, color: c ?? color, fontWeight: weight);
+    TextStyle text(double scale, {Color? c, FontWeight? weight}) => TextStyle(
+      fontSize: size * scale,
+      color: c ?? color,
+      fontWeight: weight,
+    );
 
     Widget line(String label, String value) => Padding(
-          padding: const EdgeInsets.only(bottom: 2),
-          child: Text.rich(TextSpan(children: [
-            TextSpan(text: '$label  ', style: text(0.7, c: muted)),
+      padding: const EdgeInsets.only(bottom: 2),
+      child: Text.rich(
+        TextSpan(
+          children: [
+            TextSpan(
+              text: '$label  ',
+              style: text(0.7, c: muted),
+            ),
             TextSpan(text: value, style: text(0.9)),
-          ])),
-        );
+          ],
+        ),
+      ),
+    );
 
     final stats = <String>[
       if (main?.stat('strokes') != null) '${main!.stat('strokes')} strokes',
@@ -106,13 +117,17 @@ class KanjiPage extends ConsumerWidget {
           ),
         ],
       ),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(12, 4, 12, 12),
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(character,
+      // Pinch to resize, as on the result list; the size is shared.
+      body: DictionaryFontPinch(
+        builder: (context, pinching) => ListView(
+          physics: pinching ? const NeverScrollableScrollPhysics() : null,
+          padding: const EdgeInsets.fromLTRB(12, 4, 12, 12),
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  character,
                   style: TextStyle(
                     fontSize: size * 4,
                     height: 1.1,
@@ -120,68 +135,85 @@ class KanjiPage extends ConsumerWidget {
                     fontFamily: appModel.dictionaryHeadingFontFamily.isEmpty
                         ? null
                         : appModel.dictionaryHeadingFontFamily,
-                  )),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    if (main == null)
-                      _KanjiDataMissing(color: color)
-                    else ...[
-                      if (main.meanings.isNotEmpty)
-                        Text(main.meanings.join('; '),
-                            style: text(1, weight: FontWeight.w600)),
-                      const SizedBox(height: 4),
-                      if (main.onyomi.isNotEmpty)
-                        line('音', main.onyomi.join('、')),
-                      if (main.kunyomi.isNotEmpty)
-                        line('訓', main.kunyomi.join('、')),
-                    ],
-                    if (stats.isNotEmpty)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 4),
-                        child: Text(stats.join(' · '),
-                            style: text(0.65, c: muted)),
-                      ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          Padding(
-            padding: const EdgeInsets.only(top: 10),
-            child: _StrokeOrderSection(character: character, color: color),
-          ),
-          if (words.isNotEmpty) ...[
-            Padding(
-              padding: const EdgeInsets.only(top: 12, bottom: 4),
-              child: Text(t.kanji_page_words(kanji: character),
-                  style: text(0.7, c: muted)),
-            ),
-            for (final (term, reading, gloss) in words)
-              InkWell(
-                onTap: () {
-                  Navigator.pop(context);
-                  onSearch(term);
-                },
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 3),
-                  child: Text.rich(
-                    TextSpan(children: [
-                      TextSpan(text: term, style: text(1)),
-                      if (reading.isNotEmpty && reading != term)
-                        TextSpan(text: '  $reading', style: text(0.75, c: muted)),
-                      if (gloss.isNotEmpty)
-                        TextSpan(text: '  $gloss', style: text(0.75)),
-                    ]),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if (main == null)
+                        _KanjiDataMissing(color: color)
+                      else ...[
+                        if (main.meanings.isNotEmpty)
+                          Text(
+                            main.meanings.join('; '),
+                            style: text(1, weight: FontWeight.w600),
+                          ),
+                        const SizedBox(height: 4),
+                        if (main.onyomi.isNotEmpty)
+                          line('音', main.onyomi.join('、')),
+                        if (main.kunyomi.isNotEmpty)
+                          line('訓', main.kunyomi.join('、')),
+                      ],
+                      if (stats.isNotEmpty)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 4),
+                          child: Text(
+                            stats.join(' · '),
+                            style: text(0.65, c: muted),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            Padding(
+              padding: const EdgeInsets.only(top: 10),
+              child: _StrokeOrderSection(
+                character: character,
+                color: color,
+                size: size * 6,
               ),
+            ),
+            if (words.isNotEmpty) ...[
+              Padding(
+                padding: const EdgeInsets.only(top: 12, bottom: 4),
+                child: Text(
+                  t.kanji_page_words(kanji: character),
+                  style: text(0.7, c: muted),
+                ),
+              ),
+              for (final (term, reading, gloss) in words)
+                InkWell(
+                  onTap: () {
+                    Navigator.pop(context);
+                    onSearch(term);
+                  },
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 3),
+                    child: Text.rich(
+                      TextSpan(
+                        children: [
+                          TextSpan(text: term, style: text(1)),
+                          if (reading.isNotEmpty && reading != term)
+                            TextSpan(
+                              text: '  $reading',
+                              style: text(0.75, c: muted),
+                            ),
+                          if (gloss.isNotEmpty)
+                            TextSpan(text: '  $gloss', style: text(0.75)),
+                        ],
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ),
+            ],
           ],
-        ],
+        ),
       ),
     );
   }
@@ -189,7 +221,9 @@ class KanjiPage extends ConsumerWidget {
   /// Up to 40 words beginning with the kanji, most frequent first, each
   /// with its first English gloss where the gloss index has one.
   List<(String, String, String)> _commonWords(
-      Isar db, bool Function(int) visible) {
+    Isar db,
+    bool Function(int) visible,
+  ) {
     final entries = db.dictionaryEntrys
         .where()
         .termStartsWith(character)
@@ -206,10 +240,11 @@ class KanjiPage extends ConsumerWidget {
 
     final terms = byWord.values.map((e) => e.term).toSet().toList();
     final Map<String, double> rank = {};
-    for (final f in db.dictionaryFrequencys
-        .where()
-        .anyOf<String, String>(terms, (q, term) => q.termEqualTo(term))
-        .findAllSync()) {
+    for (final f
+        in db.dictionaryFrequencys
+            .where()
+            .anyOf<String, String>(terms, (q, term) => q.termEqualTo(term))
+            .findAllSync()) {
       if (!visible(f.dictionaryId)) continue;
       for (final entry in byWord.entries) {
         final e = entry.value;
@@ -221,8 +256,10 @@ class KanjiPage extends ConsumerWidget {
     }
 
     final keys = byWord.keys.toList()
-      ..sort((a, b) => (rank[a] ?? double.infinity)
-          .compareTo(rank[b] ?? double.infinity));
+      ..sort(
+        (a, b) =>
+            (rank[a] ?? double.infinity).compareTo(rank[b] ?? double.infinity),
+      );
 
     final out = <(String, String, String)>[];
     for (final key in keys.take(40)) {
@@ -246,11 +283,7 @@ class KanjiPage extends ConsumerWidget {
 /// 小 small · 屋 roof — each opening its [KanjiPage].
 class KanjiBreakdown extends ConsumerWidget {
   /// Create the breakdown of [term].
-  const KanjiBreakdown({
-    required this.term,
-    required this.onSearch,
-    super.key,
-  });
+  const KanjiBreakdown({required this.term, required this.onSearch, super.key});
 
   /// The headword.
   final String term;
@@ -284,19 +317,30 @@ class KanjiBreakdown extends ConsumerWidget {
     for (final c in characters) {
       final k = rows.where().characterEqualTo(c).findFirstSync();
       final meaning = k?.meanings.firstOrNull ?? '';
-      spans.add(InkWell(
-        onTap: () => KanjiPage.open(context, character: c, onSearch: onSearch),
-        child: Text.rich(TextSpan(children: [
-          TextSpan(
-              text: c,
-              style: TextStyle(fontSize: size * 1.15, color: color)),
-          if (meaning.isNotEmpty)
+      spans.add(
+        InkWell(
+          onTap: () =>
+              KanjiPage.open(context, character: c, onSearch: onSearch),
+          child: Text.rich(
             TextSpan(
-                text: ' $meaning',
-                style: TextStyle(
-                    fontSize: size, color: color.withValues(alpha: 0.65))),
-        ])),
-      ));
+              children: [
+                TextSpan(
+                  text: c,
+                  style: TextStyle(fontSize: size * 1.15, color: color),
+                ),
+                if (meaning.isNotEmpty)
+                  TextSpan(
+                    text: ' $meaning',
+                    style: TextStyle(
+                      fontSize: size,
+                      color: color.withValues(alpha: 0.65),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      );
     }
 
     return Padding(
@@ -309,10 +353,18 @@ class KanjiBreakdown extends ConsumerWidget {
 /// The stroke order of a kanji, or a button to download the KanjiVG data
 /// when it is not there yet.
 class _StrokeOrderSection extends StatefulWidget {
-  const _StrokeOrderSection({required this.character, required this.color});
+  const _StrokeOrderSection({
+    required this.character,
+    required this.color,
+    required this.size,
+  });
 
   final String character;
   final Color color;
+
+  /// Size of the animated drawing; follows the text size, so a pinch
+  /// resizes it too.
+  final double size;
 
   @override
   State<_StrokeOrderSection> createState() => _StrokeOrderSectionState();
@@ -325,9 +377,9 @@ class _StrokeOrderSectionState extends State<_StrokeOrderSection> {
   late Future<(bool, List<String>?)> _load = _read();
 
   Future<(bool, List<String>?)> _read() async => (
-        await KanjiStrokes.isInstalled(),
-        await KanjiStrokes.strokesFor(widget.character),
-      );
+    await KanjiStrokes.isInstalled(),
+    await KanjiStrokes.strokesFor(widget.character),
+  );
 
   Future<void> _download() async {
     setState(() {
@@ -359,7 +411,8 @@ class _StrokeOrderSectionState extends State<_StrokeOrderSection> {
         if (_downloading) {
           return ValueListenableBuilder<String>(
             valueListenable: _progress,
-            builder: (_, value, __) => Text(value, style: TextStyle(color: muted)),
+            builder: (_, value, __) =>
+                Text(value, style: TextStyle(color: muted)),
           );
         }
         if (!installed) {
@@ -381,10 +434,16 @@ class _StrokeOrderSectionState extends State<_StrokeOrderSection> {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            KanjiStrokeOrder(strokes: strokes, color: widget.color),
+            KanjiStrokeOrder(
+              strokes: strokes,
+              color: widget.color,
+              size: widget.size,
+            ),
             const SizedBox(height: 2),
-            Text(KanjiStrokes.attribution,
-                style: TextStyle(color: muted, fontSize: 9)),
+            Text(
+              KanjiStrokes.attribution,
+              style: TextStyle(color: muted, fontSize: 9),
+            ),
           ],
         );
       },
@@ -436,10 +495,12 @@ class _KanjiDataMissingState extends ConsumerState<_KanjiDataMissing> {
   Widget build(BuildContext context) {
     final appModel = ref.watch(appProvider);
     final muted = widget.color.withValues(alpha: 0.65);
-    final entry = japaneseDictionaryCatalog
-        .firstWhere((e) => e.titlePrefix == 'KANJIDIC');
-    final Dictionary? installed =
-        appModel.dictionaries.where((d) => entry.matches(d.name)).firstOrNull;
+    final entry = japaneseDictionaryCatalog.firstWhere(
+      (e) => e.titlePrefix == 'KANJIDIC',
+    );
+    final Dictionary? installed = appModel.dictionaries
+        .where((d) => entry.matches(d.name))
+        .firstOrNull;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -448,13 +509,18 @@ class _KanjiDataMissingState extends ConsumerState<_KanjiDataMissing> {
           installed == null
               ? t.kanji_page_no_data
               : t.kanji_page_outdated(name: installed.name),
-          style: TextStyle(color: muted, fontSize: appModel.dictionaryFontSize * 0.7),
+          style: TextStyle(
+            color: muted,
+            fontSize: appModel.dictionaryFontSize * 0.7,
+          ),
         ),
         TextButton.icon(
           icon: const Icon(Icons.download),
-          label: Text(installed == null
-              ? t.kanji_page_download_kanjidic
-              : t.kanji_page_update_kanjidic),
+          label: Text(
+            installed == null
+                ? t.kanji_page_download_kanjidic
+                : t.kanji_page_update_kanjidic,
+          ),
           onPressed: () => _update(entry, installed),
         ),
       ],

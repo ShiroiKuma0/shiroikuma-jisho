@@ -241,7 +241,7 @@ class _KanjiStrokeOrderState extends State<KanjiStrokeOrder>
                 child: Stack(
                   children: [
                     CustomPaint(
-                      size: const Size.square(44),
+                      size: Size.square(widget.size * 0.3),
                       painter: KanjiStrokePainter(
                         paths: _paths,
                         progress: i.toDouble(),
@@ -255,7 +255,7 @@ class _KanjiStrokeOrderState extends State<KanjiStrokeOrder>
                       top: 0,
                       child: Text('$i',
                           style: TextStyle(
-                              fontSize: 9,
+                              fontSize: widget.size * 0.06,
                               color: widget.color.withValues(alpha: 0.6))),
                     ),
                   ],

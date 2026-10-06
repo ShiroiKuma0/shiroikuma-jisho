@@ -18,6 +18,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   deleted and imported again (Download dictionaries) for the page to show
   them. Kanji frequency dictionaries now import, and “JPDB kanji
   frequency” is in the download list.
+- **Pinch to resize the kanji page.** As on the result list: the text,
+  the large kanji and the stroke-order drawing with its numbered frames
+  all scale, and the size is the same remembered dictionary text size.
 - **Stroke order on the kanji page.** The kanji is drawn stroke by stroke
   (tap to replay), with a row of numbered frames, each new stroke in red.
   The data is KanjiVG; the page offers a one-time 3.6 MB download the
