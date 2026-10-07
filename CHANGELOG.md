@@ -6,6 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [1.6.0+001] - 2026-10-07
+
+A Japanese dictionary that stands on its own offline: dictionaries
+downloaded from inside the app, English search, current Yomitan
+deinflection, offline word audio, a kanji page with stroke order and
+radical search, conjugation tables, 148,000 example sentences and named
+word lists that export to CSV and Anki.
+
 ### Added
 
 - **Word lists.** A ★ button on each dictionary result (new, leftmost)
@@ -1268,7 +1276,10 @@ Initial release after the rename and restructure from `ShiroiKuma0/jidoujisho2`.
 - App display name set to `白い熊の辞書` (Android and iOS); iOS identity also updated.
 - Version baseline reset to `1.0.0+1` post-rename.
 
-[Unreleased]: https://github.com/ShiroiKuma0/shiroikuma-jisho/compare/1.5.0+025...HEAD
+[Unreleased]: https://github.com/ShiroiKuma0/shiroikuma-jisho/compare/1.6.0+001...HEAD
+[1.6.0+001]: https://github.com/ShiroiKuma0/shiroikuma-jisho/releases/tag/1.6.0+001
+[1.5.0+081]: https://github.com/ShiroiKuma0/shiroikuma-jisho/releases/tag/1.5.0+081
+[1.5.0+057]: https://github.com/ShiroiKuma0/shiroikuma-jisho/releases/tag/1.5.0+057
 [1.5.0+025]: https://github.com/ShiroiKuma0/shiroikuma-jisho/releases/tag/1.5.0+025
 [1.5.0+024]: https://github.com/ShiroiKuma0/shiroikuma-jisho/releases/tag/1.5.0+024
 [1.4.0+25]: https://github.com/ShiroiKuma0/shiroikuma-jisho/releases/tag/1.4.0+25

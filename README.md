@@ -6,11 +6,11 @@
 
 **An immersion language-learning suite: video player, audio-synced ebook reader, dictionary and Anki card factory in one app.**
 
-A fork of [arianneorpilla/jidoujisho](https://github.com/arianneorpilla/jidoujisho) with **major additions**: on-device OCR for Blu-ray subtitles and scanned PDFs, five new languages, an audio-synced reader with SRT subtitles and Tasker control, 言語島 sentence-island study imported from its sister app, a dual-language translation split view, one shelf for every imported book, per-book appearance settings, cross-device backup, an e-ink-friendly UI, and **not one tracker in the APK**.
+A fork of [arianneorpilla/jidoujisho](https://github.com/arianneorpilla/jidoujisho) with **major additions**: a full offline Japanese dictionary (in-app dictionary downloads, English search, kanji page with stroke order, conjugation tables, example sentences, word lists to CSV and Anki), on-device OCR for Blu-ray subtitles and scanned PDFs, five new languages, an audio-synced reader with SRT subtitles and Tasker control, 言語島 sentence-island study imported from its sister app, a dual-language translation split view, one shelf for every imported book, per-book appearance settings, cross-device backup, an e-ink-friendly UI, and **not one tracker in the APK**.
 
 Installs **side-by-side** with jidoujisho (app id `shiroikuma.jisho`).
 
-**📥 Latest release: [`1.5.0+081`](https://github.com/ShiroiKuma0/shiroikuma-jisho/releases/latest)** — [all releases & APK downloads »](https://github.com/ShiroiKuma0/shiroikuma-jisho/releases)
+**📥 Latest release: [`1.6.0+001`](https://github.com/ShiroiKuma0/shiroikuma-jisho/releases/latest)** — [all releases & APK downloads »](https://github.com/ShiroiKuma0/shiroikuma-jisho/releases)
 
 </div>
 
@@ -70,6 +70,11 @@ The same export runs **headlessly, driven from outside the app**, so a backup to
 
 ## 🖥️ E-ink friendly
 A yellow-on-black high-contrast theme, wrapping menus, and UI-fit work targeted at narrow e-ink devices (developed against a Boox Palma 2 Pro). Panels are drawn with a visible edge rather than a shade of grey — the reader's pull-up sheets carry a yellow line along their top, since a black sheet over a black page has no boundary an e-ink screen can show. EPUB import bypasses the in-webview file chooser that crashes Boox firmware.
+
+---
+
+## 🐻 A Japanese dictionary that stands on its own
+Everything a phone dictionary like Takoboto does, offline. **Download dictionaries** fetches Jitendex, JMdict, KANJIDIC, pitch accent, frequency lists, the Tatoeba example sentences and KanjiVG stroke order from inside the app, already-installed ones marked as such. **Search in English** — “eat” finds 食べる — from a gloss index built once at import. Conjugated words are recognised with **Yomitan's current deinflection rules**, and each language keeps its own dictionary order, set by dragging. Results are **compact cards**: one header line with reading, other spellings and frequency, a chip per dictionary, inline glosses, pinch to resize. Beside the dictionary chips, **活用** shows a full conjugation table for any verb or i-adjective and **例文** lists example sentences using the word, marked as it is written. Tap any kanji for its **kanji page** — KANJIDIC readings, meanings, stroke count, grade, JLPT level and frequency, with the strokes drawn in order — or **find a kanji by its radicals**. **Word audio** plays offline from a local AnkiConnect-Android audio database, falling back to text-to-speech. The **★** puts a word in named **word lists**, which export as CSV or TSV or go to Anki as a deck of cards in one step.
 
 ---
 
