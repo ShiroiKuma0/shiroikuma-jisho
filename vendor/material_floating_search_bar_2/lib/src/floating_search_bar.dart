@@ -3,6 +3,7 @@ import 'dart:ui';
 
 import 'package:flutter/material.dart'
     hide ImplicitlyAnimatedWidget, ImplicitlyAnimatedWidgetState;
+import 'package:flutter/foundation.dart' show ValueListenable;
 import 'package:flutter/services.dart';
 
 import '../material_floating_search_bar_2.dart';
@@ -235,6 +236,10 @@ class FloatingSearchBar extends ImplicitlyAnimatedWidget {
   /// show an indetermined [LinearProgressIndicator].
   ///
   /// When `null` or `false`, will hide the [LinearProgressIndicator].
+  ///
+  /// LOCAL PATCH (shiroikuma-jisho): may also be a
+  /// `ValueListenable<bool>`, which the indicator listens to itself so
+  /// toggling it does not rebuild the bar or its body.
   /// {@endtemplate}
   final dynamic progress;
 

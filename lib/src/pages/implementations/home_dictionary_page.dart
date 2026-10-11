@@ -23,7 +23,12 @@ class _HomeDictionaryPageState<T extends BaseTabPage> extends BaseTabPageState {
 
   DictionarySearchResult? _result;
 
-  bool _isSearching = false;
+  /// Drives the search bar's progress indicator. A notifier rather than
+  /// a `setState` field so starting a search does not rebuild the page
+  /// (and the result list under the text field) on every keystroke.
+  final ValueNotifier<bool> _searching = ValueNotifier<bool>(false);
+  bool get _isSearching => _searching.value;
+
   bool _lastOpenedState = false;
 
   @override
@@ -46,6 +51,7 @@ class _HomeDictionaryPageState<T extends BaseTabPage> extends BaseTabPageState {
 
   @override
   void dispose() {
+    _searching.dispose();
     super.dispose();
   }
 
@@ -113,7 +119,7 @@ class _HomeDictionaryPageState<T extends BaseTabPage> extends BaseTabPageState {
       width: double.maxFinite,
       transition: SlideFadeFloatingSearchBarTransition(),
       automaticallyImplyBackButton: false,
-      progress: _isSearching,
+      progress: _searching,
       onFocusChanged: (focused) => onFocusChanged(focused: focused),
       onQueryChanged: onQueryChanged,
       onSubmitted: search,
@@ -163,6 +169,17 @@ class _HomeDictionaryPageState<T extends BaseTabPage> extends BaseTabPageState {
   bool _showMore = false;
   String lastQuery = '';
 
+  /// Whether a search is currently running. Only one runs at a time;
+  /// anything typed meanwhile waits in [_pendingSearch].
+  bool _searchInFlight = false;
+
+  /// The newest search requested while another was running. Each new
+  /// request replaces the previous one, so after a burst of typing only
+  /// the final query is searched — the intermediate ones never are.
+  ({String query, int? overrideMaximumTerms})? _pendingSearch;
+
+  String get _currentQuery => mediaType.floatingSearchBarController.query;
+
   void search(
     String query, {
     int? overrideMaximumTerms,
@@ -173,37 +190,64 @@ class _HomeDictionaryPageState<T extends BaseTabPage> extends BaseTabPageState {
       lastQuery = query;
     }
 
-    overrideMaximumTerms ??= appModel.maximumTerms;
-
-    if (mounted) {
-      setState(() {
-        _isSearching = true;
-      });
-    }
-
-    try {
-      _result = await appModel.searchDictionary(
-        searchTerm: query,
-        searchWithWildcards: true,
+    if (_searchInFlight) {
+      _pendingSearch = (
+        query: query,
         overrideMaximumTerms: overrideMaximumTerms,
       );
+      return;
+    }
+
+    _runSearch(query, overrideMaximumTerms: overrideMaximumTerms);
+  }
+
+  void _runSearch(
+    String query, {
+    int? overrideMaximumTerms,
+  }) async {
+    final int maximumTerms = overrideMaximumTerms ?? appModel.maximumTerms;
+
+    _searchInFlight = true;
+    _searching.value = true;
+
+    DictionarySearchResult? result;
+    try {
+      result = await appModel.searchDictionary(
+        searchTerm: query,
+        searchWithWildcards: true,
+        overrideMaximumTerms: maximumTerms,
+        isStale: () => _pendingSearch != null || query != _currentQuery,
+      );
     } finally {
-      if (_result != null) {
-        if (query == mediaType.floatingSearchBarController.query) {
-          if (mounted) {
-            setState(() {
-              _isSearching = false;
-              _showMore = _result!.headings.length < overrideMaximumTerms!;
-            });
-          }
+      _searchInFlight = false;
+
+      final pending = _pendingSearch;
+      _pendingSearch = null;
+      if (pending != null && mounted) {
+        // Superseded while running: throw this result away unseen and
+        // go straight to the newest query.
+        _runSearch(
+          pending.query,
+          overrideMaximumTerms: pending.overrideMaximumTerms,
+        );
+      } else {
+        if (mounted) {
+          _searching.value = false;
+        }
+        if (result != null && query == _currentQuery && mounted) {
+          final DictionarySearchResult shown = result;
+          setState(() {
+            _result = shown;
+            _showMore = shown.headings.length < maximumTerms;
+          });
           Future.delayed(historyDelay, () async {
-            if (query == mediaType.floatingSearchBarController.query) {
+            if (query == _currentQuery) {
               appModel.addToSearchHistory(
                 historyKey: mediaType.uniqueKey,
-                searchTerm: mediaType.floatingSearchBarController.query,
+                searchTerm: _currentQuery,
               );
-              if (_result!.headings.isNotEmpty) {
-                appModel.addToDictionaryHistory(result: _result!);
+              if (shown.headings.isNotEmpty) {
+                appModel.addToDictionaryHistory(result: shown);
               }
             }
           });

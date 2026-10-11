@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Changed
+
+- **Typing in the dictionary search bar no longer stutters.** Auto
+  search still runs as you type, but now waits for a pause of 300 ms
+  (was 100 ms) before searching. A search for text you have already
+  typed past is dropped instead of finished, and starting a search no
+  longer redraws the results under the text field, so fast typing and
+  editing stay smooth. The delay can still be changed under “Auto search
+  debounce delay” in dictionary settings.
+
 ## [1.6.0+001] - 2026-10-07
 
 A Japanese dictionary that stands on its own offline: dictionaries

@@ -2900,11 +2900,15 @@ class AppModel with ChangeNotifier {
   /// `compressedDefinitions` decoded via [DefinitionCodec.decode] and
   /// the result is cached so that repeated searches for the same term
   /// are cheap.
+  ///
+  /// [isStale] is polled once the worker returns; when it answers true
+  /// the search is abandoned with an empty, uncached result.
   Future<DictionarySearchResult> searchDictionary({
     required String searchTerm,
     required bool searchWithWildcards,
     int? overrideMaximumTerms,
     bool useCache = true,
+    bool Function()? isStale,
   }) async {
     final Stopwatch total = Stopwatch()..start();
     final Stopwatch phase = Stopwatch();
@@ -2997,6 +3001,15 @@ class AppModel with ChangeNotifier {
     );
     final SearchResultData? data = await _searchOperation;
     final int workerMs = phase.elapsedMilliseconds;
+
+    // The caller no longer wants this term (the query moved on while
+    // the worker ran). Skip the main-isolate post-processing below —
+    // synchronous entry/pitch/frequency loads and definition decoding
+    // that would otherwise steal frames from the text field while the
+    // user is still typing. Nothing is cached for a skipped search.
+    if (isStale?.call() ?? false) {
+      return DictionarySearchResult(searchTerm: searchTerm);
+    }
 
     if (data == null || data.groups.isEmpty) {
       if (_kSearchPerfLogging) {
@@ -5213,7 +5226,11 @@ class AppModel with ChangeNotifier {
   }
 
   /// Search debounce delay in milliseconds by default.
-  final int defaultSearchDebounceDelay = 100;
+  ///
+  /// 300 ms sits above the usual gap between keystrokes on a phone
+  /// keyboard, so a search starts when the user pauses rather than
+  /// between letters.
+  final int defaultSearchDebounceDelay = 300;
 
   /// The search debounce delay in milliseconds for searching in the app..
   int get searchDebounceDelay {

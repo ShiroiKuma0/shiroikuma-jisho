@@ -55,7 +55,10 @@ class FloatingSearchAppBar extends ImplicitlyAnimatedWidget {
     this.autocorrect = true,
     this.contextMenuBuilder,
     this.onKeyEvent,
-  })  : assert(progress == null || (progress is num || progress is bool)),
+  })  : assert(progress == null ||
+            (progress is num ||
+                progress is bool ||
+                progress is ValueListenable<bool>)),
         super(key, implicitDuration, implicitCurve);
 
   /// to show the cursor or not
@@ -762,7 +765,16 @@ class _FloatingSearchProgressBarState extends State<_FloatingSearchProgressBar>
     with SingleTickerProviderStateMixin {
   late final AnimationController _controller;
 
-  dynamic get progress => widget.progress;
+  /// LOCAL PATCH (shiroikuma-jisho): [progress] may also be a
+  /// `ValueListenable<bool>`. The bar then listens to it directly, so a
+  /// caller can toggle the indicator without rebuilding the whole
+  /// search bar — and with it the body builder and its result list —
+  /// on every search start and finish.
+  dynamic get progress {
+    final dynamic p = widget.progress;
+    return p is ValueListenable<bool> ? p.value : p;
+  }
+
   bool get showProgressBar => _controller.value > 0.0;
 
   @override
@@ -773,16 +785,30 @@ class _FloatingSearchProgressBarState extends State<_FloatingSearchProgressBar>
       duration: const Duration(milliseconds: 150),
       vsync: this,
     )..addListener(() => setState(() {}));
+
+    _listenable(widget.progress)?.addListener(_syncVisibility);
+    _syncVisibility();
+  }
+
+  ValueListenable<bool>? _listenable(dynamic p) =>
+      p is ValueListenable<bool> ? p : null;
+
+  void _syncVisibility() {
+    final bool show = progress != null &&
+        (progress is num || (progress is bool && progress == true));
+
+    show ? _controller.forward() : _controller.reverse();
   }
 
   @override
   void didUpdateWidget(_FloatingSearchProgressBar oldWidget) {
     super.didUpdateWidget(oldWidget);
 
-    final bool show = progress != null &&
-        (progress is num || (progress is bool && progress == true));
-
-    show ? _controller.forward() : _controller.reverse();
+    if (!identical(oldWidget.progress, widget.progress)) {
+      _listenable(oldWidget.progress)?.removeListener(_syncVisibility);
+      _listenable(widget.progress)?.addListener(_syncVisibility);
+    }
+    _syncVisibility();
   }
 
   @override
@@ -812,6 +838,7 @@ class _FloatingSearchProgressBarState extends State<_FloatingSearchProgressBar>
 
   @override
   void dispose() {
+    _listenable(widget.progress)?.removeListener(_syncVisibility);
     _controller.dispose();
     super.dispose();
   }
