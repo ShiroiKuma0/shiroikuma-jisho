@@ -10,7 +10,7 @@ A fork of [arianneorpilla/jidoujisho](https://github.com/arianneorpilla/jidoujis
 
 Installs **side-by-side** with jidoujisho (app id `shiroikuma.jisho`).
 
-**📥 Latest release: [`1.6.0+001`](https://github.com/ShiroiKuma0/shiroikuma-jisho/releases/latest)** — [all releases & APK downloads »](https://github.com/ShiroiKuma0/shiroikuma-jisho/releases)
+**📥 Latest release: [`1.6.0+002`](https://github.com/ShiroiKuma0/shiroikuma-jisho/releases/latest)** — [all releases & APK downloads »](https://github.com/ShiroiKuma0/shiroikuma-jisho/releases)
 
 </div>
 
