@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [1.6.0+003] - 2026-10-13
+
 ### Added
 
 - **日本語辞書: a Japanese dictionary you can open from anywhere.** A
@@ -1307,7 +1309,8 @@ Initial release after the rename and restructure from `ShiroiKuma0/jidoujisho2`.
 - App display name set to `白い熊の辞書` (Android and iOS); iOS identity also updated.
 - Version baseline reset to `1.0.0+1` post-rename.
 
-[Unreleased]: https://github.com/ShiroiKuma0/shiroikuma-jisho/compare/1.6.0+002...HEAD
+[Unreleased]: https://github.com/ShiroiKuma0/shiroikuma-jisho/compare/1.6.0+003...HEAD
+[1.6.0+003]: https://github.com/ShiroiKuma0/shiroikuma-jisho/releases/tag/1.6.0+003
 [1.6.0+002]: https://github.com/ShiroiKuma0/shiroikuma-jisho/releases/tag/1.6.0+002
 [1.6.0+001]: https://github.com/ShiroiKuma0/shiroikuma-jisho/releases/tag/1.6.0+001
 [1.5.0+081]: https://github.com/ShiroiKuma0/shiroikuma-jisho/releases/tag/1.5.0+081
