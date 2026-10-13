@@ -332,7 +332,7 @@ final dictionaryStylesheetProvider = Provider.family<Map<String, Style>, int>((
 final dictionaryEntryScannedHtmlProvider =
     Provider.family<String, DictionaryEntry>((ref, entry) {
       final baseHtml = ref.watch(dictionaryEntryHtmlProvider(entry));
-      final language = ref.watch(appProvider).targetLanguage;
+      final language = ref.watch(appProvider).dictionaryLanguage;
       try {
         return _injectScanWords(baseHtml, language);
       } catch (_) {

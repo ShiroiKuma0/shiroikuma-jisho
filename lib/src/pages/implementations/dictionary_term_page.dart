@@ -367,7 +367,7 @@ class _DictionaryTabs extends ConsumerWidget {
     } else if (selected == null || !byDictionary.containsKey(selected)) {
       selected =
           dictionaries.values
-              .firstWhereOrNull((d) => !d.isCollapsed(appModel.targetLanguage))
+              .firstWhereOrNull((d) => !d.isCollapsed(appModel.dictionaryLanguage))
               ?.name ??
           byDictionary.keys.first;
     }
@@ -806,7 +806,7 @@ class _DictionaryTermHeaderLine extends ConsumerWidget {
       if (showReading)
         _PlainHeadword(heading: heading, onSearch: onSearch)
       else
-        appModel.targetLanguage.getTermReadingOverrideWidget(
+        appModel.dictionaryLanguage.getTermReadingOverrideWidget(
           context: context,
           appModel: appModel,
           heading: heading,
@@ -820,7 +820,7 @@ class _DictionaryTermHeaderLine extends ConsumerWidget {
       if (downsteps.isNotEmpty)
         for (final downstep in downsteps.take(2))
           // The pitch widget prints the reading and its [n] itself.
-          appModel.targetLanguage.getPitchWidget(
+          appModel.dictionaryLanguage.getPitchWidget(
             appModel: appModel,
             context: context,
             reading: heading.reading.isEmpty ? heading.term : heading.reading,

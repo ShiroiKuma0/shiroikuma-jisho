@@ -46,7 +46,7 @@ class KanjiPage extends ConsumerWidget {
     };
     bool visible(int id) =>
         dictionaries[id] != null &&
-        !dictionaries[id]!.isHidden(appModel.targetLanguage);
+        !dictionaries[id]!.isHidden(appModel.dictionaryLanguage);
 
     final kanji =
         db.dictionaryKanjis

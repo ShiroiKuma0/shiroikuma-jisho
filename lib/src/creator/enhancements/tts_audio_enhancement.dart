@@ -33,7 +33,7 @@ class TtsAudioEnhancement extends AudioEnhancement {
 
   Future<bool> _prepare(AppModel appModel) async {
     if (_ready) return true;
-    final String locale = appModel.targetLanguage.locale.toLanguageTag();
+    final String locale = appModel.dictionaryLanguage.locale.toLanguageTag();
     if (await _tts.isLanguageAvailable(locale) != true) return false;
     await _tts.setLanguage(locale);
     await _tts.awaitSynthCompletion(true);

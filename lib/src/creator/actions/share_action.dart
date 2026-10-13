@@ -33,7 +33,7 @@ class ShareAction extends QuickAction {
 
     Map<String, bool> dictionaryNamesByHidden = Map<String, bool>.fromEntries(
         dictionaries
-            .map((e) => MapEntry(e.name, e.isHidden(appModel.targetLanguage))));
+            .map((e) => MapEntry(e.name, e.isHidden(appModel.dictionaryLanguage))));
     Map<String, int> dictionaryNamesByOrder = Map<String, int>.fromEntries(
         dictionaries.map((e) => MapEntry(e.name, e.order)));
 

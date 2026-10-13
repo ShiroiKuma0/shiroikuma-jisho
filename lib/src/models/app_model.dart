@@ -1863,6 +1863,44 @@ class AppModel with ChangeNotifier {
     return languages[localeTag] ?? languages.values.first;
   }
 
+  /// The language a dictionary opened from outside the app with an
+  /// explicit language (the 日本語辞書 launcher icon and text-selection
+  /// entry) searches in, while it is open. Null otherwise.
+  ///
+  /// Deliberately NOT folded into [targetLanguage]: a book or video can be
+  /// open underneath, and the reader reads [targetLanguage] while it
+  /// rebuilds and saves its position (server port, per-book keys). Only
+  /// dictionary and card-creation code reads [dictionaryLanguage].
+  Language? _dictionaryLanguageOverride;
+
+  /// The language dictionary searches, results, dictionary visibility and
+  /// card creation work in: [targetLanguage] unless an external dictionary
+  /// launch has set its own.
+  Language get dictionaryLanguage =>
+      _dictionaryLanguageOverride ?? targetLanguage;
+
+  /// Whether [dictionaryLanguage] differs from [targetLanguage].
+  bool get hasDictionaryLanguageOverride =>
+      _dictionaryLanguageOverride != null &&
+      _dictionaryLanguageOverride!.languageCode != targetLanguage.languageCode;
+
+  /// The current override, so a launch can restore whatever it found.
+  Language? get dictionaryLanguageOverride => _dictionaryLanguageOverride;
+
+  /// Set (or with null, clear) the dictionary language override. Does not
+  /// notify listeners on purpose — a rebuild would reach the pages below
+  /// the dictionary, which have no business with it.
+  Future<void> setDictionaryLanguageOverride(Language? language) async {
+    _dictionaryLanguageOverride = language;
+    await language?.initialise();
+  }
+
+  /// The installed language with the bare [languageCode] ("ja"), or null.
+  /// [languages] is keyed by full locale tag, so a plain lookup by code
+  /// would miss.
+  Language? languageForCode(String languageCode) => languages.values
+      .firstWhereOrNull((language) => language.languageCode == languageCode);
+
   /// Get the last selected deck from persisted preferences.
   String get lastSelectedDeckName {
     String deckName =
@@ -2128,7 +2166,7 @@ class AppModel with ChangeNotifier {
       int order = (bottomMostDictionary?.order ?? 0) + 1;
 
       List<String> otherLanguageCodes = languages.values
-          .where((lang) => lang.languageCode != targetLanguage.languageCode)
+          .where((lang) => lang.languageCode != dictionaryLanguage.languageCode)
           .map((lang) => lang.languageCode)
           .toList();
 
@@ -2137,11 +2175,11 @@ class AppModel with ChangeNotifier {
         order: order,
         name: name,
         formatKey: dictionaryFormat.uniqueKey,
-        // Language is inferred from the session's current targetLanguage
+        // Language is inferred from the session's current dictionaryLanguage
         // at import time. The user sees this displayed on the dictionary
         // management screen so a mis-tagged import (imported while the
         // wrong language is active) is visible and correctable.
-        primaryLanguage: targetLanguage.languageCode,
+        primaryLanguage: dictionaryLanguage.languageCode,
         hiddenLanguages: otherLanguageCodes,
       );
 
@@ -2227,7 +2265,7 @@ class AppModel with ChangeNotifier {
   /// The downloadable dictionaries for the current target language. Empty
   /// for languages without a catalog.
   List<CatalogDictionary> get dictionaryCatalog =>
-      targetLanguage.languageCode == 'ja'
+      dictionaryLanguage.languageCode == 'ja'
           ? japaneseDictionaryCatalog
           : const <CatalogDictionary>[];
 
@@ -2323,13 +2361,13 @@ class AppModel with ChangeNotifier {
   /// affect how a dictionary's search results are shown by default.
   void toggleDictionaryCollapsed(Dictionary dictionary) {
     _database.writeTxnSync(() {
-      if (dictionary.isCollapsed(targetLanguage)) {
+      if (dictionary.isCollapsed(dictionaryLanguage)) {
         dictionary.collapsedLanguages = [...dictionary.collapsedLanguages]
-          ..remove(targetLanguage.languageCode);
+          ..remove(dictionaryLanguage.languageCode);
       } else {
         dictionary.collapsedLanguages = [
           ...dictionary.collapsedLanguages,
-          targetLanguage.languageCode
+          dictionaryLanguage.languageCode
         ];
       }
       _database.dictionarys.putSync(dictionary);
@@ -2340,13 +2378,13 @@ class AppModel with ChangeNotifier {
   /// affect how a dictionary's search results are shown by default.
   void toggleDictionaryHidden(Dictionary dictionary) {
     _database.writeTxnSync(() {
-      if (dictionary.isHidden(targetLanguage)) {
+      if (dictionary.isHidden(dictionaryLanguage)) {
         dictionary.hiddenLanguages = [...dictionary.hiddenLanguages]
-          ..remove(targetLanguage.languageCode);
+          ..remove(dictionaryLanguage.languageCode);
       } else {
         dictionary.hiddenLanguages = [
           ...dictionary.hiddenLanguages,
-          targetLanguage.languageCode
+          dictionaryLanguage.languageCode
         ];
       }
       _database.dictionarys.putSync(dictionary);
@@ -2913,13 +2951,16 @@ class AppModel with ChangeNotifier {
     final Stopwatch total = Stopwatch()..start();
     final Stopwatch phase = Stopwatch();
 
-    if (_dictionarySearchCache['$searchTerm/$overrideMaximumTerms'] != null &&
-        useCache) {
+    // Keyed by language too: the same term means different things under
+    // the 日本語辞書 launch and the book's language.
+    final String cacheKey =
+        '${dictionaryLanguage.languageCode}/$searchTerm/$overrideMaximumTerms';
+    if (_dictionarySearchCache[cacheKey] != null && useCache) {
       if (_kSearchPerfLogging) {
         _logPerf(
             '[SEARCH-PERF] cache-hit term="$searchTerm" total=${total.elapsedMilliseconds}ms');
       }
-      return _dictionarySearchCache['$searchTerm/$overrideMaximumTerms']!;
+      return _dictionarySearchCache[cacheKey]!;
     }
 
     searchTerm = searchTerm.replaceAll('\n', ' ');
@@ -2948,7 +2989,7 @@ class AppModel with ChangeNotifier {
     // `enabledDictionaryIds`. The worker uses it to scope all per-
     // dictionary index walks — both the composite `(dictionaryId,
     // term)` index seeks and the bloom-filter pre-checks.
-    final currentLanguageCode = targetLanguage.languageCode;
+    final currentLanguageCode = dictionaryLanguage.languageCode;
     final languageDictIds = <int>[];
     for (final d in dictionaries) {
       // A dictionary hidden for this language is left out too: its
@@ -2996,7 +3037,7 @@ class AppModel with ChangeNotifier {
     _searchOperation = _invokeSearchOnWorker(
       languageCode: currentLanguageCode,
       buildInMemoryIndex: currentLanguageCode != 'ja',
-      prepareFn: targetLanguage.prepareSearchResults,
+      prepareFn: dictionaryLanguage.prepareSearchResults,
       params: params,
     );
     final SearchResultData? data = await _searchOperation;
@@ -3032,7 +3073,7 @@ class AppModel with ChangeNotifier {
       return DictionarySearchResult(searchTerm: searchTerm);
     }
 
-    _dictionarySearchCache['$searchTerm/$overrideMaximumTerms'] = result;
+    _dictionarySearchCache[cacheKey] = result;
     return result;
   }
 
@@ -4117,33 +4158,79 @@ class AppModel with ChangeNotifier {
     required String searchTerm,
     required bool killOnPop,
     Function(String)? onUpdateQuery,
+    bool openSearchDialog = false,
   }) async {
     _currentMediaPauseController.add(null);
 
-    if (searchTerm.trim().isEmpty) {
+    if (searchTerm.trim().isEmpty && !openSearchDialog) {
       return;
     }
 
-    await Navigator.push(
-      _navigatorKey.currentContext!,
-      PageRouteBuilder(
-        // The name is referenced by RecursiveDictionaryPage's
-        // close-all button, which pops routes until the predicate
-        // `route.settings.name != 'recursive_dictionary'` holds --
-        // i.e. we land on whatever pushed the dict (reader, player,
-        // creator, etc.). Also useful for debug navigation logs.
-        settings: const RouteSettings(name: 'recursive_dictionary'),
-        pageBuilder: (context, animation1, animation2) =>
-            RecursiveDictionaryPage(
-          searchTerm: searchTerm,
-          killOnPop: killOnPop,
-          onUpdateQuery: onUpdateQuery,
-        ),
-        transitionDuration: Duration.zero,
-        reverseTransitionDuration: Duration.zero,
+    final Route<void> route = PageRouteBuilder(
+      // The name is referenced by RecursiveDictionaryPage's
+      // close-all button, which pops routes until the predicate
+      // `route.settings.name != 'recursive_dictionary'` holds --
+      // i.e. we land on whatever pushed the dict (reader, player,
+      // creator, etc.). Also useful for debug navigation logs.
+      settings: const RouteSettings(name: 'recursive_dictionary'),
+      pageBuilder: (context, animation1, animation2) =>
+          RecursiveDictionaryPage(
+        searchTerm: searchTerm,
+        killOnPop: killOnPop,
+        onUpdateQuery: onUpdateQuery,
+        openSearchDialog: openSearchDialog,
       ),
+      transitionDuration: Duration.zero,
+      reverseTransitionDuration: Duration.zero,
     );
+
+    final Route<dynamic>? previousExternalRoute = _externalDictionaryRoute;
+    if (killOnPop) {
+      _externalDictionaryRoute = route;
+    }
+    try {
+      await Navigator.push(_navigatorKey.currentContext!, route);
+    } finally {
+      if (killOnPop) {
+        _externalDictionaryRoute = previousExternalRoute;
+      }
+    }
     refreshDictionaryHistory();
+  }
+
+  /// The dictionary route opened from outside the app (text selection,
+  /// share, the 日本語辞書 icon), while it is open. Its lookup chain closes
+  /// with [leaveExternalDictionary] rather than by popping back into
+  /// whatever the app had open underneath.
+  Route<dynamic>? _externalDictionaryRoute;
+
+  /// Whether a dictionary opened from outside the app is open.
+  bool get isExternalDictionaryOpen => _externalDictionaryRoute != null;
+
+  static const MethodChannel _taskChannel =
+      MethodChannel('shiroikuma.jisho/task');
+
+  /// Close a dictionary opened from outside the app and hand the screen
+  /// back to the app the lookup came from: the task goes to the back
+  /// first, so the book or video underneath never flashes up, then the
+  /// external route and anything above it is popped. The app stays alive
+  /// with that book or video exactly as it was.
+  Future<void> leaveExternalDictionary() async {
+    final Route<dynamic>? route = _externalDictionaryRoute;
+    if (route == null) {
+      return;
+    }
+    try {
+      await _taskChannel.invokeMethod('moveTaskToBack');
+    } catch (e) {
+      debugPrint('moveTaskToBack failed: $e');
+    }
+    final NavigatorState? navigator = _navigatorKey.currentState;
+    if (navigator == null || !route.isActive) {
+      return;
+    }
+    navigator.popUntil((r) => r == route);
+    navigator.pop();
   }
 
   /// A helper function for showing a result already in dictionary history.
@@ -4171,7 +4258,7 @@ class AppModel with ChangeNotifier {
       return;
     }
 
-    segmentedText ??= targetLanguage.textToWords(sourceText);
+    segmentedText ??= dictionaryLanguage.textToWords(sourceText);
 
     await showDialog(
       context: _navigatorKey.currentContext!,
@@ -5375,7 +5462,7 @@ class AppModel with ChangeNotifier {
   bool _definitionIsInTargetScript(String text) {
     const Set<String> cjkLanguages = {'ja', 'zh', 'ko'};
     final bool targetIsCjk =
-        cjkLanguages.contains(targetLanguage.languageCode);
+        cjkLanguages.contains(dictionaryLanguage.languageCode);
 
     int cjk = 0;
     int latin = 0;
@@ -5548,6 +5635,11 @@ class AppModel with ChangeNotifier {
   /// Adds a [DictionarySearchResult] to dictionary history. Manages a
   /// bounded in-memory LRU — no more persisted Hive/Isar state.
   void addToDictionaryHistory({required DictionarySearchResult result}) async {
+    if (hasDictionaryLanguageOverride) {
+      _persistOverrideDictionaryHistoryTerm(result);
+      return;
+    }
+
     MediaType mediaType = mediaTypes.values.toList()[currentHomeTabIndex];
     if (mediaType != DictionaryMediaType.instance) {
       shouldRefreshTabs = true;
@@ -5575,6 +5667,24 @@ class AppModel with ChangeNotifier {
       _dictionaryHistoryKey,
       _dictionaryHistory.values.map((r) => r.searchTerm).toList(),
     );
+  }
+
+  /// A lookup made under [dictionaryLanguage] while it differs from
+  /// [targetLanguage]. The in-memory history belongs to [targetLanguage],
+  /// so the term only goes into the other language's persisted list, from
+  /// which it is searched again once that language is the target one.
+  void _persistOverrideDictionaryHistoryTerm(DictionarySearchResult result) {
+    if (result.headings.isEmpty || result.searchTerm.isEmpty) return;
+    final String key =
+        'dictionary_history_terms_${dictionaryLanguage.languageCode}';
+    final List<String> terms = List<String>.from(
+        _preferences.get(key, defaultValue: <String>[]))
+      ..remove(result.searchTerm)
+      ..add(result.searchTerm);
+    while (terms.length > maximumDictionaryHistoryItems) {
+      terms.removeAt(0);
+    }
+    _preferences.put(key, terms);
   }
 
   bool _dictionaryHistoryRestored = false;
@@ -5646,7 +5756,7 @@ class AppModel with ChangeNotifier {
     return rows.where((f) {
       final dict = dictsById[f.dictionaryId];
       if (dict == null) return false;
-      return !dict.isHidden(targetLanguage);
+      return !dict.isHidden(dictionaryLanguage);
     }).toList();
   }
 

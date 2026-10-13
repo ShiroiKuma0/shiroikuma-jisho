@@ -39,10 +39,10 @@ class CollapsedMeaningField extends Field {
 
     Map<String, bool> dictionaryNamesByHidden = Map<String, bool>.fromEntries(
         dictionaries
-            .map((e) => MapEntry(e.name, e.isHidden(appModel.targetLanguage))));
+            .map((e) => MapEntry(e.name, e.isHidden(appModel.dictionaryLanguage))));
     Map<String, bool> dictionaryNamesByCollapsed =
         Map<String, bool>.fromEntries(dictionaries.map(
-            (e) => MapEntry(e.name, e.isCollapsed(appModel.targetLanguage))));
+            (e) => MapEntry(e.name, e.isCollapsed(appModel.dictionaryLanguage))));
     Map<String, int> dictionaryNamesByOrder = Map<String, int>.fromEntries(
         dictionaries.map((e) => MapEntry(e.name, e.order)));
 

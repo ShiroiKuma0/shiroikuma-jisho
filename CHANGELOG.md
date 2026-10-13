@@ -6,6 +6,25 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- **日本語辞書: a Japanese dictionary you can open from anywhere.** A
+  second launcher icon, a long-press shortcut on the app icon and a
+  second text-selection entry, all named 日本語辞書, open the dictionary
+  in Japanese whatever language the app is set to. Reading a German book
+  and looking up a word from a Japanese web page no longer means closing
+  the book and switching languages: select the word in the browser, tap
+  日本語辞書, read, close. The app's language is not changed, and the
+  book stays open exactly where it was. The icon opens the search dialog
+  ready for typing.
+
+### Fixed
+
+- **Closing a dictionary opened from another app no longer quits this
+  one.** A lookup from text selection or sharing used to shut the app
+  down when closed, taking an open book or video with it. Closing now
+  returns to the app the lookup came from, and system back does the same.
+
 ## [1.6.0+002] - 2026-10-11
 
 ### Changed

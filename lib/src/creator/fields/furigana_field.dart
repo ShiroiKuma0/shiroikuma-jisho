@@ -34,7 +34,7 @@ class FuriganaField extends Field {
     required bool creatorJustLaunched,
     required String? dictionaryName,
   }) {
-    if (appModel.targetLanguage is! JapaneseLanguage) {
+    if (appModel.dictionaryLanguage is! JapaneseLanguage) {
       return null;
     }
 

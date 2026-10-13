@@ -81,7 +81,7 @@ class TatoebaExampleSentencesEnhancement extends Enhancement {
       return [];
     }
 
-    Language language = appModel.targetLanguage;
+    Language language = appModel.dictionaryLanguage;
     String langCode = language.threeLetterCode;
 
     _tatoebaCache[langCode] ??= {};

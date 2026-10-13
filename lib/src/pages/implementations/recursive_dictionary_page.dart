@@ -15,14 +15,22 @@ class RecursiveDictionaryPage extends BasePage {
     required this.searchTerm,
     required this.killOnPop,
     this.onUpdateQuery,
+    this.openSearchDialog = false,
     super.key,
   });
 
   /// The initial search term that this page searches on initialisation.
   final String searchTerm;
 
-  /// If true, popping will exit the application.
+  /// If true, the page was opened from outside the app (text selection,
+  /// share, the 日本語辞書 icon): closing it hands the screen back to the app
+  /// the lookup came from via [AppModel.leaveExternalDictionary], instead
+  /// of revealing whatever this app had open underneath.
   final bool killOnPop;
+
+  /// Open the search dialog straight away — for a launch with nothing to
+  /// look up yet, such as the 日本語辞書 icon.
+  final bool openSearchDialog;
 
   /// Used to track changes to the query.
   final Function(String)? onUpdateQuery;
@@ -62,6 +70,10 @@ class _RecursiveDictionaryPageState
 
       appModelNoUpdate.dictionarySearchAgainNotifier.addListener(searchAgain);
       search(widget.searchTerm);
+
+      if (widget.openSearchDialog && widget.searchTerm.trim().isEmpty) {
+        _showSearchDialog();
+      }
     });
   }
 
@@ -91,8 +103,9 @@ class _RecursiveDictionaryPageState
       }
     }
 
-    return Theme(
-      data: !_isCreatorOpen ? appModel.overrideDictionaryTheme ?? theme : theme,
+    Widget page = Theme(
+      data: _withDictionaryLanguage(
+          !_isCreatorOpen ? appModel.overrideDictionaryTheme ?? theme : theme),
       child: Scaffold(
         resizeToAvoidBottomInset: false,
         backgroundColor: backgroundColor,
@@ -101,6 +114,61 @@ class _RecursiveDictionaryPageState
           top: false,
           child: _buildBody(),
         ),
+      ),
+    );
+
+    if (widget.killOnPop) {
+      // System back leaves for the calling app too; popping this route
+      // alone would show what this app had open underneath.
+      page = PopScope(
+        canPop: false,
+        onPopInvokedWithResult: (didPop, _) {
+          if (!didPop) {
+            appModel.leaveExternalDictionary();
+          }
+        },
+        child: page,
+      );
+    }
+
+    return page;
+  }
+
+  /// [data] with the text in [AppModel.dictionaryLanguage]'s font and
+  /// locale, when a 日本語辞書 launch made that differ from the app's
+  /// language. The app-wide theme carries the target language's, and the
+  /// locale also decides which CJK glyph forms are drawn.
+  ThemeData _withDictionaryLanguage(ThemeData data) {
+    if (!appModel.hasDictionaryLanguageOverride) {
+      return data;
+    }
+    final language = appModel.dictionaryLanguage;
+    final String? fontFamily = appModel.uiTheme.fontFamily.isEmpty
+        ? language.defaultFontFamily
+        : null;
+    TextStyle? relocale(TextStyle? style) => style?.copyWith(
+          fontFamily: fontFamily,
+          locale: language.locale,
+          textBaseline: language.textBaseline,
+        );
+    final TextTheme tt = data.textTheme;
+    return data.copyWith(
+      textTheme: tt.copyWith(
+        displayLarge: relocale(tt.displayLarge),
+        displayMedium: relocale(tt.displayMedium),
+        displaySmall: relocale(tt.displaySmall),
+        headlineLarge: relocale(tt.headlineLarge),
+        headlineMedium: relocale(tt.headlineMedium),
+        headlineSmall: relocale(tt.headlineSmall),
+        titleLarge: relocale(tt.titleLarge),
+        titleMedium: relocale(tt.titleMedium),
+        titleSmall: relocale(tt.titleSmall),
+        bodyLarge: relocale(tt.bodyLarge),
+        bodyMedium: relocale(tt.bodyMedium),
+        bodySmall: relocale(tt.bodySmall),
+        labelLarge: relocale(tt.labelLarge),
+        labelMedium: relocale(tt.labelMedium),
+        labelSmall: relocale(tt.labelSmall),
       ),
     );
   }
@@ -122,13 +190,12 @@ class _RecursiveDictionaryPageState
   /// next to the half-screen toggle). Pops every route named
   /// `'recursive_dictionary'` off the navigator in a single
   /// operation, landing on whatever pushed the first dict -- reader,
-  /// player, creator, etc. For the share-intent launch path
-  /// ([RecursiveDictionaryPage.killOnPop] `true`) there is nothing
-  /// below the dict on the stack, so the equivalent of "return to
-  /// source" is exiting the app cleanly via [AppModel.shutdown].
+  /// player, creator, etc. When the chain started outside the app
+  /// (text selection, share, the 日本語辞書 icon) the source to return to
+  /// is that other app, so [AppModel.leaveExternalDictionary] takes over.
   void _closeAllDictionaryPages() {
-    if (widget.killOnPop) {
-      appModel.shutdown();
+    if (appModel.isExternalDictionaryOpen) {
+      appModel.leaveExternalDictionary();
     } else {
       Navigator.of(context).popUntil(
         (route) => route.settings.name != 'recursive_dictionary',
@@ -164,7 +231,7 @@ class _RecursiveDictionaryPageState
             icon: Icons.arrow_back,
             onTap: () {
               if (widget.killOnPop) {
-                appModel.shutdown();
+                appModel.leaveExternalDictionary();
               } else {
                 Navigator.pop(context);
               }
@@ -214,7 +281,7 @@ class _RecursiveDictionaryPageState
           onTap: () {
             appModel.toggleAutoFullScreenDictionary();
             if (widget.killOnPop) {
-              appModel.shutdown();
+              appModel.leaveExternalDictionary();
             } else {
               Navigator.pop(context);
             }

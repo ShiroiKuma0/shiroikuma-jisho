@@ -361,6 +361,21 @@ public class MainActivity extends AudioServiceActivity {
                 }
             );
 
+        // Lets a dictionary opened from outside the app (text selection,
+        // the 日本語辞書 icon) step out of the way when it closes: the
+        // task goes to the back, so the user lands in the app they came
+        // from and whatever was open here (a book) survives untouched.
+        new MethodChannel(flutterEngine.getDartExecutor().getBinaryMessenger(), "shiroikuma.jisho/task")
+            .setMethodCallHandler(
+                (call, result) -> {
+                    if ("moveTaskToBack".equals(call.method)) {
+                        result.success(moveTaskToBack(true));
+                    } else {
+                        result.notImplemented();
+                    }
+                }
+            );
+
         // --- Tasker-friendly playback intent bridge ------------
         // External apps (Tasker, Macrodroid, button-mapper apps,
         // hardware-button receivers) can fire one of the three

@@ -48,6 +48,18 @@
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
+            <!-- Long-press shortcut on the app icon: 日本語辞書. -->
+            <meta-data
+                android:name="android.app.shortcuts"
+                android:resource="@xml/shortcuts" />
+            <!-- Open the dictionary in a given language without touching
+                 the app's target language. Extras: language (bare code,
+                 "ja"), query (may be empty). Fired by
+                 JapaneseDictionaryActivity, the shortcut, or Tasker. -->
+            <intent-filter>
+                <action android:name="shiroikuma.jisho.action.OPEN_DICTIONARY" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
             <!-- Used for opening the creator via share menu -->
             <intent-filter>
                 <action android:name="android.intent.action.SEND" />
@@ -118,6 +130,28 @@
                 <data android:scheme="vlc"/>
                 <data android:mimeType="video/*"/>
                 <data android:mimeType="audio/*"/>
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.PROCESS_TEXT" />
+                <data android:mimeType="text/plain"/>
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
+        <!-- 日本語辞書: a second launcher icon and text-selection entry
+             that open the dictionary in Japanese. A no-display trampoline
+             in its own throwaway task; see JapaneseDictionaryActivity. -->
+        <activity
+            android:name=".JapaneseDictionaryActivity"
+            android:label="@string/japanese_dictionary"
+            android:icon="@mipmap/launcher_icon"
+            android:exported="true"
+            android:taskAffinity=""
+            android:excludeFromRecents="true"
+            android:noHistory="true"
+            android:theme="@android:style/Theme.NoDisplay">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
             <intent-filter>
                 <action android:name="android.intent.action.PROCESS_TEXT" />

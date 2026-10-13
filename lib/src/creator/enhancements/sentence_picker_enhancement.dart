@@ -40,7 +40,7 @@ class SentencePickerEnhancement extends Enhancement {
     }
 
     appModel.openExampleSentenceDialog(
-      exampleSentences: appModel.targetLanguage
+      exampleSentences: appModel.dictionaryLanguage
           .getSentences(sourceText)
           .map((e) => e.trim())
           .where((e) => e.isNotEmpty)
@@ -49,7 +49,7 @@ class SentencePickerEnhancement extends Enhancement {
         creatorModel.setSentenceAndCloze(
           JidoujishoTextSelection(
             text: selection
-                .join(appModel.targetLanguage.isSpaceDelimited ? ' ' : '')
+                .join(appModel.dictionaryLanguage.isSpaceDelimited ? ' ' : '')
                 .trim(),
           ),
         );

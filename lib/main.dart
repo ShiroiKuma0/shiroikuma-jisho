@@ -17,6 +17,7 @@ import 'package:uri_to_file/uri_to_file.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 import 'package:youtube_explode_dart/youtube_explode_dart.dart';
 import 'package:shiroikumanojisho/creator.dart';
+import 'package:shiroikumanojisho/language.dart';
 import 'package:shiroikumanojisho/media.dart';
 import 'package:shiroikumanojisho/models.dart';
 import 'package:shiroikumanojisho/pages.dart';
@@ -576,7 +577,7 @@ class _JidoujishoAppState extends ConsumerState<JidoujishoApp>
       case 'android.intent.action.SEND':
         String? data = intent.extra!['android.intent.extra.TEXT'];
         if (data != null) {
-          textShareIntentAction(data);
+          textShareIntentAction(data, isColdStart: isInitial);
         } else {
           String contentUri = intent.extra!['android.intent.extra.STREAM'];
           String path = (await toFile(contentUri)).path;
@@ -587,7 +588,16 @@ class _JidoujishoAppState extends ConsumerState<JidoujishoApp>
         break;
       case 'android.intent.action.PROCESS_TEXT':
         String data = intent.extra!['android.intent.extra.PROCESS_TEXT'];
-        textContextMenuAction(data);
+        textContextMenuAction(data, isColdStart: isInitial);
+        return;
+      case 'shiroikuma.jisho.action.OPEN_DICTIONARY':
+        // The 日本語辞書 launcher icon, text-selection entry and long-press
+        // shortcut (all language=ja), or Tasker with any language code.
+        openExternalDictionary(
+          query: intent.extra?['query'] ?? '',
+          languageCode: intent.extra?['language'],
+          isColdStart: isInitial,
+        );
         return;
       case 'android.intent.action.VIEW':
         String? subtitleUrl = intent.extra?['subtitles_location'];
@@ -618,7 +628,7 @@ class _JidoujishoAppState extends ConsumerState<JidoujishoApp>
         return;
       case 'android.intent.action.WEB_SEARCH':
         String data = intent.extra!['query'];
-        textContextMenuAction(data);
+        textContextMenuAction(data, isColdStart: isInitial);
         return;
       case 'shiroikuma.jisho.intent.action.STUDY_VIDEO':
         // Fired by shiroikuma-jiyudoga's "Study in jisho" button after it
@@ -731,16 +741,56 @@ class _JidoujishoAppState extends ConsumerState<JidoujishoApp>
     );
   }
 
-  void textContextMenuAction(String data) {
+  void textContextMenuAction(String data, {bool isColdStart = false}) {
     if (data.trim().isNotEmpty) {
-      appModel.openRecursiveDictionarySearch(
-        searchTerm: data,
-        killOnPop: true,
-      );
+      openExternalDictionary(query: data, isColdStart: isColdStart);
     }
   }
 
-  void textShareIntentAction(String data) {
+  /// Open the dictionary for a lookup that came from outside the app, on
+  /// top of whatever the app has open (a book, a video) — closing it
+  /// returns to the calling app and leaves that untouched.
+  ///
+  /// [languageCode] ("ja") searches in that language for this visit only,
+  /// via [AppModel.dictionaryLanguage]; the app's own target language, and
+  /// with it the book underneath, is never switched. Null or unknown
+  /// searches in the target language. An empty [query] opens the search
+  /// dialog instead.
+  void openExternalDictionary({
+    required String query,
+    required bool isColdStart,
+    String? languageCode,
+  }) async {
+    Language? language;
+    if (languageCode != null && languageCode.isNotEmpty) {
+      language = appModel.languageForCode(languageCode);
+      if (language == null) {
+        Fluttertoast.showToast(msg: 'No language installed for "$languageCode"');
+      }
+    }
+
+    final Language? previousOverride = appModel.dictionaryLanguageOverride;
+    await appModel.setDictionaryLanguageOverride(language);
+    try {
+      await appModel.openRecursiveDictionarySearch(
+        searchTerm: query,
+        killOnPop: true,
+        openSearchDialog: true,
+      );
+    } finally {
+      await appModel.setDictionaryLanguageOverride(previousOverride);
+    }
+
+    // A cold start has only a blank root under the dictionary; put the
+    // home page there, so returning to the app later does not land on it.
+    if (isColdStart && !_isMainIntent && mounted) {
+      setState(() {
+        _isMainIntent = true;
+      });
+    }
+  }
+
+  void textShareIntentAction(String data, {bool isColdStart = false}) {
     if (data.startsWith('https://') || data.startsWith('http://')) {
       String? videoId = VideoId.parseVideoId(data);
       if (videoId != null) {
@@ -774,7 +824,7 @@ class _JidoujishoAppState extends ConsumerState<JidoujishoApp>
       // Shared text is looked up, as from the text-selection menu; it used
       // to open the Anki card creator with the text as the sentence. A
       // card can still be made from the result.
-      textContextMenuAction(data);
+      textContextMenuAction(data, isColdStart: isColdStart);
     }
   }
 

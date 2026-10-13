@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Long-press shortcut on the app icon. Goes straight to MainActivity
+     with the same contract JapaneseDictionaryActivity forwards. -->
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:shortcutId="japanese_dictionary"
+        android:enabled="true"
+        android:icon="@mipmap/launcher_icon"
+        android:shortcutShortLabel="@string/japanese_dictionary">
+        <intent
+            android:action="shiroikuma.jisho.action.OPEN_DICTIONARY"
+            android:targetPackage="shiroikuma.jisho"
+            android:targetClass="shiroikuma.jisho.MainActivity">
+            <extra android:name="language" android:value="ja" />
+            <extra android:name="query" android:value="" />
+        </intent>
+    </shortcut>
+</shortcuts>

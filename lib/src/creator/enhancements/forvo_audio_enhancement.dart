@@ -181,7 +181,7 @@ class ForvoAudioEnhancement extends AudioEnhancement {
   Future<List<ForvoResult>> getForvoResults(
       {required AppModel appModel, required String searchTerm}) async {
     Codec<String, String> stringToBase64Url = utf8.fuse(base64Url);
-    Language language = appModel.targetLanguage;
+    Language language = appModel.dictionaryLanguage;
     String cacheKey = '${language.languageCode}/$searchTerm';
 
     List<ForvoResult> results = [];
@@ -196,9 +196,9 @@ class ForvoAudioEnhancement extends AudioEnhancement {
         String className = '';
 
         // Language Customizable
-        if (appModel.targetLanguage is JapaneseLanguage) {
+        if (appModel.dictionaryLanguage is JapaneseLanguage) {
           className = 'pronunciations-list-ja';
-        } else if (appModel.targetLanguage is EnglishLanguage) {
+        } else if (appModel.dictionaryLanguage is EnglishLanguage) {
           className = 'pronunciations-list-en_usa';
         }
 

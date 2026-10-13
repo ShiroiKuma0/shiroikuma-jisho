@@ -270,10 +270,10 @@ class _DictionaryDialogPageState extends BasePageState with ChangeNotifier {
   Widget buildContent() {
     List<Dictionary> dictionaries = appModel.dictionaries;
     List<Dictionary> visible = dictionaries
-        .where((dictionary) => !dictionary.isHidden(appModel.targetLanguage))
+        .where((dictionary) => !dictionary.isHidden(appModel.dictionaryLanguage))
         .toList();
     List<Dictionary> hidden = dictionaries
-        .where((dictionary) => dictionary.isHidden(appModel.targetLanguage))
+        .where((dictionary) => dictionary.isHidden(appModel.dictionaryLanguage))
         .toList();
 
     _notifiersByDictionary = {};
@@ -324,7 +324,7 @@ class _DictionaryDialogPageState extends BasePageState with ChangeNotifier {
                             size: 14, color: theme.unselectedWidgetColor),
                         const SizedBox(width: 4),
                         Text(
-                          t.import_for_language(language: appModel.targetLanguage.languageName),
+                          t.import_for_language(language: appModel.dictionaryLanguage.languageName),
                           style: TextStyle(
                             fontSize: 12,
                             color: theme.unselectedWidgetColor,
@@ -355,7 +355,7 @@ class _DictionaryDialogPageState extends BasePageState with ChangeNotifier {
       ),
       child: Text(
         t.dictionaries_hidden_for_language(
-            language: appModel.targetLanguage.languageName),
+            language: appModel.dictionaryLanguage.languageName),
         style: TextStyle(
           fontSize: 12,
           color: theme.unselectedWidgetColor,
@@ -445,13 +445,13 @@ class _DictionaryDialogPageState extends BasePageState with ChangeNotifier {
     required Dictionary dictionary,
     required DictionaryFormat dictionaryFormat,
   }) {
-    if (dictionary.isHidden(appModel.targetLanguage)) {
+    if (dictionary.isHidden(appModel.dictionaryLanguage)) {
       return Icon(
         Icons.visibility_off,
         size: textTheme.titleLarge?.fontSize,
         color: theme.unselectedWidgetColor,
       );
-    } else if (dictionary.isCollapsed(appModel.targetLanguage)) {
+    } else if (dictionary.isCollapsed(appModel.dictionaryLanguage)) {
       return Icon(
         Icons.close_fullscreen,
         size: textTheme.titleLarge?.fontSize,
@@ -494,7 +494,7 @@ class _DictionaryDialogPageState extends BasePageState with ChangeNotifier {
                         text: dictionary.name,
                         style: TextStyle(
                           fontSize: textTheme.bodyMedium?.fontSize,
-                          color: dictionary.isHidden(appModel.targetLanguage)
+                          color: dictionary.isHidden(appModel.dictionaryLanguage)
                               ? theme.unselectedWidgetColor
                               : null,
                         ),
@@ -503,7 +503,7 @@ class _DictionaryDialogPageState extends BasePageState with ChangeNotifier {
                         text: dictionaryFormat.name,
                         style: TextStyle(
                           fontSize: textTheme.bodySmall?.fontSize,
-                          color: dictionary.isHidden(appModel.targetLanguage)
+                          color: dictionary.isHidden(appModel.dictionaryLanguage)
                               ? theme.unselectedWidgetColor
                               : null,
                         ),
@@ -610,10 +610,10 @@ class _DictionaryDialogPageState extends BasePageState with ChangeNotifier {
   List<PopupMenuItem<VoidCallback>> getMenuItems(Dictionary dictionary) {
     return [
       buildPopupItem(
-        label: dictionary.isCollapsed(appModel.targetLanguage)
+        label: dictionary.isCollapsed(appModel.dictionaryLanguage)
             ? t.options_expand
             : t.options_collapse,
-        icon: dictionary.isCollapsed(appModel.targetLanguage)
+        icon: dictionary.isCollapsed(appModel.dictionaryLanguage)
             ? Icons.open_in_full
             : Icons.close_fullscreen,
         action: () {
@@ -625,10 +625,10 @@ class _DictionaryDialogPageState extends BasePageState with ChangeNotifier {
         },
       ),
       buildPopupItem(
-        label: dictionary.isHidden(appModel.targetLanguage)
+        label: dictionary.isHidden(appModel.dictionaryLanguage)
             ? t.options_show
             : t.options_hide,
-        icon: dictionary.isCollapsed(appModel.targetLanguage)
+        icon: dictionary.isCollapsed(appModel.dictionaryLanguage)
             ? Icons.visibility
             : Icons.visibility_off,
         action: () {
