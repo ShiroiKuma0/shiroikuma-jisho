@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [1.6.0+029] - 2026-10-25
+
 ### Changed
 
 - **Black dictionary in dark mode.** Result cards, the search bar, the
