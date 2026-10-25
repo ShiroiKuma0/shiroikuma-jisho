@@ -6,6 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Fixed
+
+- **日本語辞書 is now 白い熊 辞書検索, with its own icon.** It used the same
+  icon as the app, so wherever both appear — the launcher, the long-press
+  shortcut, the text-selection menu and the "open with" chooser another
+  app can raise — there was no telling which was which. It is now named
+  白い熊 辞書検索 and drawn as a black 白 on yellow with a red 日 badge.
+
 ## [1.6.0+003] - 2026-10-13
 
 ### Added

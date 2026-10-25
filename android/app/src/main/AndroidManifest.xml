@@ -143,7 +143,7 @@
         <activity
             android:name=".JapaneseDictionaryActivity"
             android:label="@string/japanese_dictionary"
-            android:icon="@mipmap/launcher_icon"
+            android:icon="@mipmap/jp_dict_icon"
             android:exported="true"
             android:taskAffinity=""
             android:excludeFromRecents="true"

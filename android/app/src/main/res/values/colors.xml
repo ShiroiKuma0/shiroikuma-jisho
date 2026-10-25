@@ -1,4 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <color name="ic_launcher_background">#000000</color>
+    <!-- 日本語辞書 icon: the main icon's colours inverted, so the two
+         entries tell apart at a glance in the launcher and app chooser. -->
+    <color name="ic_jp_dict_background">#FAE114</color>
 </resources>
