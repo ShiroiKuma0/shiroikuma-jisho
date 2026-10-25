@@ -5,6 +5,7 @@ import 'dart:io';
 import 'package:collection/collection.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_logs/flutter_logs.dart';
@@ -522,6 +523,15 @@ class _JidoujishoAppState extends ConsumerState<JidoujishoApp>
     super.initState();
 
     WidgetsBinding.instance.addObserver(this);
+    if (kLookupTrace) {
+      SchedulerBinding.instance.addTimingsCallback((timings) {
+        for (final f in timings) {
+          lookupTrace('frame build=${f.buildDuration.inMilliseconds}ms '
+              'raster=${f.rasterDuration.inMilliseconds}ms '
+              'total=${f.totalSpan.inMilliseconds}ms');
+        }
+      });
+    }
 
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       /// Receive all intents and parse them depending on which they are.
@@ -591,6 +601,10 @@ class _JidoujishoAppState extends ConsumerState<JidoujishoApp>
         textContextMenuAction(data, isColdStart: isInitial);
         return;
       case 'shiroikuma.jisho.action.OPEN_DICTIONARY':
+        if (kLookupTrace) {
+          lookupTrace('intent OPEN_DICTIONARY q=${intent.extra?['query']} '
+              'initial=$isInitial');
+        }
         // The 日本語辞書 launcher icon, text-selection entry and long-press
         // shortcut (all language=ja), or Tasker with any language code.
         openExternalDictionary(
@@ -771,6 +785,7 @@ class _JidoujishoAppState extends ConsumerState<JidoujishoApp>
 
     final Language? previousOverride = appModel.dictionaryLanguageOverride;
     await appModel.setDictionaryLanguageOverride(language);
+    if (kLookupTrace) lookupTrace('override set, pushing route');
     try {
       await appModel.openRecursiveDictionarySearch(
         searchTerm: query,

@@ -10,6 +10,7 @@ import 'package:shiroikumanojisho/dictionary.dart';
 import 'package:shiroikumanojisho/language.dart';
 import 'package:shiroikumanojisho/models.dart';
 import 'package:shiroikumanojisho/src/language/implementations/japanese_transformer.dart';
+import 'package:shiroikumanojisho/src/utils/misc/lookup_trace.dart';
 
 /// Language implementation of the Japanese language.
 class JapaneseLanguage extends Language {
@@ -561,6 +562,16 @@ Future<SearchResultData?> _prepareSearchResultsJapaneseTerms(
   }
   if (searchTerm.isEmpty) return null;
 
+  final Stopwatch traceWatch = Stopwatch()..start();
+  void trace(String phase) {
+    if (kLookupTrace) {
+      lookupTrace('worker ja "$searchTerm" $phase '
+          '@${traceWatch.elapsedMilliseconds}ms');
+    }
+  }
+
+  trace('start');
+
   // Reuse the isolate's existing Isar handle if one is already
   // cached (persistent-worker isolate, second and subsequent calls).
   // See the same note in standard_searches.dart.
@@ -677,6 +688,7 @@ Future<SearchResultData?> _prepareSearchResultsJapaneseTerms(
     bool startsWithAdded = false;
 
     for (int i = 0; i < searchTerm.length; i++) {
+      trace('partial $i');
       final partialTerm = searchTerm.substring(0, searchTerm.length - i);
       final partialTermIsKana = kanaKit.isKana(partialTerm);
       final partialTermIsHiragana = kanaKit.isHiragana(partialTerm);
@@ -710,6 +722,7 @@ Future<SearchResultData?> _prepareSearchResultsJapaneseTerms(
           continue;
         }
         builder.addEntries(termExact);
+        trace('termExact n=${termExact.length}');
       }
 
       // readingExact (only for kana inputs).
@@ -728,6 +741,7 @@ Future<SearchResultData?> _prepareSearchResultsJapaneseTerms(
             .limit(entryFetchLimit())
             .findAllSync();
         builder.addEntries(readingExact);
+        trace('readingExact n=${readingExact.length}');
       }
 
       // termDeinflected.
@@ -757,6 +771,7 @@ Future<SearchResultData?> _prepareSearchResultsJapaneseTerms(
         // order when there are ties later.
         termDeinflected.sort((a, b) => b.popularity.compareTo(a.popularity));
         builder.addEntries(termDeinflected);
+        trace('termDeinflected n=${termDeinflected.length}');
       }
 
       // readingDeinflected (kana only).
@@ -785,6 +800,7 @@ Future<SearchResultData?> _prepareSearchResultsJapaneseTerms(
             .limit(entryFetchLimit())
             .findAllSync();
         builder.addEntries(readingDeinflected);
+        trace('readingDeinflected n=${readingDeinflected.length}');
       }
 
       // termExactKatakana (hiragana → katakana fallback).
@@ -798,6 +814,7 @@ Future<SearchResultData?> _prepareSearchResultsJapaneseTerms(
             .limit(entryFetchLimit())
             .findAllSync();
         builder.addEntries(termExactKatakana);
+        trace('termExactKatakana n=${termExactKatakana.length}');
       }
 
       if ((termExact.isNotEmpty ||
@@ -809,6 +826,7 @@ Future<SearchResultData?> _prepareSearchResultsJapaneseTerms(
         builder.recordMatchLength(partialTerm.length);
       }
 
+      trace('partial $i queried, deinflections=${possibleDeinflections.length}');
       // startsWith fallback, conditional on mode.
       if (entryFetchLimit() > 0) {
         final shouldAddStartsWith = params.searchWithWildcards
@@ -826,6 +844,7 @@ Future<SearchResultData?> _prepareSearchResultsJapaneseTerms(
               .limit(entryFetchLimit())
               .findAllSync();
           builder.addEntries(startsWith);
+          trace('startsWith n=${startsWith.length}');
         }
       }
     }
@@ -833,6 +852,7 @@ Future<SearchResultData?> _prepareSearchResultsJapaneseTerms(
 
   // Extract raw group accumulators for the custom post-sort.
   final rawGroups = builder.rawGroups();
+  trace('queries done groups=${rawGroups.length}');
   if (rawGroups.isEmpty) return null;
 
   // Load every entry across every group in one batched DB call.
@@ -852,6 +872,7 @@ Future<SearchResultData?> _prepareSearchResultsJapaneseTerms(
   // sort below. The `order` field controls the user's preferred display
   // ordering across dictionaries.
   final dictionaries = database.dictionarys.where().findAllSync();
+  trace('entries+dictionaries loaded ids=${allEntryIds.length}');
 
   // Resolve frequency rows per group. Keyed by group index for cheap
   // lookup during the comparator. Grouped by dictionary-id so we can
@@ -965,7 +986,9 @@ Future<SearchResultData?> _prepareSearchResultsJapaneseTerms(
     return a.insertionOrder.compareTo(b.insertionOrder);
   }
 
+  trace('frequencies loaded');
   final sortedGroups = rawGroups.toList()..sort(compareGroups);
+  trace('sorted');
 
   // Single-kanji prioritisation: if the user typed exactly one kanji,
   // the group keyed by (searchTerm, '') moves to the front regardless
@@ -980,5 +1003,7 @@ Future<SearchResultData?> _prepareSearchResultsJapaneseTerms(
     }
   }
 
-  return builder.buildFromOrderedGroups(database, sortedGroups);
+  final built = builder.buildFromOrderedGroups(database, sortedGroups);
+  trace('built');
+  return built;
 }

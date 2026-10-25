@@ -19,6 +19,15 @@ final dictionaryEntryHtmlProvider = Provider.family<String, DictionaryEntry>((
   ref,
   entry,
 ) {
+  final sw = Stopwatch()..start();
+  try {
+    return _dictionaryEntryHtml(entry);
+  } finally {
+    lookupTraceCost.add('html', sw.elapsedMicroseconds);
+  }
+});
+
+String _dictionaryEntryHtml(DictionaryEntry entry) {
   return entry.definitions
       .map((e) {
         try {
@@ -44,7 +53,7 @@ final dictionaryEntryHtmlProvider = Provider.family<String, DictionaryEntry>((
       })
       .toList()
       .join('<br>');
-});
+}
 
 const Set<String> _blockTags = {
   'div', 'ul', 'ol', 'li', 'table', 'p', 'br', 'h1', 'h2', 'h3', 'h4', //
@@ -333,12 +342,15 @@ final dictionaryEntryScannedHtmlProvider =
     Provider.family<String, DictionaryEntry>((ref, entry) {
       final baseHtml = ref.watch(dictionaryEntryHtmlProvider(entry));
       final language = ref.watch(appProvider).dictionaryLanguage;
+      final sw = Stopwatch()..start();
       try {
         return _injectScanWords(baseHtml, language);
       } catch (_) {
         // If anything about the DOM walk or segmenter fails, fall back to
         // the unmodified HTML so the entry still renders.
         return baseHtml;
+      } finally {
+        lookupTraceCost.add('scan', sw.elapsedMicroseconds);
       }
     });
 
@@ -396,7 +408,9 @@ void _replaceTextNode(dom.Text textNode, Language language) {
     return;
   }
 
+  final sw = Stopwatch()..start();
   final tokens = language.textToWords(textNode.data);
+  lookupTraceCost.add('mecab', sw.elapsedMicroseconds);
   if (tokens.isEmpty) {
     return;
   }

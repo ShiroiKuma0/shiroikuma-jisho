@@ -135,9 +135,12 @@ class _HomePageState extends BasePageState<HomePage>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     super.didChangeAppLifecycleState(state);
-    if (AppLifecycleState.resumed == state) {
-      /// Keep the search database ready.
-      debugPrint('Lifecycle Resumed');
+    if (kLookupTrace) lookupTrace('lifecycle $state');
+    // Warm the search worker the first time only. It ran on every resume,
+    // uncached, and the worker is serial: a lookup that resumed the app
+    // (the 日本語辞書 entry, text selection, 自由作業盤) queued behind a
+    // full throwaway search and its post-processing on the UI isolate.
+    if (AppLifecycleState.resumed == state && !appModel.isSearchWorkerStarted) {
       appModel.searchDictionary(
         searchTerm: appModel.targetLanguage.helloWorld,
         searchWithWildcards: false,

@@ -2587,6 +2587,11 @@ class AppModel with ChangeNotifier {
   /// depending on cold/warm state).
   Future<SearchResultData?>? _searchOperation;
 
+  /// Whether the persistent search worker has been spawned — after that
+  /// it holds Isar open for the rest of the process, so there is nothing
+  /// left to warm.
+  bool get isSearchWorkerStarted => _searchWorkerReady != null;
+
   /// Persistent worker isolate used to run dictionary searches off
   /// the UI isolate. Spawned lazily on first search.
   Isolate? _searchWorkerIsolate;
@@ -2956,6 +2961,7 @@ class AppModel with ChangeNotifier {
     final String cacheKey =
         '${dictionaryLanguage.languageCode}/$searchTerm/$overrideMaximumTerms';
     if (_dictionarySearchCache[cacheKey] != null && useCache) {
+      if (kLookupTrace) lookupTrace('searchDictionary cache-hit $cacheKey');
       if (_kSearchPerfLogging) {
         _logPerf(
             '[SEARCH-PERF] cache-hit term="$searchTerm" total=${total.elapsedMilliseconds}ms');
@@ -3034,6 +3040,10 @@ class AppModel with ChangeNotifier {
     phase
       ..reset()
       ..start();
+    if (kLookupTrace) {
+      lookupTrace('searchDictionary to worker $cacheKey '
+          'dicts=${languageDictIds.length} cache=$useCache');
+    }
     _searchOperation = _invokeSearchOnWorker(
       languageCode: currentLanguageCode,
       buildInMemoryIndex: currentLanguageCode != 'ja',
@@ -3042,6 +3052,10 @@ class AppModel with ChangeNotifier {
     );
     final SearchResultData? data = await _searchOperation;
     final int workerMs = phase.elapsedMilliseconds;
+    if (kLookupTrace) {
+      lookupTrace('searchDictionary worker back ${workerMs}ms '
+          'groups=${data?.groups.length} $cacheKey');
+    }
 
     // The caller no longer wants this term (the query moved on while
     // the worker ran). Skip the main-isolate post-processing below —
@@ -3069,6 +3083,10 @@ class AppModel with ChangeNotifier {
       perfTotal: total,
     );
 
+    if (kLookupTrace) {
+      lookupTrace('searchDictionary built total=${total.elapsedMilliseconds}ms '
+          '$cacheKey');
+    }
     if (result.headings.isEmpty) {
       return DictionarySearchResult(searchTerm: searchTerm);
     }
@@ -4220,6 +4238,7 @@ class AppModel with ChangeNotifier {
     if (route == null) {
       return;
     }
+    if (kLookupTrace) lookupTrace('leaveExternalDictionary');
     try {
       await _taskChannel.invokeMethod('moveTaskToBack');
     } catch (e) {

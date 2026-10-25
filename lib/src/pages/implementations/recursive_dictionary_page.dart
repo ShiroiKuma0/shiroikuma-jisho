@@ -61,8 +61,10 @@ class _RecursiveDictionaryPageState
     _isCreatorOpen = appModelNoUpdate.isCreatorOpen;
 
     _queryNotifier.value = widget.searchTerm;
+    if (kLookupTrace) lookupTrace('page initState q=${widget.searchTerm}');
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (kLookupTrace) lookupTrace('page first frame');
       appModel.addToSearchHistory(
         historyKey: DictionaryMediaType.instance.uniqueKey,
         searchTerm: widget.searchTerm,
@@ -435,11 +437,21 @@ class _RecursiveDictionaryPageState
     }
 
     try {
+      if (kLookupTrace) lookupTrace('page search start q=$query');
       _result = await appModel.searchDictionary(
         searchTerm: query,
         searchWithWildcards: true,
         overrideMaximumTerms: overrideMaximumTerms,
       );
+      if (kLookupTrace) {
+        lookupTrace('page search done q=$query '
+            'headings=${_result?.headings.length}');
+        WidgetsBinding.instance.addPostFrameCallback(
+            (_) {
+          lookupTrace('page result frame q=$query');
+          lookupTraceCost.flush('page result frame q=$query');
+        });
+      }
     } finally {
       if (_result != null) {
         if (query == _queryNotifier.value) {

@@ -1,7 +1,7 @@
 name: shiroikumanojisho
 description: A full-featured immersion language learning suite for mobile.
 publish_to: 'none'
-version: 1.6.0+005
+version: 1.6.0+019
 environment:
   sdk: ">=3.12.0 <4.0.0"
   flutter: "^3.44.0"
@@ -93,7 +93,12 @@ dependencies:
   # 3.1.0+1 (verified against a device DB copy in Phase 5 before any
   # release).
   isar_community: ^3.3.2
-  isar_community_flutter_libs: ^3.3.2
+  isar_community_flutter_libs:
+    # Vendored: Android libisar.so rebuilt from 3.3.2 with a one-line fix
+    # in Cursor::iter_between, which walked every index range to the end
+    # of the index — seconds per dictionary lookup. See
+    # vendor/isar_community_flutter_libs/README.md.
+    path: vendor/isar_community_flutter_libs
   json_annotation: ^4.12.0
   json_serializable: ^6.6.1
   just_audio: ^0.10.6

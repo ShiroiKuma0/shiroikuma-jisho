@@ -6,6 +6,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Fixed
+
+- **Dictionary lookups no longer take seconds.** A lookup — from
+  自由作業盤, text selection, 白い熊 辞書検索 or inside the app — spent
+  1.5–6 s searching for a kana word (する, いく, たがる) and up to half a
+  second even for kanji. The database library walked every index from the
+  matching word to its very end on every query, reading hundreds of MB the
+  phone could not keep in memory; it now stops at the last match, and the
+  same searches take about 0.1 s. Bundled as a patched build of the Isar
+  database core (`vendor/isar_community_flutter_libs`).
+- **Opening the dictionary from another app no longer runs a throwaway
+  search first.** Every time the app came to the front it searched
+  こんにちは世界 to keep the database warm, and a lookup from another app
+  waited behind it; it now does so only once.
+
 ## [1.6.0+005] - 2026-10-25
 
 ### Fixed

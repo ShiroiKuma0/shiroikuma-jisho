@@ -1,0 +1,35 @@
+diff --git a/packages/isar_core/src/mdbx/cursor.rs b/packages/isar_core/src/mdbx/cursor.rs
+index af00fe8..8164589 100644
+--- a/packages/isar_core/src/mdbx/cursor.rs
++++ b/packages/isar_core/src/mdbx/cursor.rs
+@@ -240,18 +240,27 @@ impl<'txn> Cursor<'txn> {
+             return Ok(true);
+         }
+ 
+-        self.iter(skip_duplicates, ascending, |cursor, key, val| {
++        // Stop the walk at the first key past the bound. Upstream returned
++        // Ok(true) here, which `iter` takes as "continue": every query that
++        // matched anything walked the rest of the database to its end,
++        // skipping each key. The result is still Ok(true), so callers go on
++        // to their next where clause; only a callback's own Ok(false) is
++        // reported as a stop.
++        let mut past_bound = false;
++        let completed = self.iter(skip_duplicates, ascending, |cursor, key, val| {
+             let abort = if ascending {
+                 upper_key.cmp_bytes(&key) == Ordering::Less
+             } else {
+                 lower_key.cmp_bytes(&key) == Ordering::Greater
+             };
+             if abort {
+-                Ok(true)
++                past_bound = true;
++                Ok(false)
+             } else {
+                 callback(cursor, key, val)
+             }
+-        })
++        })?;
++        Ok(completed || past_bound)
+     }
+ 
+     pub fn iter_dups<K: Key>(

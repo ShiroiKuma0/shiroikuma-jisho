@@ -72,8 +72,68 @@ public class MainActivity extends AudioServiceActivity {
     private Activity context;
     private AnkiDroidHelper mAnkiDroid;
 
+    /** Gate for the external-lookup timing trace; mirrors kLookupTrace
+     *  in lib/src/utils/misc/lookup_trace.dart, which appends to the
+     *  same file. */
+    private static final boolean LOOKUP_TRACE = false;
+
+    static void lookupTrace(String event) {
+        if (!LOOKUP_TRACE) {
+            return;
+        }
+        try (java.io.FileWriter w = new java.io.FileWriter(
+                "/sdcard/tmp/jisho-lookup-trace.log", true)) {
+            w.write(System.currentTimeMillis() + " java " + event + "\n");
+        } catch (Exception ignored) {
+        }
+    }
+
+    @Override
+    protected void onNewIntent(@NonNull Intent intent) {
+        lookupTrace("onNewIntent " + intent.getAction());
+        super.onNewIntent(intent);
+    }
+
+    @Override
+    protected void onRestart() {
+        lookupTrace("onRestart");
+        super.onRestart();
+    }
+
+    @Override
+    protected void onStart() {
+        lookupTrace("onStart");
+        super.onStart();
+    }
+
+    @Override
+    protected void onResume() {
+        lookupTrace("onResume");
+        super.onResume();
+        lookupTrace("onResume done");
+    }
+
+    @Override
+    protected void onPause() {
+        lookupTrace("onPause");
+        super.onPause();
+    }
+
+    @Override
+    protected void onStop() {
+        lookupTrace("onStop");
+        super.onStop();
+    }
+
+    @Override
+    public void onTrimMemory(int level) {
+        lookupTrace("onTrimMemory " + level);
+        super.onTrimMemory(level);
+    }
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+        lookupTrace("onCreate saved=" + (savedInstanceState != null));
         super.onCreate(savedInstanceState);
         isAppRunning = false;
         
