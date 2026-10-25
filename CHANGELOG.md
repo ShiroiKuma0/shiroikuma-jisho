@@ -6,6 +6,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Changed
+
+- **Black dictionary in dark mode.** Result cards, the search bar, the
+  "show all results" bars and the quick-action buttons were drawn in
+  shades of grey; they are black now, and each result card and the
+  search bar are framed by a thin rounded line in a dimmed shade of the
+  dictionary colour, so the yellow content stays the brightest thing on
+  screen.
+- **Long-press hints match the theme.** The hints naming a button (the
+  result cards' quick actions and every other one in the app) were black
+  text on white; in dark mode they are now the theme's text colour on
+  its background, in a rounded frame in the theme's border colour.
+
 ### Fixed
 
 - **Dictionary lookups no longer take seconds.** A lookup — from

@@ -175,7 +175,7 @@ class _DictionaryHistoryScrollableItemState
           },
           child: Container(
             color: Theme.of(context).brightness == Brightness.dark
-                ? Colors.white.withValues(alpha: 0.05)
+                ? Colors.transparent
                 : Colors.black.withValues(alpha: 0.05),
             width: double.maxFinite,
             child: Padding(

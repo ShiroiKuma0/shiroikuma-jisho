@@ -731,6 +731,19 @@ class AppModel with ChangeNotifier {
           color: background,
           shape: const RoundedRectangleBorder(),
         ),
+        // Long-press hints (the result cards' quick actions and every
+        // other Tooltip) in the theme's own colours — text-coloured words
+        // on the background in a rounded border-coloured frame — instead
+        // of Material's black on near-white.
+        tooltipTheme: TooltipThemeData(
+          decoration: BoxDecoration(
+            color: background,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: border, width: 1.5),
+          ),
+          textStyle: darkTextTheme.bodySmall?.copyWith(color: text),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        ),
         // Dialogs ("Exit Media" and every other AlertDialog) carry the
         // black/yellow identity: bordered rounded panel, TextButtons as
         // bordered pills (白い熊, 2026-07-24) — all four knobs settable.
@@ -5010,6 +5023,15 @@ class AppModel with ChangeNotifier {
   int get dictionaryFontColor {
     return _preferences.get('dictionary_font_color', defaultValue: 0xffffffff);
   }
+
+  /// The frame drawn around each dictionary result card, and the search
+  /// bar, in dark mode: the dictionary font colour dimmed to 47% over
+  /// black, so it separates the cards on the black background without
+  /// competing with the yellow content inside them.
+  Color get dictionaryFrameColor => Color.alphaBlend(
+        Color(dictionaryFontColor).withValues(alpha: 0.47),
+        Colors.black,
+      );
 
   /// Set the dictionary font color used in the player.
   void setDictionaryFontColor(int color) {

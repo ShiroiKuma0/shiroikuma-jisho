@@ -106,10 +106,15 @@ class _HomeDictionaryPageState<T extends BaseTabPage> extends BaseTabPageState {
       hint: t.search_ellipsis,
       controller: mediaType.floatingSearchBarController,
       builder: buildFloatingSearchBody,
-      borderRadius: BorderRadius.zero,
+      borderRadius: appModel.isDarkMode
+          ? BorderRadius.circular(8)
+          : BorderRadius.zero,
+      border: appModel.isDarkMode
+          ? BorderSide(color: appModel.dictionaryFrameColor, width: 1.5)
+          : null,
       elevation: 0,
       backgroundColor: appModel.isDarkMode
-          ? const Color.fromARGB(255, 30, 30, 30)
+          ? Colors.black
           : const Color.fromARGB(255, 229, 229, 229),
       backdropColor: appModel.isDarkMode ? Colors.black : Colors.white,
       accentColor: theme.colorScheme.primary,
@@ -525,7 +530,7 @@ class _HomeDictionaryPageState<T extends BaseTabPage> extends BaseTabPageState {
                   },
             child: Container(
               color: Theme.of(context).brightness == Brightness.dark
-                  ? Colors.white.withValues(alpha: 0.05)
+                  ? Colors.transparent
                   : Colors.black.withValues(alpha: 0.05),
               width: double.maxFinite,
               child: Padding(

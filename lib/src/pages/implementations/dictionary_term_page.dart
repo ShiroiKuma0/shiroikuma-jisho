@@ -97,10 +97,20 @@ class DictionaryTermPage extends ConsumerWidget {
             color:
                 cardColor?.withValues(alpha: opacity) ??
                 (appModel.isDarkMode
-                    ? Color.fromRGBO(16, 16, 16, opacity)
+                    ? Color.fromRGBO(0, 0, 0, opacity)
                     : Color.fromRGBO(249, 249, 249, opacity)),
             elevation: 0,
-            shape: const RoundedRectangleBorder(),
+            // Dark mode: black cards on the black page, each framed in the
+            // dimmed dictionary colour (see AppModel.dictionaryFrameColor).
+            shape: appModel.isDarkMode
+                ? RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    side: BorderSide(
+                      color: appModel.dictionaryFrameColor,
+                      width: 1.5,
+                    ),
+                  )
+                : const RoundedRectangleBorder(),
           ),
         ),
         Padding(
@@ -637,7 +647,7 @@ class _DictionaryTermActionsRowState
             disabledColor: enabledColor.withValues(alpha: 0.5),
             shapeBorder: const RoundedRectangleBorder(),
             backgroundColor: Theme.of(context).brightness == Brightness.dark
-                ? Color(appModel.dictionaryFontColor).withValues(alpha: 0.05)
+                ? Colors.transparent
                 : Colors.black.withValues(alpha: 0.05),
             size: Spacing.of(context).spaces.semiBig,
             tooltip: quickAction.getLocalisedLabel(appModel),
