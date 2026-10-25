@@ -2,7 +2,6 @@ import 'package:expandable/expandable.dart';
 import 'package:float_column/float_column.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:sliver_tools/sliver_tools.dart';
 import 'package:spaces/spaces.dart';
 import 'package:visibility_detector/visibility_detector.dart';
 import 'package:shiroikumanojisho/creator.dart';
@@ -84,12 +83,16 @@ class DictionaryTermPage extends ConsumerWidget {
     );
 
     if (entries.isEmpty) {
-      return const SliverPadding(padding: EdgeInsets.zero);
+      return const SizedBox.shrink();
     }
 
-    return SliverStack(
+    // A box, not slivers: the result and history lists hold these in a
+    // SliverList so only the cards on screen are built. As slivers
+    // (SliverStack / MultiSliver) every card of every result was built and
+    // laid out before the first frame.
+    return Stack(
       children: [
-        SliverPositioned.fill(
+        Positioned.fill(
           child: Card(
             color:
                 cardColor?.withValues(alpha: opacity) ??
@@ -100,41 +103,36 @@ class DictionaryTermPage extends ConsumerWidget {
             shape: const RoundedRectangleBorder(),
           ),
         ),
-        SliverPadding(
+        Padding(
           padding: EdgeInsets.only(
             left: Spacing.of(context).spaces.normal,
             top: Spacing.of(context).spaces.small,
             right: Spacing.of(context).spaces.small,
             bottom: Spacing.of(context).spaces.small,
           ),
-          sliver: MultiSliver(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               // One line: headword, reading with its pitch, markers; the
               // quick actions float at its end.
-              SliverToBoxAdapter(
-                child: _DictionaryTermTopRow(
-                  heading: heading,
-                  onSearch: onSearch,
-                  dictionaryNamesByHidden: dictionaryNamesByHidden,
-                ),
+              _DictionaryTermTopRow(
+                heading: heading,
+                onSearch: onSearch,
+                dictionaryNamesByHidden: dictionaryNamesByHidden,
               ),
               // Each kanji of the headword with its first meaning, opening
               // the kanji page.
-              SliverToBoxAdapter(
-                child: KanjiBreakdown(term: heading.term, onSearch: onSearch),
-              ),
+              KanjiBreakdown(term: heading.term, onSearch: onSearch),
               // One chip per dictionary; only the selected dictionary's
               // definitions are shown.
-              SliverToBoxAdapter(
-                child: _DictionaryTabs(
-                  heading: heading,
-                  entries: entries,
-                  onSearch: onSearch,
-                  onStash: onStash,
-                  onShare: onShare,
-                ),
+              _DictionaryTabs(
+                heading: heading,
+                entries: entries,
+                onSearch: onSearch,
+                onStash: onStash,
+                onShare: onShare,
               ),
-              if (footerWidget != null) SliverToBoxAdapter(child: footerWidget),
+              if (footerWidget != null) footerWidget!,
             ],
           ),
         ),

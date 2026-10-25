@@ -50,17 +50,16 @@ class _DictionaryHistoryPageState extends BasePageState<DictionaryHistoryPage> {
       ),
       slivers: [
         const SliverPadding(padding: EdgeInsets.only(top: 60)),
-        ...historyResults
-            .map(
-              (result) => _DictionaryHistoryScrollableItem(
-                result: result,
-                onSearch: widget.onSearch,
-                onStash: widget.onStash,
-                onShare: widget.onShare,
-                lastSelectedMapping: lastSelectedMapping,
-              ),
-            )
-            ,
+        SliverList.builder(
+          itemCount: historyResults.length,
+          itemBuilder: (context, index) => _DictionaryHistoryScrollableItem(
+            result: historyResults[index],
+            onSearch: widget.onSearch,
+            onStash: widget.onStash,
+            onShare: widget.onShare,
+            lastSelectedMapping: lastSelectedMapping,
+          ),
+        ),
       ],
     );
   }
@@ -141,7 +140,7 @@ class _DictionaryHistoryScrollableItemState
     }
 
     if (headings.isEmpty) {
-      return const SliverPadding(padding: EdgeInsets.zero);
+      return const SizedBox.shrink();
     }
 
     DictionaryHeading heading = headings.first;

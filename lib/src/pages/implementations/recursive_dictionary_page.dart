@@ -61,6 +61,9 @@ class _RecursiveDictionaryPageState
     _isCreatorOpen = appModelNoUpdate.isCreatorOpen;
 
     _queryNotifier.value = widget.searchTerm;
+    // The search starts after the first frame; until it does, the page is
+    // searching, not empty — else that frame shows "no search results".
+    _isSearching = widget.searchTerm.trim().isNotEmpty;
     if (kLookupTrace) lookupTrace('page initState q=${widget.searchTerm}');
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -447,10 +450,7 @@ class _RecursiveDictionaryPageState
         lookupTrace('page search done q=$query '
             'headings=${_result?.headings.length}');
         WidgetsBinding.instance.addPostFrameCallback(
-            (_) {
-          lookupTrace('page result frame q=$query');
-          lookupTraceCost.flush('page result frame q=$query');
-        });
+            (_) => lookupTrace('page result frame q=$query'));
       }
     } finally {
       if (_result != null) {

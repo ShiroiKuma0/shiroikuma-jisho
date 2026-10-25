@@ -16,6 +16,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   phone could not keep in memory; it now stops at the last match, and the
   same searches take about 0.1 s. Bundled as a patched build of the Isar
   database core (`vendor/isar_community_flutter_libs`).
+- **Results appear in about a quarter of a second.** Drawing a lookup's
+  results took another 0.3–1 s after the search: every result card was
+  built before the first frame, the HTML renderer re-parsed every CSS
+  selector of the dictionary's stylesheet for every element, and each
+  tappable word in a definition was a widget of its own. Only the cards
+  on screen are built now, selectors are parsed once (a patched build of
+  flutter_html, `vendor/flutter_html`), and tappable words are plain text
+  spans. From another app's tap to the result on screen: 0.2–0.3 s, also
+  after the phone has been busy with other apps for a while; about 0.75 s
+  when Android had closed the app in the background.
+- **No more "No search results found" flash** before a lookup's results
+  appear.
 - **Opening the dictionary from another app no longer runs a throwaway
   search first.** Every time the app came to the front it searched
   こんにちは世界 to keep the database warm, and a lookup from another app

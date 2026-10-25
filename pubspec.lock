@@ -719,10 +719,9 @@ packages:
   flutter_html:
     dependency: "direct main"
     description:
-      name: flutter_html
-      sha256: "38a2fd702ffdf3243fb7441ab58aa1bc7e6922d95a50db76534de8260638558d"
-      url: "https://pub.dev"
-    source: hosted
+      path: "vendor/flutter_html"
+      relative: true
+    source: path
     version: "3.0.0"
   flutter_html_table:
     dependency: "direct main"

@@ -300,9 +300,9 @@ class _DictionaryResultPageState extends BasePageState<DictionaryResultPage> {
         child: Padding(
           padding: Spacing.of(context).insets.onlyRight.extraSmall,
           child: CustomScrollView(
-            // The ScrollCacheExtent replacement does not exist in 3.44 yet.
-      // ignore: deprecated_member_use
-      cacheExtent: 999999999999999,
+            // Default cache extent: the results are a lazy SliverList, so
+            // only the cards on screen are built for the first frame.
+            // (Upstream set 999999999999999, building every result.)
             controller: _scrollController,
             physics: _pinching
                 ? const NeverScrollableScrollPhysics()
@@ -314,21 +314,22 @@ class _DictionaryResultPageState extends BasePageState<DictionaryResultPage> {
                   padding: widget.spaceBeforeFirstResult
                       ? Spacing.of(context).insets.onlyTop.normal
                       : EdgeInsets.zero),
-              ...headings
-                  .map((heading) => DictionaryTermPage(
-                        lastSelectedMapping: lastSelectedMapping,
-                        opacity: widget.opacity,
-                        cardColor: widget.cardColor,
-                        heading: heading,
-                        onSearch: widget.onSearch,
-                        onStash: widget.onStash,
-                        onShare: widget.onShare,
-                        expandableControllers:
-                            expandableControllersByHeading[heading]!,
-                        dictionaryNamesByHidden: dictionaryNamesByHidden,
-                        dictionaryNamesByOrder: dictionaryNamesByOrder,
-                      ))
-                  ,
+              SliverList.builder(
+                itemCount: headings.length,
+                itemBuilder: (context, index) => DictionaryTermPage(
+                  lastSelectedMapping: lastSelectedMapping,
+                  opacity: widget.opacity,
+                  cardColor: widget.cardColor,
+                  heading: headings[index],
+                  onSearch: widget.onSearch,
+                  onStash: widget.onStash,
+                  onShare: widget.onShare,
+                  expandableControllers:
+                      expandableControllersByHeading[headings[index]]!,
+                  dictionaryNamesByHidden: dictionaryNamesByHidden,
+                  dictionaryNamesByOrder: dictionaryNamesByOrder,
+                ),
+              ),
               if (widget.footerWidget != null) widget.footerWidget!,
             ],
           ),

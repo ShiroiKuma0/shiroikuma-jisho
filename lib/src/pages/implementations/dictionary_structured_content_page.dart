@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:flutter/gestures.dart';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -19,15 +20,6 @@ final dictionaryEntryHtmlProvider = Provider.family<String, DictionaryEntry>((
   ref,
   entry,
 ) {
-  final sw = Stopwatch()..start();
-  try {
-    return _dictionaryEntryHtml(entry);
-  } finally {
-    lookupTraceCost.add('html', sw.elapsedMicroseconds);
-  }
-});
-
-String _dictionaryEntryHtml(DictionaryEntry entry) {
   return entry.definitions
       .map((e) {
         try {
@@ -53,7 +45,7 @@ String _dictionaryEntryHtml(DictionaryEntry entry) {
       })
       .toList()
       .join('<br>');
-}
+});
 
 const Set<String> _blockTags = {
   'div', 'ul', 'ol', 'li', 'table', 'p', 'br', 'h1', 'h2', 'h3', 'h4', //
@@ -336,21 +328,18 @@ final dictionaryStylesheetProvider = Provider.family<Map<String, Style>, int>((
 ///
 /// The output renders visually identical to the base HTML because
 /// <scanword> is a custom tag that flutter_html ignores unless a matching
-/// [TagExtension] is registered; that extension returns a [GestureDetector]
-/// around a plain [Text] that inherits the surrounding body style.
+/// extension is registered; [_ScanWordExtension] makes each one a tappable
+/// span that inherits the surrounding body style.
 final dictionaryEntryScannedHtmlProvider =
     Provider.family<String, DictionaryEntry>((ref, entry) {
       final baseHtml = ref.watch(dictionaryEntryHtmlProvider(entry));
       final language = ref.watch(appProvider).dictionaryLanguage;
-      final sw = Stopwatch()..start();
       try {
         return _injectScanWords(baseHtml, language);
       } catch (_) {
         // If anything about the DOM walk or segmenter fails, fall back to
         // the unmodified HTML so the entry still renders.
         return baseHtml;
-      } finally {
-        lookupTraceCost.add('scan', sw.elapsedMicroseconds);
       }
     });
 
@@ -408,9 +397,7 @@ void _replaceTextNode(dom.Text textNode, Language language) {
     return;
   }
 
-  final sw = Stopwatch()..start();
   final tokens = language.textToWords(textNode.data);
-  lookupTraceCost.add('mecab', sw.elapsedMicroseconds);
   if (tokens.isEmpty) {
     return;
   }
@@ -589,28 +576,51 @@ class DictionaryHtmlWidget extends ConsumerWidget {
           ),
         ),
         // Makes every Japanese word previously wrapped by
-        // _injectScanWords tappable. The rendered Text inherits the
-        // surrounding body style (colour, size, weight, italic) via
-        // styledElement.style.generateTextStyle(), so visually the
-        // word looks exactly like the plain text it replaced — no
-        // underline, no colour change. Tap dispatches to the same
-        // onSearch callback the cross-reference anchors use, giving
-        // identical recursive-lookup behaviour.
-        TagExtension(
-          tagsToExtend: const {'scanword'},
-          builder: (ctx) {
-            final word = ctx.innerHtml;
-            return GestureDetector(
-              onTap: () => onSearch(word),
-              child: Text(
-                word,
-                style: ctx.styledElement?.style.generateTextStyle(),
-              ),
-            );
-          },
-        ),
+        // _injectScanWords tappable; see [_ScanWordExtension].
+        _ScanWordExtension(onSearch),
       ],
     );
+  }
+}
+
+/// Renders each <scanword> (see [_injectScanWords]) as a [TextSpan] with
+/// a tap recognizer, in the paragraph it belongs to. The span inherits the
+/// surrounding body style (colour, size, weight, italic) via
+/// styledElement.style.generateTextStyle(), so the word looks exactly like
+/// the plain text it replaced; a tap dispatches to the same onSearch
+/// callback the cross-reference anchors use.
+///
+/// It used to be a [GestureDetector] around a [Text] — a separate widget
+/// per word, built and laid out on its own and embedded as a [WidgetSpan].
+/// At ~1 ms per word, a long definition (する: 637 words) took most of a
+/// second to show.
+class _ScanWordExtension extends HtmlExtension {
+  _ScanWordExtension(this.onSearch);
+
+  final Function(String) onSearch;
+  final List<TapGestureRecognizer> _recognizers = [];
+
+  @override
+  Set<String> get supportedTags => const {'scanword'};
+
+  @override
+  InlineSpan build(ExtensionContext context) {
+    final word = context.innerHtml;
+    final recognizer = TapGestureRecognizer()..onTap = () => onSearch(word);
+    _recognizers.add(recognizer);
+    return TextSpan(
+      text: word,
+      style: context.styledElement?.style.generateTextStyle(),
+      recognizer: recognizer,
+    );
+  }
+
+  @override
+  void onDispose() {
+    for (final recognizer in _recognizers) {
+      recognizer.dispose();
+    }
+    _recognizers.clear();
   }
 }
 

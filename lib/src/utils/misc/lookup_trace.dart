@@ -39,31 +39,3 @@ String _majorFaults() {
     return '?';
   }
 }
-
-/// Trace-only accumulator of time spent in named render stages, written
-/// out and reset by [flush].
-class LookupTraceCost {
-  final Map<String, int> _micros = {};
-  final Map<String, int> _counts = {};
-
-  /// Add [micros] to [stage].
-  void add(String stage, int micros) {
-    if (!kLookupTrace) return;
-    _micros[stage] = (_micros[stage] ?? 0) + micros;
-    _counts[stage] = (_counts[stage] ?? 0) + 1;
-  }
-
-  /// Trace the totals under [label] and reset them.
-  void flush(String label) {
-    if (!kLookupTrace) return;
-    lookupTrace('$label costs ${[
-      for (final e in _micros.entries)
-        '${e.key}=${e.value ~/ 1000}ms/${_counts[e.key]}',
-    ].join(' ')}');
-    _micros.clear();
-    _counts.clear();
-  }
-}
-
-/// The shared [LookupTraceCost].
-final LookupTraceCost lookupTraceCost = LookupTraceCost();
