@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [1.6.0+030] - 2026-10-29
+
 ### Fixed
 
 - **Romaji typed mid-syllable finds words.** A romaji search whose last
