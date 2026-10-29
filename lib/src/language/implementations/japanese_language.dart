@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:collection/collection.dart';
 
 import 'package:flutter/material.dart';
 import 'package:isar_community/isar.dart';
@@ -268,7 +269,9 @@ class JapaneseLanguage extends Language {
 /// Credits to Matthew Chan for their port of the Yomichan parser to Dart.
 ///
 /// Search pipeline (flat schema):
-///   1. Normalise input: romaji → hiragana; truncate at 20 chars.
+///   1. Normalise input: romaji → hiragana; truncate at 20 chars. Romaji
+///      stopped mid-syllable ("zanbar") keeps its kana stem and searches
+///      every word the last letters can still become first.
 ///   2. Open Isar.
 ///   3. Populate a [SearchResultBuilder] by running a sequence of queries
 ///      against the flat `DictionaryEntry` collection:
@@ -281,7 +284,10 @@ class JapaneseLanguage extends Language {
 ///            • termDeinflected via [Deinflector.deinflect]
 ///            • readingDeinflected (if the partial is kana)
 ///            • termExactKatakana (if the partial is hiragana)
-///          plus a startsWith fallback once any match has been found.
+///          plus a startsWith fallback (headword and reading) once any
+///          match has been found.
+///      then the reading-less old and rare kanji forms of each headword
+///      found (ざんばら髮 for ざんばら髪), filed directly under it.
 ///   4. Post-sort groups: within the set of groups sharing the same term
 ///      or reading, apply the multi-criteria Japanese ordering
 ///      (Yomichan-style: 'P' tag boost, frequency-by-dictionary-order,
@@ -303,7 +309,9 @@ Future<SearchResultData?> prepareSearchResultsJapaneseLanguage(
   // whole query goes first; the other keeps at least half the slots.
   const kanaKit = KanaKit();
   final String kana = kanaKit.toHiragana(query.toLowerCase());
-  final bool isRomaji = kana.isNotEmpty && kanaKit.isKana(kana);
+  final bool isRomaji =
+      kana.isNotEmpty &&
+      (kanaKit.isKana(kana) || _splitUnfinishedRomaji(query) != null);
 
   final SearchResultData? japanese = isRomaji
       ? await _prepareSearchResultsJapaneseTerms(params)
@@ -326,7 +334,10 @@ Future<SearchResultData?> prepareSearchResultsJapaneseLanguage(
   if (japanese == null) return english;
   if (english == null) return japanese;
 
-  final bool romajiMatchesWhole = japanese.bestLength >= kana.length;
+  // Romaji stopped mid-syllable ("dog" reads as ど + g) is only a guess at
+  // what is still being typed; English answers such a query first.
+  final bool romajiMatchesWhole =
+      kanaKit.isKana(kana) && japanese.bestLength >= kana.length;
   return _mergeSearchResults(
     first: romajiMatchesWhole ? japanese : english,
     second: romajiMatchesWhole ? english : japanese,
@@ -338,6 +349,112 @@ Future<SearchResultData?> prepareSearchResultsJapaneseLanguage(
 /// English or romaji. Wildcard queries never match, so they keep their
 /// own path.
 final RegExp _latinQuery = RegExp(r"^[A-Za-z][A-Za-z' \-]*$");
+
+/// Romaji typed mid-syllable — "zanbar", "zanbaragam", "kitt" — converts to
+/// kana with Latin left over ("ざんばr"), which no dictionary holds. Split
+/// such a query into its kana stem and the kana the unfinished syllable can
+/// still become: "zanbar" → (ざんば, [ら, り, る, れ, ろ]). Null when the
+/// query converts cleanly or is not romaji at all.
+({String stem, List<String> continuations})? _splitUnfinishedRomaji(
+  String query,
+) {
+  const kanaKit = KanaKit();
+  final String kana = kanaKit.toHiragana(query.trim().toLowerCase());
+  final Match? tail = _unfinishedSyllable.firstMatch(kana);
+  if (tail == null) return null;
+  final String stem = kana.substring(0, tail.start);
+  if (stem.isNotEmpty && !kanaKit.isKana(stem)) return null;
+
+  final continuations = <String>[];
+  for (final String vowel in const ['a', 'i', 'u', 'e', 'o']) {
+    final String syllable = kanaKit.toHiragana(tail.group(0)! + vowel);
+    if (!kanaKit.isKana(syllable)) continue;
+    // し covers しゃ, しゅ and しょ; keep only the shortest.
+    if (continuations.any(syllable.startsWith)) continue;
+    continuations
+      ..removeWhere((c) => c.startsWith(syllable))
+      ..add(syllable);
+  }
+  if (continuations.isEmpty) return null;
+  return (stem: stem, continuations: continuations);
+}
+
+/// The consonants of a syllable not yet finished: "r", "sh", "tt", "ky".
+final RegExp _unfinishedSyllable = RegExp(r'[a-z]{1,3}$');
+
+/// Key of a result group, as [SearchResultBuilder] forms it.
+String _groupKey(String term, String reading) => '$term\u0001$reading';
+
+/// The kana a headword starts with: ざんばら for ざんばら髪, empty for 髪型.
+String _leadingKana(String term) {
+  const kanaKit = KanaKit();
+  int end = 0;
+  while (end < term.length && kanaKit.isKana(term[end])) {
+    end++;
+  }
+  return term.substring(0, end);
+}
+
+/// Whether [a] and [b] are the same word written with different kanji:
+/// equal length, the same kana in the same places, kanji where the other
+/// has kanji. ざんばら髮 and ざんばら髪 are; ざんばら髪 and ざんばらり are not.
+bool _sameKanaSkeleton(String a, String b) {
+  const kanaKit = KanaKit();
+  if (a.length != b.length) return false;
+  for (int i = 0; i < a.length; i++) {
+    final bool aKana = kanaKit.isKana(a[i]);
+    if (aKana != kanaKit.isKana(b[i])) return false;
+    if (aKana && a[i] != b[i]) return false;
+  }
+  return true;
+}
+
+/// Jitendex lists a headword's old, rare and irregular kanji forms as
+/// entries of their own with no reading (ざんばら髮 → ざんばら髪), so a
+/// search by reading never reaches them, and a headword prefix only when
+/// the query happens to stop before the kanji. For every group found so
+/// far whose headword starts with kana, fetch the reading-less forms that
+/// differ from it only in kanji. Returns the key of each form's group
+/// mapped to the key of the headword it belongs under.
+Map<String, String> _addReadinglessForms({
+  required Isar database,
+  required SearchResultBuilder builder,
+  required List<int> scope,
+}) {
+  final parents = <String, String>{};
+  final candidates = builder
+      .rawGroups()
+      .take(builder.maxGroups)
+      .where((g) => g.reading.isNotEmpty && g.term != g.reading)
+      .toList();
+  for (final BuilderGroupData group in candidates) {
+    final String lead = _leadingKana(group.term);
+    if (lead.length < 2 || lead.length == group.term.length) continue;
+    final forms = database.dictionaryEntrys
+        .where()
+        .termStartsWith(lead)
+        .filter()
+        .readingIsEmpty()
+        .and()
+        .termLengthEqualTo(group.term.length)
+        .and()
+        .anyOf<int, int>(scope, (q, id) => q.dictionaryIdEqualTo(id))
+        .limit(16)
+        .findAllSync()
+        .where(
+          (e) => e.term != group.term && _sameKanaSkeleton(e.term, group.term),
+        )
+        .toList();
+    builder.addEntries(forms);
+    for (final DictionaryEntry form in forms) {
+      parents.putIfAbsent(
+        _groupKey(form.term, form.reading),
+        () => _groupKey(group.term, group.reading),
+      );
+    }
+  }
+  return parents;
+}
 
 /// Concatenate two results without repeating a headword. [second] keeps up
 /// to half of [maxGroups] when it has that many, so a full first list
@@ -554,13 +671,22 @@ Future<SearchResultData?> _prepareSearchResultsJapaneseTerms(
   const kanaKit = KanaKit();
 
   String searchTerm = params.searchTerm.trim();
+  // Kana the query's unfinished last syllable can become; empty unless the
+  // query is romaji stopped mid-syllable ("zanbar").
+  List<String> continuations = const <String>[];
   if (kanaKit.isRomaji(searchTerm)) {
-    searchTerm = kanaKit.toHiragana(searchTerm);
+    final unfinished = _splitUnfinishedRomaji(searchTerm);
+    if (unfinished != null) {
+      searchTerm = unfinished.stem;
+      continuations = unfinished.continuations;
+    } else {
+      searchTerm = kanaKit.toHiragana(searchTerm);
+    }
   }
   if (searchTerm.length > 20) {
     searchTerm = searchTerm.substring(0, 20);
   }
-  if (searchTerm.isEmpty) return null;
+  if (searchTerm.isEmpty && continuations.isEmpty) return null;
 
   final Stopwatch traceWatch = Stopwatch()..start();
   void trace(String phase) {
@@ -686,6 +812,52 @@ Future<SearchResultData?> _prepareSearchResultsJapaneseTerms(
   } else {
     final deinflectionsAlreadySearched = <String>{};
     bool startsWithAdded = false;
+
+    // Romaji stopped mid-syllable: the words the query can still turn into
+    // come first — headwords, then readings, starting with the stem and
+    // one of the syllables the last letters can become. Exact matches of
+    // the stem and its shorter prefixes follow from the loop below.
+    if (continuations.isNotEmpty) {
+      final prefixMatches = <DictionaryEntry>[];
+      for (final String syllable in continuations) {
+        final String prefix = searchTerm + syllable;
+        final lim = entryFetchLimit();
+        if (lim <= 0) break;
+        prefixMatches
+          ..addAll(
+            database.dictionaryEntrys
+                .where()
+                .termStartsWith(prefix)
+                .filter()
+                .anyOf<int, int>(scope, (q, id) => q.dictionaryIdEqualTo(id))
+                .sortByTermLength()
+                .limit(lim)
+                .findAllSync(),
+          )
+          ..addAll(
+            database.dictionaryEntrys
+                .where()
+                .readingStartsWith(prefix)
+                .filter()
+                .anyOf<int, int>(scope, (q, id) => q.dictionaryIdEqualTo(id))
+                .limit(lim)
+                .findAllSync(),
+          );
+      }
+      // Shortest words first across all the syllables: ざんばら before
+      // ざんばらがみ, whichever query found them.
+      int spokenLength(DictionaryEntry e) =>
+          (e.reading.isEmpty ? e.term : e.reading).length;
+      mergeSort(
+        prefixMatches,
+        compare: (a, b) => spokenLength(a).compareTo(spokenLength(b)),
+      );
+      builder.addEntries(prefixMatches);
+      if (prefixMatches.isNotEmpty) {
+        builder.recordMatchLength(searchTerm.length + 1);
+      }
+      trace('unfinished-syllable prefixes n=${prefixMatches.length}');
+    }
 
     for (int i = 0; i < searchTerm.length; i++) {
       trace('partial $i');
@@ -828,7 +1000,10 @@ Future<SearchResultData?> _prepareSearchResultsJapaneseTerms(
 
       trace('partial $i queried, deinflections=${possibleDeinflections.length}');
       // startsWith fallback, conditional on mode.
-      if (entryFetchLimit() > 0) {
+      // Romaji stopped mid-syllable has had its prefix search already; one
+      // on the stem alone (ざんば*) would bring back the words the last
+      // letter rules out (ざんばん).
+      if (continuations.isEmpty && entryFetchLimit() > 0) {
         final shouldAddStartsWith = params.searchWithWildcards
             ? (i == 0)
             : (!startsWithAdded && builder.groupCount > 0);
@@ -845,10 +1020,35 @@ Future<SearchResultData?> _prepareSearchResultsJapaneseTerms(
               .findAllSync();
           builder.addEntries(startsWith);
           trace('startsWith n=${startsWith.length}');
+
+          // Kanji headwords whose reading starts with the kana typed:
+          // ざんばら finds ざんばら髪 (ざんばらがみ) even though its
+          // headword is not ざんばら-anything a prefix search could reach.
+          if (kanaKit.isKana(searchTerm) && entryFetchLimit() > 0) {
+            final readingStartsWith = database.dictionaryEntrys
+                .where()
+                .readingStartsWith(kanaKit.toHiragana(searchTerm))
+                .filter()
+                .anyOf<int, int>(scope, (q, id) => q.dictionaryIdEqualTo(id))
+                .limit(entryFetchLimit())
+                .findAllSync();
+            builder.addEntries(readingStartsWith);
+            trace('readingStartsWith n=${readingStartsWith.length}');
+          }
         }
       }
     }
   }
+
+  // Old and rare kanji forms of what was found, filed under it below.
+  final Map<String, String> formParents = shouldSearchWildcards
+      ? const <String, String>{}
+      : _addReadinglessForms(
+          database: database,
+          builder: builder,
+          scope: scope,
+        );
+  trace('readingless forms n=${formParents.length}');
 
   // Extract raw group accumulators for the custom post-sort.
   final rawGroups = builder.rawGroups();
@@ -1001,6 +1201,31 @@ Future<SearchResultData?> _prepareSearchResultsJapaneseTerms(
       final g = sortedGroups.removeAt(kanjiGroupIdx);
       sortedGroups.insert(0, g);
     }
+  }
+
+  // Each old or rare kanji form goes directly under its headword, where
+  // Jitendex's own redirect points: ざんばら髪, then ざんばら髮.
+  if (formParents.isNotEmpty) {
+    final present = {
+      for (final g in sortedGroups) _groupKey(g.term, g.reading),
+    };
+    final children = <String, List<BuilderGroupData>>{};
+    for (final g in sortedGroups) {
+      final parent = formParents[_groupKey(g.term, g.reading)];
+      if (parent != null && present.contains(parent)) {
+        children.putIfAbsent(parent, () => []).add(g);
+      }
+    }
+    final placed = children.values.expand((c) => c).toSet();
+    final reordered = <BuilderGroupData>[];
+    for (final g in sortedGroups) {
+      if (placed.contains(g)) continue;
+      reordered.add(g);
+      reordered.addAll(children[_groupKey(g.term, g.reading)] ?? const []);
+    }
+    sortedGroups
+      ..clear()
+      ..addAll(reordered);
   }
 
   final built = builder.buildFromOrderedGroups(database, sortedGroups);

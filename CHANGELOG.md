@@ -6,6 +6,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Fixed
+
+- **Romaji typed mid-syllable finds words.** A romaji search whose last
+  letters are not yet a whole syllable — `zanbar`, `zanbaragam`, `kitt` —
+  found nothing, because the leftover letters made it neither kana nor a
+  real word. It now lists every word that starts with what was typed and
+  one of the syllables those letters can still become (`zanbar` →
+  ざんばら…, ざんばり…, …), headwords and readings both, followed by the
+  exact matches of the finished part. An English word that also reads
+  this way (`dog`) still lists its English matches first.
+- **Old and rare kanji forms appear with their headword.** Jitendex lists
+  forms such as ざんばら髮 (old kanji form of ざんばら髪) as separate
+  entries without a reading, so they turned up for `zanbara` but not for
+  `zanbaragami`. Every headword found now brings its reading-less kanji
+  variants along, shown directly beneath it. Searches by reading also
+  match kanji headwords whose reading starts with the kana typed.
+
 ## [1.6.0+029] - 2026-10-25
 
 ### Changed
