@@ -6,6 +6,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- **Edit a subtitle in the player with a right-click.** Right-clicking the
+  subtitle on screen pauses the video and turns the line into a text field.
+  Enter saves, Shift+Enter starts a new line, Escape cancels; ✓ and ✕
+  buttons do the same for touch. The edit is written back to where the
+  subtitle came from: a sidecar `.srt` (or `.ass`/`.ssa`) file is rewritten
+  in place, and a track inside the video is replaced in the file itself —
+  every other stream, the track order, its language, title and default
+  flag, and all timestamps stay exactly as they were. Only the edited cue
+  changes; formatting that wraps it (`{\an8}`, `<i>…</i>`, ASS override
+  tags) is kept. Rewriting a video takes as long as copying it once,
+  shown in the progress banner; several quick edits to one track are
+  saved in a single pass. The player then reopens the rewritten video in
+  place — same position, play/pause state, audio track and speed — so the
+  replaced file's space is released at once.
+
 ## [1.6.0+030] - 2026-10-29
 
 ### Fixed

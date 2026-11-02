@@ -30,6 +30,7 @@ import 'package:shiroikumanojisho/pages.dart';
 import 'package:shiroikumanojisho/src/pages/implementations/player_comments_page.dart';
 import 'package:shiroikumanojisho/src/utils/ocr/ocr_engine.dart';
 import 'package:shiroikumanojisho/src/utils/ocr/subtitle_ocr.dart';
+import 'package:shiroikumanojisho/src/utils/player/subtitle_writer.dart';
 import 'package:shiroikumanojisho/utils.dart';
 import 'package:path/path.dart' as path;
 
@@ -99,6 +100,42 @@ class _PlayerSourcePageState extends BaseSourcePageState<PlayerSourcePage>
 
   Timer? _notPlayingTimer;
 
+  /// The cue being edited inline after a right-click on the subtitle, or
+  /// null while the subtitle is shown normally.
+  final ValueNotifier<Subtitle?> _editingSubtitle =
+      ValueNotifier<Subtitle?>(null);
+  final TextEditingController _subtitleEditController =
+      TextEditingController();
+  late final FocusNode _subtitleEditFocusNode =
+      FocusNode(onKeyEvent: onSubtitleEditKey);
+
+  /// Whether playback was running when the edit began, so it resumes when
+  /// the edit ends.
+  bool _resumeAfterSubtitleEdit = false;
+
+  /// Saves into the video run one at a time, in edit order: each one
+  /// rewrites the whole container.
+  Future<void> _subtitleSaveChain = Future.value();
+
+  /// Edits per embedded track still waiting in [_subtitleSaveChain]. Only
+  /// the last one of a burst rewrites the video — it carries them all.
+  final Map<int, int> _pendingTrackEdits = {};
+
+  /// Session copies of edited embedded tracks, by subtitle ordinal, with
+  /// their timestamps as stored: extracted once, then edited and muxed
+  /// back on every save.
+  final Map<int, File> _trackWorkingFiles = {};
+
+  /// How much later the player's cues of a track sit than the stored
+  /// ones, by subtitle ordinal — see [SubtitleWriter.extractTrack].
+  final Map<int, Duration> _trackCueShifts = {};
+
+  /// Set while [reloadRewrittenVideo] swaps the player onto the rewritten
+  /// file: the listener ignores the ticks of that swap (the restart at the
+  /// open-time `--start-time`, the stop), so cue tracking, auto-pause and
+  /// history never see them.
+  bool _reloadingMedia = false;
+
   @override
   void initState() {
     super.initState();
@@ -123,6 +160,9 @@ class _PlayerSourcePageState extends BaseSourcePageState<PlayerSourcePage>
     _autoPauseTimer?.cancel();
 
     WidgetsBinding.instance.removeObserver(this);
+
+    _subtitleEditController.dispose();
+    _subtitleEditFocusNode.dispose();
 
     _playerController.dispose();
 
@@ -656,7 +696,7 @@ class _PlayerSourcePageState extends BaseSourcePageState<PlayerSourcePage>
 
   /// This is called each time the player ticks.
   void listener() async {
-    if (!mounted) {
+    if (!mounted || _reloadingMedia) {
       return;
     }
 
@@ -1343,7 +1383,8 @@ class _PlayerSourcePageState extends BaseSourcePageState<PlayerSourcePage>
       focusNode: FocusNode(),
       autofocus: true,
       onKeyEvent: (event) async {
-        if (event is KeyDownEvent) {
+        // Letters typed into the inline subtitle editor bubble up here.
+        if (event is KeyDownEvent && _editingSubtitle.value == null) {
           if (event.logicalKey == LogicalKeyboardKey.keyP) {
             await playPause();
           }
@@ -3494,12 +3535,18 @@ class _PlayerSourcePageState extends BaseSourcePageState<PlayerSourcePage>
         _listeningSubtitle,
         _playingNotifier,
         _transcriptOpenNotifier,
+        _editingSubtitle,
       ],
       builder: (context, values, _) {
         Subtitle? currentSubtitle = values.elementAt(0);
         Subtitle? listeningSubtitle = values.elementAt(1);
         bool isPlaying = values.elementAt(2);
         bool transcriptOpen = values.elementAt(3);
+        Subtitle? editingSubtitle = values.elementAt(4);
+
+        if (editingSubtitle != null) {
+          return buildSubtitleEditor();
+        }
 
         if (currentSubtitle == null || transcriptOpen) {
           return const SizedBox.shrink();
@@ -3517,9 +3564,409 @@ class _PlayerSourcePageState extends BaseSourcePageState<PlayerSourcePage>
           subtitleText = subtitleText.replaceAll(RegExp(regex), '');
         }
 
-        return tapToSelectSubtitle(subtitleText);
+        // A right-click opens the cue for editing. A bare Listener, so
+        // the per-character tap recognizers underneath keep working.
+        return Listener(
+          onPointerDown: (event) {
+            if (event.kind == PointerDeviceKind.mouse &&
+                (event.buttons & kSecondaryMouseButton) != 0) {
+              startSubtitleEdit(currentSubtitle);
+            }
+          },
+          child: tapToSelectSubtitle(subtitleText),
+        );
       },
     );
+  }
+
+  /// The inline editor that replaces the subtitle while a cue is edited:
+  /// Enter saves, Shift+Enter breaks the line, Escape cancels.
+  Widget buildSubtitleEditor() {
+    double blurRadius =
+        _subtitleOptionsNotifier.value.subtitleBackgroundBlurRadius;
+    return Padding(
+      // The scaffold does not resize for the soft keyboard; lift the
+      // editor above it.
+      padding: EdgeInsets.only(
+        bottom: MediaQuery.viewInsetsOf(context).bottom,
+        left: Spacing.of(context).spaces.normal,
+        right: Spacing.of(context).spaces.normal,
+      ),
+      child: ClipRRect(
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: blurRadius, sigmaY: blurRadius),
+          child: Container(
+            decoration: BoxDecoration(
+              color: Colors.black.withValues(
+                alpha: max(
+                    _subtitleOptionsNotifier.value.subtitleBackgroundOpacity,
+                    0.6),
+              ),
+              border: Border.all(color: Colors.yellow.withValues(alpha: 0.7)),
+            ),
+            padding: EdgeInsets.symmetric(
+              horizontal: Spacing.of(context).spaces.small,
+              vertical: Spacing.of(context).spaces.extraSmall,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: _subtitleEditController,
+                  focusNode: _subtitleEditFocusNode,
+                  autofocus: true,
+                  minLines: 1,
+                  maxLines: null,
+                  keyboardType: TextInputType.multiline,
+                  textAlign: TextAlign.center,
+                  style: subtitleTextStyle,
+                  cursorColor: Colors.yellow,
+                  decoration: const InputDecoration.collapsed(hintText: ''),
+                ),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    IconButton(
+                      tooltip: 'Cancel (Esc)',
+                      icon: const Icon(Icons.close, color: Colors.white70),
+                      onPressed: cancelSubtitleEdit,
+                    ),
+                    IconButton(
+                      tooltip: 'Save (Enter)',
+                      icon: const Icon(Icons.check, color: Colors.yellow),
+                      onPressed: commitSubtitleEdit,
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Keys of the inline subtitle editor. Handled here, before the input
+  /// method sees them, so a plain Enter saves instead of breaking the line.
+  KeyEventResult onSubtitleEditKey(FocusNode node, KeyEvent event) {
+    if (event is! KeyDownEvent) {
+      return KeyEventResult.ignored;
+    }
+    if (event.logicalKey == LogicalKeyboardKey.escape) {
+      cancelSubtitleEdit();
+      return KeyEventResult.handled;
+    }
+    if ((event.logicalKey == LogicalKeyboardKey.enter ||
+            event.logicalKey == LogicalKeyboardKey.numpadEnter) &&
+        !HardwareKeyboard.instance.isShiftPressed) {
+      commitSubtitleEdit();
+      return KeyEventResult.handled;
+    }
+    return KeyEventResult.ignored;
+  }
+
+  /// Why [item]'s cues cannot be saved back, or null when they can.
+  String? subtitleEditBlocker(SubtitleItem item) {
+    String? filePath = item.filePath;
+    String extension = path.extension(filePath ?? '').toLowerCase();
+    if (filePath == null ||
+        !const ['.srt', '.ass', '.ssa'].contains(extension) ||
+        !File(filePath).existsSync()) {
+      return 'This subtitle has no file to save an edit into.';
+    }
+    switch (item.type) {
+      case SubtitleItemType.externalSubtitle:
+        return null;
+      case SubtitleItemType.embeddedSubtitle:
+        if (_playerController.dataSourceType != DataSourceType.file) {
+          return 'Only subtitles of local videos can be edited.';
+        }
+        if (appModel.isProcessingEmbeddedSubtitles) {
+          return t.processing_embedded_subtitles;
+        }
+        return null;
+      case SubtitleItemType.noneSubtitle:
+      case SubtitleItemType.webSubtitle:
+        return 'This subtitle has no file to save an edit into.';
+    }
+  }
+
+  /// Open [subtitle] in the inline editor, pausing playback meanwhile.
+  Future<void> startSubtitleEdit(Subtitle subtitle) async {
+    if (_editingSubtitle.value != null) {
+      return;
+    }
+    String? blocker = subtitleEditBlocker(_subtitleItem);
+    if (blocker != null) {
+      Fluttertoast.showToast(msg: blocker);
+      return;
+    }
+
+    _resumeAfterSubtitleEdit = _playerController.value.isPlaying;
+    if (_resumeAfterSubtitleEdit) {
+      await playPause();
+    }
+    _selectableTextController.clearSelection();
+    clearDictionaryResult();
+
+    _subtitleEditController.text = subtitle.data;
+    _subtitleEditController.selection =
+        TextSelection.collapsed(offset: subtitle.data.length);
+    _editingSubtitle.value = subtitle;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _subtitleEditFocusNode.requestFocus();
+      }
+    });
+  }
+
+  /// Leave the editor without changing anything.
+  void cancelSubtitleEdit() {
+    if (_editingSubtitle.value == null) {
+      return;
+    }
+    _editingSubtitle.value = null;
+    endSubtitleEdit();
+  }
+
+  void endSubtitleEdit() {
+    _subtitleEditFocusNode.unfocus();
+    if (_resumeAfterSubtitleEdit && !_playerController.value.isPlaying) {
+      _resumeAfterSubtitleEdit = false;
+      playPause();
+    }
+  }
+
+  /// Apply the edited text to the cue on screen and write it back to the
+  /// subtitle's source.
+  void commitSubtitleEdit() {
+    Subtitle? subtitle = _editingSubtitle.value;
+    if (subtitle == null) {
+      return;
+    }
+    String newText = _subtitleEditController.text
+        .replaceAll('\r\n', '\n')
+        .split('\n')
+        .map((line) => line.trimRight())
+        .join('\n')
+        .trim();
+    if (newText.isEmpty) {
+      Fluttertoast.showToast(msg: 'An empty subtitle is not saved.');
+      return;
+    }
+
+    _editingSubtitle.value = null;
+    String oldText = subtitle.data;
+    if (newText != oldText) {
+      subtitle.data = newText;
+      refreshSubtitleWidget();
+      saveSubtitleEdit(
+        item: _subtitleItem,
+        subtitle: subtitle,
+        oldText: oldText,
+        newText: newText,
+      );
+    }
+    endSubtitleEdit();
+  }
+
+  /// Point the player at [videoPath] again once a save has renamed the
+  /// rewritten video over it. Until then VLC keeps reading the replaced
+  /// file through its open handle, which holds that file's whole size on
+  /// storage; reopening releases it. Position, play/pause, audio track,
+  /// speed and volume carry over, and the page itself is left as it is.
+  Future<void> reloadRewrittenVideo(String videoPath) async {
+    VlcPlayerValue before = _playerController.value;
+    Duration position = _positionNotifier.value;
+    bool wasPlaying = before.isPlaying;
+    int? audioTrack;
+    try {
+      audioTrack = await _playerController.getAudioTrack();
+    } catch (e) {
+      // Keep VLC's default audio track.
+    }
+
+    _reloadingMedia = true;
+    _autoPauseTimer?.cancel();
+    _subtitlePrepNotifier.value = 'Reloading video...';
+    try {
+      // Muted: the reopen starts at the open-time `--start-time` and
+      // plays a moment before the seek lands.
+      await _playerController.setVolume(0);
+      await _playerController.setMediaFromFile(
+        File(videoPath),
+        autoPlay: true,
+        hwAcc: appModel.playerHardwareAcceleration
+            ? HwAcc.auto
+            : HwAcc.disabled,
+      );
+
+      // VLC seeks only once the input is running and reports a time.
+      Stopwatch waited = Stopwatch()..start();
+      while (waited.elapsed < const Duration(seconds: 10) &&
+          !(_playerController.value.isPlaying &&
+              _playerController.value.position > Duration.zero)) {
+        await Future.delayed(const Duration(milliseconds: 50));
+      }
+
+      if (!wasPlaying) {
+        await _playerController.pause();
+      }
+      await _playerController.seekTo(position);
+      if (audioTrack != null) {
+        await _playerController.setAudioTrack(audioTrack);
+      }
+      await _playerController.setPlaybackSpeed(before.playbackSpeed);
+      ImageSubtitleTrack? bitmapTrack = _activeBitmapTrack;
+      if (bitmapTrack != null) {
+        _activeBitmapTrack = null;
+        await enableBitmapSubtitleTrack(bitmapTrack);
+      }
+    } catch (e) {
+      showYellowFlash('Reloading the video failed: $e');
+    } finally {
+      await _playerController.setVolume(before.volume);
+      _reloadingMedia = false;
+      _subtitlePrepNotifier.value = '';
+    }
+  }
+
+  /// Write an edit back: straight into a sidecar file, or — for a track
+  /// inside the video — into the extracted copy, then the video is
+  /// rewritten with that track replaced. Video rewrites run one at a
+  /// time behind [_subtitleSaveChain].
+  Future<void> saveSubtitleEdit({
+    required SubtitleItem item,
+    required Subtitle subtitle,
+    required String oldText,
+    required String newText,
+  }) async {
+    if (item.type == SubtitleItemType.externalSubtitle) {
+      try {
+        SubtitleWriter.editSubtitleFile(
+          file: File(item.filePath!),
+          start: subtitle.start,
+          end: subtitle.end,
+          oldText: oldText,
+          newText: newText,
+        );
+        Fluttertoast.showToast(
+            msg: 'Subtitle saved to ${path.basename(item.filePath!)}.');
+      } catch (e) {
+        subtitle.data = oldText;
+        refreshSubtitleWidget();
+        showYellowFlash('Subtitle not saved: $e');
+      }
+      return;
+    }
+
+    // The controller holds a `file://` URI built from the raw path.
+    String videoPath = _playerController.dataSource.replaceFirst('file://', '');
+    List<ContainerSubtitleStream> streams;
+    try {
+      streams = await SubtitleWriter.probeSubtitleStreams(videoPath);
+    } catch (e) {
+      showYellowFlash('Subtitle not saved: $e');
+      return;
+    }
+    ContainerSubtitleStream? stream;
+    if (item.index != null) {
+      stream = streams.firstWhereOrNull((s) => s.ordinal == item.index);
+    } else {
+      // The target-language extraction only succeeds when exactly one
+      // track carries the language, so that track is the one.
+      List<ContainerSubtitleStream> matching = streams
+          .where((s) =>
+              s.tags['language'] == appModel.targetLanguage.threeLetterCode)
+          .toList();
+      stream = matching.length == 1 ? matching.single : null;
+    }
+    if (stream == null) {
+      showYellowFlash(
+          'Subtitle not saved: its track was not found in the video.');
+      return;
+    }
+    if (!stream.isAss && stream.textEncoder == null) {
+      showYellowFlash('Subtitle not saved: a ${stream.codec} track cannot be '
+          'written from text.');
+      return;
+    }
+
+    ContainerSubtitleStream track = stream;
+    _pendingTrackEdits[track.ordinal] =
+        (_pendingTrackEdits[track.ordinal] ?? 0) + 1;
+    _subtitleSaveChain = _subtitleSaveChain.then((_) async {
+      try {
+        File? working = _trackWorkingFiles[track.ordinal];
+        if (working == null) {
+          // Extracted afresh once per session: a copy left on disk by
+          // an earlier session may belong to another video.
+          working = File(path.join(
+              (await getTemporaryDirectory()).path,
+              'subtitleEdits',
+              'track${track.ordinal}${track.isAss ? '.ass' : '.srt'}'));
+          working.parent.createSync(recursive: true);
+          await SubtitleWriter.extractTrack(
+            videoPath: videoPath,
+            stream: track,
+            output: working,
+          );
+          Duration? shown = SubtitleWriter.firstCueStart(
+              File(item.filePath!).readAsStringSync(),
+              ass: false);
+          Duration? stored = SubtitleWriter.firstCueStart(
+              working.readAsStringSync(),
+              ass: track.isAss);
+          _trackCueShifts[track.ordinal] = (shown != null && stored != null)
+              ? shown - stored
+              : Duration.zero;
+          _trackWorkingFiles[track.ordinal] = working;
+        }
+        Duration shift = _trackCueShifts[track.ordinal]!;
+        SubtitleWriter.editSubtitleFile(
+          file: working,
+          start: subtitle.start - shift,
+          end: subtitle.end - shift,
+          oldText: oldText,
+          newText: newText,
+        );
+      } catch (e) {
+        _pendingTrackEdits[track.ordinal] =
+            _pendingTrackEdits[track.ordinal]! - 1;
+        showYellowFlash('Subtitle not saved: $e');
+        return;
+      }
+
+      _pendingTrackEdits[track.ordinal] =
+          _pendingTrackEdits[track.ordinal]! - 1;
+      if (_pendingTrackEdits[track.ordinal]! > 0) {
+        // A later edit of this track is queued and will write it.
+        return;
+      }
+
+      _trackFfmpegProgress('Saving subtitle into the video');
+      try {
+        await SubtitleWriter.replaceTrack(
+          videoPath: videoPath,
+          stream: track,
+          replacement: _trackWorkingFiles[track.ordinal]!,
+        );
+        if (mounted) {
+          await reloadRewrittenVideo(videoPath);
+          showYellowFlash('Subtitle saved into ${path.basename(videoPath)}.');
+        }
+      } catch (e) {
+        if (mounted) {
+          showYellowFlash('$e');
+        }
+      } finally {
+        if (mounted) {
+          _clearFfmpegProgress();
+        } else {
+          FFmpegKitConfig.enableStatisticsCallback();
+        }
+      }
+    });
   }
 
   /// This renders the subtitle with a [SelectableText] widget.

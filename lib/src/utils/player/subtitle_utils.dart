@@ -30,6 +30,7 @@ class SubtitleItem {
     this.source,
     this.metadata,
     this.index,
+    this.filePath,
   });
 
   /// The controller that contains the content of the subtitle.
@@ -46,6 +47,11 @@ class SubtitleItem {
 
   /// Used to possibly identify the order of a subtitle.
   int? index;
+
+  /// The file the cues were read from: the sidecar itself for an
+  /// external subtitle, the extracted SRT for an embedded track. Edits
+  /// made in the player are written back through it.
+  String? filePath;
 }
 
 /// A class for calling subtitle utility functions.
@@ -86,6 +92,7 @@ class SubtitleUtils {
           metadata: metadata,
           type: type,
           index: index,
+          filePath: file.path,
         );
       case '.ass':
       case '.ssa':
@@ -99,6 +106,7 @@ class SubtitleUtils {
           metadata: metadata,
           type: type,
           index: index,
+          filePath: file.path,
         );
     }
 
@@ -111,6 +119,7 @@ class SubtitleUtils {
       metadata: metadata,
       type: type,
       index: index,
+      filePath: file.path,
     );
   }
 
