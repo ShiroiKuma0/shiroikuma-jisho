@@ -10,7 +10,7 @@ A fork of [arianneorpilla/jidoujisho](https://github.com/arianneorpilla/jidoujis
 
 Installs **side-by-side** with jidoujisho (app id `shiroikuma.jisho`).
 
-**📥 Latest release: [`1.6.0+030`](https://github.com/ShiroiKuma0/shiroikuma-jisho/releases/latest)** — [all releases & APK downloads »](https://github.com/ShiroiKuma0/shiroikuma-jisho/releases)
+**📥 Latest release: [`1.6.0+032`](https://github.com/ShiroiKuma0/shiroikuma-jisho/releases/latest)** — [all releases & APK downloads »](https://github.com/ShiroiKuma0/shiroikuma-jisho/releases)
 
 </div>
 
@@ -47,7 +47,7 @@ Open a translation book in a split view next to the original and keep both in si
 ---
 
 ## 📺 Dual subtitles in the player
-Show a secondary (translation) subtitle track on top of the primary one, with independent font, color, weight and vertical-position control for each. Keyboard playback control included.
+Show a secondary (translation) subtitle track on top of the primary one, with independent font, color, weight and vertical-position control for each. Keyboard playback control included. Right-click a subtitle to fix it on the spot: the line turns into a text field, and the edit is saved back into the sidecar `.srt`/`.ass` or straight into the subtitle track inside the MKV — every other stream and all timings untouched — after which the player reopens the video exactly where it was.
 
 ---
 
