@@ -57,7 +57,7 @@ val b = resolver.call(Uri.parse("content://shiroikuma.jisho.lookup"), "describe"
 {
   "lookup_version": 1,
   "version_name": "1.6.0",
-  "version_code": 33,
+  "version_code": 106002033,
   "max_items": 100,
   "japanese_installed": true,
   "examples_installed": true,
@@ -69,7 +69,7 @@ val b = resolver.call(Uri.parse("content://shiroikuma.jisho.lookup"), "describe"
 }
 ```
 
-`version_code` is the pubspec build counter (`+033` → `33`), not Android’s packed `versionCode`.
+`version_code` is Android’s packed `versionCode` (`X*1e8 + Y*1e6 + Z*1e4 + N`, plus 2000 for the arm64 split: 1.6.0+033 → `106002033`). Compare versions by it, or read `version_name` for display.
 `enabled` means the dictionary is used for Japanese (not hidden for `ja`, and its primary language is
 Japanese or unset). Only enabled dictionaries contribute to answers. The list is in 白い熊’s
 dictionary order.
