@@ -179,11 +179,13 @@ class _JishoUiSettingsPageState extends BasePageState<JishoUiSettingsPage> {
             _sectionHeader('Export / Import', first: true),
             _buildDirectoryBox(insetLeft: _insetRow),
             _buildLatestExportLine(insetLeft: _insetRow),
-            _row(
+            _actionRow(
               title: 'Export / Import…',
               summary:
                   'Save or load every setting — colours, fonts, player, '
                   'reader, dictionary — as selectable categories.',
+              main: true,
+              opens: true,
               onTap: _showExportImportPanel,
             ),
             _row(
@@ -507,6 +509,72 @@ class _JishoUiSettingsPageState extends BasePageState<JishoUiSettingsPage> {
             if (trailing != null) trailing,
           ],
         ),
+      ),
+    );
+  }
+
+  /// A row that does something when tapped — opens a screen, picker or
+  /// panel, or runs an action — drawn as a full-width outlined pill so
+  /// it never reads as a heading or a note. [main] (the section's one
+  /// panel) gets the thick 3 dp frame and a bold label; [opens] adds
+  /// the › of a row that leads somewhere. The explanation sits beneath
+  /// the pill, aligned with the label, and is not part of the target.
+  /// Rows with their own control (switch, swatch, slider, value) stay
+  /// plain [_row]s.
+  Widget _actionRow({
+    required String title,
+    required VoidCallback onTap,
+    String? summary,
+    bool main = false,
+    bool opens = false,
+    double inset = _insetRow,
+  }) {
+    const double labelInset = 16;
+    final shape = StadiumBorder(
+      side: BorderSide(color: _accent, width: main ? 3 : 1.25),
+    );
+    return Padding(
+      padding: EdgeInsets.only(left: inset, right: 16, top: 4, bottom: 2),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Material(
+            type: MaterialType.transparency,
+            shape: shape,
+            clipBehavior: Clip.antiAlias,
+            child: InkWell(
+              onTap: onTap,
+              customBorder: shape,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: labelInset, vertical: 8),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(title,
+                          style: TextStyle(
+                              fontSize: 19,
+                              height: 1.1,
+                              fontWeight:
+                                  main ? FontWeight.bold : FontWeight.normal,
+                              color: _accent)),
+                    ),
+                    if (opens)
+                      Text('›',
+                          style: TextStyle(
+                              fontSize: 24, height: 1, color: _accent)),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          if (summary != null)
+            Padding(
+              padding: const EdgeInsets.only(left: labelInset, top: 2),
+              child: Text(summary,
+                  style: TextStyle(fontSize: 15, height: 1.1, color: _dim)),
+            ),
+        ],
       ),
     );
   }

@@ -6,6 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Changed
+
+- **Export / Import… looks like a button.** On the 白い熊 辞書 UI page the
+  row that opens the Export / Import panel is now a full-width outlined
+  pill with a › and a bold, thick frame, its explanation beneath — it no
+  longer reads like a heading. Rows with their own switch, swatch, slider
+  or value stay plain rows.
+
 ## [1.6.0+032] - 2026-11-02
 
 ### Added
