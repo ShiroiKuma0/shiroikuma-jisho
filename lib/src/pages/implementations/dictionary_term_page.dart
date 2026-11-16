@@ -235,12 +235,18 @@ class _ExampleList extends ConsumerWidget {
 
 /// Part-of-speech codes of [entries]: their tag fields (JMdict puts v5k,
 /// adj-i … there) and the codes on Jitendex's part-of-speech spans in the
-/// definitions.
-Set<String> _partOfSpeechCodes(List<DictionaryEntry> entries) {
+/// definitions. Also read by the sister-app lookup door
+/// ([JishoLookup]), which leaves out the heading tags (★, P …) because
+/// it reports those separately.
+Set<String> partOfSpeechCodes(
+  List<DictionaryEntry> entries, {
+  bool includeHeadingTags = true,
+}) {
   final codes = <String>{};
   final code = RegExp(r'"code"\s*:\s*"([^"]+)"');
   for (final e in entries) {
-    codes.addAll('${e.entryTagsRaw} ${e.headingTagsRaw}'.split(' '));
+    codes.addAll(e.entryTagsRaw.split(' '));
+    if (includeHeadingTags) codes.addAll(e.headingTagsRaw.split(' '));
     for (final d in e.definitions) {
       if (!d.contains('part-of-speech-info')) continue;
       codes.addAll(code.allMatches(d).map((m) => m.group(1)!));
@@ -353,7 +359,7 @@ class _DictionaryTabs extends ConsumerWidget {
     // A verb or adjective gets a "活用" chip after the dictionaries,
     // selecting its conjugation table instead of a dictionary.
     final String? conjugationClass = JapaneseConjugation.classOf(
-      _partOfSpeechCodes(entries),
+      partOfSpeechCodes(entries),
     );
     final conjugation = conjugationClass == null
         ? null

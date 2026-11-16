@@ -6,6 +6,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- **Lookup door for 自由作業盤.** 白い熊 自由作業盤 can ask this app about up
+  to 100 Japanese words at a time, with no screen shown, and keep what it
+  learns for its 言語島 vocabulary: pitch accent, other written forms,
+  part of speech, the senses from every dictionary, frequency, tags, each
+  kanji with its KANJIDIC data, up to ten example sentences and the
+  conjugation table. Only 自由作業盤 and 応用管理 may ask, checked by their
+  signing certificates; it works with the screen off. The contract is
+  `docs/sister-app-contract-jisho-lookup.md`.
+
 ### Changed
 
 - **Export / Import… looks like a button.** On the 白い熊 辞書 UI page the

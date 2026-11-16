@@ -211,6 +211,19 @@
              package with MATCH_UNINSTALLED_PACKAGES |
              MATCH_DISABLED_COMPONENTS. An app without them is simply
              not offered for data backup or restore. -->
+        <!-- The lookup door for sister apps (自由作業盤's 言語島 語彙):
+             everything this app knows about up to 100 Japanese words,
+             as JSON, into a file descriptor the caller opened. Same
+             pinned-caller check as the data door above; call() only.
+             Contract: docs/sister-app-contract-jisho-lookup.md. The
+             meta-data lets a caller tell an older 辞書 without one apart
+             WITHOUT waking this app. -->
+        <provider
+            android:name="shiroikuma.jisho.LookupProvider"
+            android:authorities="${applicationId}.lookup"
+            android:exported="true" />
+        <meta-data android:name="shiroikuma.jisho.lookup.contract" android:value="1" />
+
         <meta-data android:name="shiroikuma.automation.contract"   android:value="2" />
         <meta-data android:name="shiroikuma.automation.format"     android:value="1" />
         <meta-data android:name="shiroikuma.automation.min_format" android:value="1" />

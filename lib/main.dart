@@ -395,6 +395,45 @@ Future<void> automationDataMain() async {
   }
 }
 
+/// Headless entrypoint for the sister-app **lookup door**
+/// (`docs/sister-app-contract-jisho-lookup.md`), started by
+/// [LookupEngine] and kept running between batches — no UI, no
+/// [runApp]. The AppModel is brought up once; Java then calls
+/// `describe` and `lookup` on the channel for as long as the engine
+/// lives, and destroys it after a quiet minute.
+@pragma('vm:entry-point')
+Future<void> jishoLookupMain() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  const channel = MethodChannel('shiroikuma.jisho/lookup');
+  AppModel? appModel;
+  Object? startupError;
+  try {
+    appModel = await _automationAppModel();
+  } catch (e) {
+    startupError = e;
+  }
+  channel.setMethodCallHandler((call) async {
+    if (appModel == null) return 'ERROR:startup failed: $startupError';
+    try {
+      switch (call.method) {
+        case 'describe':
+          return 'OK:${jsonEncode(JishoLookup.describe(appModel))}';
+        case 'lookup':
+          final answer =
+              await JishoLookup.lookup(appModel, call.arguments as String);
+          return 'OK:${jsonEncode(answer)}';
+      }
+      return 'ERROR:unknown method: ${call.method}';
+    } on FormatException catch (e) {
+      return 'ERROR:${e.message}';
+    } catch (e) {
+      return 'ERROR:$e';
+    }
+  });
+  // Only now may Java send requests: the handler is in place.
+  await channel.invokeMethod('ready');
+}
+
 /// Application execution starts here.
 void main() {
   /// Run and handle an error zone to customise the action performed upon
