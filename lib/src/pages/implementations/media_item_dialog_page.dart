@@ -41,7 +41,7 @@ class _MediaItemDialogPageState extends BasePageState<MediaItemDialogPage> {
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
+    return PillDialog(
       title: buildTitle(),
       content: buildContent(),
       actions: actions,
@@ -210,7 +210,7 @@ class _MediaItemDialogPageState extends BasePageState<MediaItemDialogPage> {
 
     final bool? confirmed = await showDialog<bool>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
+      builder: (dialogContext) => PillDialog(
         title: Text(title),
         content: Text(
           'Delete this from ${mediaSource.getLocalisedSourceName(appModel)}? '

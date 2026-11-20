@@ -999,7 +999,7 @@ class ReaderAudioToolbarState extends State<ReaderAudioToolbar> {
     await showDialog<void>(
       context: context,
       builder: (ctx) {
-        return AlertDialog(
+        return PillDialog(
           title: const Text('MP3 seek precision warning'),
           content: SingleChildScrollView(
             child: Column(
@@ -1164,7 +1164,7 @@ class ReaderAudioToolbarState extends State<ReaderAudioToolbar> {
               mainAxisSize: MainAxisSize.min,
               children: [
             ListTile(
-              leading: const Icon(Icons.audiotrack),
+              leading: RoleIcon(Icons.audiotrack),
               title: Text(_mp3Path != null
                   ? _mp3Path!.split('/').last
                   : 'Select audio file'),
@@ -1172,7 +1172,7 @@ class ReaderAudioToolbarState extends State<ReaderAudioToolbar> {
               onTap: () { Navigator.pop(ctx); _pickMp3(); },
             ),
             ListTile(
-              leading: const Icon(Icons.subtitles),
+              leading: RoleIcon(Icons.subtitles),
               title: Text(_srtPath != null
                   ? _srtPath!.split('/').last
                   : 'Select subtitle file (.srt)'),
@@ -1182,7 +1182,7 @@ class ReaderAudioToolbarState extends State<ReaderAudioToolbar> {
               onTap: () { Navigator.pop(ctx); _pickSrt(); },
             ),
             ListTile(
-              leading: const Icon(Icons.speed),
+              leading: RoleIcon(Icons.speed),
               title: const Text('Playback speed'),
               subtitle: Text('${_audioPlayer.speed.toStringAsFixed(1)}x'),
               onTap: () { Navigator.pop(ctx); _showSpeedDialog(); },
@@ -1198,14 +1198,14 @@ class ReaderAudioToolbarState extends State<ReaderAudioToolbar> {
             ),
             if (_mp3Path != null)
               ListTile(
-                leading: const Icon(Icons.clear, color: Colors.red),
+                leading: RoleIcon(Icons.clear, role: MenuRole.delete),
                 title: const Text('Remove audio',
                     style: TextStyle(color: Colors.red)),
                 onTap: () { Navigator.pop(ctx); _clearAudio(); },
               ),
             const Divider(),
             ListTile(
-              leading: const Icon(Icons.palette),
+              leading: RoleIcon(Icons.palette),
               title: Text(widget.hasSecondary
                   ? 'Primary book appearance'
                   : 'Reader appearance'),
@@ -1216,7 +1216,7 @@ class ReaderAudioToolbarState extends State<ReaderAudioToolbar> {
             ),
             if (widget.hasSecondary && widget.secondaryBookKey != null)
               ListTile(
-                leading: const Icon(Icons.palette_outlined),
+                leading: RoleIcon(Icons.palette_outlined),
                 title: const Text('Translation book appearance'),
                 onTap: () {
                   Navigator.pop(ctx);
@@ -1225,7 +1225,7 @@ class ReaderAudioToolbarState extends State<ReaderAudioToolbar> {
                 },
               ),
             ListTile(
-              leading: const Icon(Icons.menu_book),
+              leading: RoleIcon(Icons.menu_book),
               title: Text(widget.hasSecondary
                   ? (widget.secondaryTitle ?? 'Translation book')
                   : 'Set translation book'),
@@ -1239,7 +1239,7 @@ class ReaderAudioToolbarState extends State<ReaderAudioToolbar> {
             ),
             if (widget.hasSecondary)
               ListTile(
-                leading: const Icon(Icons.clear, color: Colors.red),
+                leading: RoleIcon(Icons.clear, role: MenuRole.delete),
                 title: const Text('Remove translation book',
                     style: TextStyle(color: Colors.red)),
                 onTap: () {
@@ -1249,7 +1249,7 @@ class ReaderAudioToolbarState extends State<ReaderAudioToolbar> {
               ),
             const Divider(),
             ListTile(
-              leading: const Icon(Icons.tune),
+              leading: RoleIcon(Icons.tune),
               title: const Text('Customise toolbar'),
               subtitle: const Text('Show or hide toolbar buttons'),
               onTap: () {
@@ -1261,14 +1261,19 @@ class ReaderAudioToolbarState extends State<ReaderAudioToolbar> {
             StatefulBuilder(
               builder: (sbCtx, sbSetState) {
                 final src = ReaderTtuSource.instance;
-                return SwitchListTile(
-                  secondary: const Icon(Icons.exit_to_app),
+                void toggle() {
+                  src.toggleConfirmExit();
+                  sbSetState(() {});
+                }
+
+                return ListTile(
+                  leading: const RoleIcon(Icons.exit_to_app),
                   title: Text(t.confirm_exit_reader),
-                  value: src.confirmExit,
-                  onChanged: (_) {
-                    src.toggleConfirmExit();
-                    sbSetState(() {});
-                  },
+                  trailing: PillSwitch(
+                    value: src.confirmExit,
+                    onChanged: (_) => toggle(),
+                  ),
+                  onTap: toggle,
                 );
               },
             ),
@@ -2194,7 +2199,7 @@ Future<void> showReaderToolbarCustomiseDialog(
 
   return showDialog(
     context: context,
-    builder: (ctx) => AlertDialog(
+    builder: (ctx) => PillDialog(
       title: const Text('Customise toolbar'),
       content: SizedBox(
         width: double.maxFinite,

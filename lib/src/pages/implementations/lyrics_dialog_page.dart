@@ -40,7 +40,7 @@ class _LyricsDialogPageState extends BasePageState<LyricsDialogPage> {
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
+    return PillDialog(
       contentPadding: MediaQuery.of(context).orientation == Orientation.portrait
           ? Spacing.of(context).insets.exceptBottom.big
           : Spacing.of(context).insets.exceptBottom.normal.copyWith(

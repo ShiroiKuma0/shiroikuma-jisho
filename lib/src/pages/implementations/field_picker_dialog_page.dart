@@ -29,7 +29,7 @@ class _FieldPickerDialogPageState extends BasePageState<FieldPickerDialogPage> {
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
+    return PillDialog(
       contentPadding: MediaQuery.of(context).orientation == Orientation.portrait
           ? Spacing.of(context).insets.all.big
           : Spacing.of(context).insets.all.normal,
@@ -105,7 +105,7 @@ class _FieldPickerDialogPageState extends BasePageState<FieldPickerDialogPage> {
       child: ListTile(
         leading: Icon(
           field.icon,
-          color: theme.appBarTheme.foregroundColor,
+          color: PillTheme.of(context).role(menuRoleForIcon(field.icon)),
         ),
         title: Row(
           children: [

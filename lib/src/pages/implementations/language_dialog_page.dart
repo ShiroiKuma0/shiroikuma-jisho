@@ -23,7 +23,7 @@ class LanguageDialogPage extends BasePage {
 class _LanguageDialogPageState extends BasePageState<LanguageDialogPage> {
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
+    return PillDialog(
       title: widget.isFirstTimeSetup ? Text(t.first_time_setup) : null,
       titlePadding: Spacing.of(context)
           .insets
@@ -248,7 +248,7 @@ class _CustomLanguageConfigDialogState
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
+    return PillDialog(
       title: const Text('Custom language'),
       content: SizedBox(
         width: MediaQuery.of(context).size.width * 0.85,
@@ -382,12 +382,12 @@ class _CustomLanguageConfigDialogState
   }
 
   Widget _toggle(String label, bool value, ValueChanged<bool> onChanged) {
-    return SwitchListTile(
+    return ListTile(
       dense: true,
       contentPadding: EdgeInsets.zero,
       title: Text(label, style: const TextStyle(fontSize: 13)),
-      value: value,
-      onChanged: onChanged,
+      trailing: PillSwitch(value: value, onChanged: onChanged),
+      onTap: () => onChanged(!value),
     );
   }
 }

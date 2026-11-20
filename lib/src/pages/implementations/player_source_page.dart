@@ -362,7 +362,7 @@ class _PlayerSourcePageState extends BaseSourcePageState<PlayerSourcePage>
             barrierDismissible: false,
             context: context,
             builder: (context) {
-              return AlertDialog(
+              return PillDialog(
                 title: Text(
                   t.video_unavailable,
                 ),
@@ -412,7 +412,7 @@ class _PlayerSourcePageState extends BaseSourcePageState<PlayerSourcePage>
             barrierDismissible: false,
             context: context,
             builder: (context) {
-              return AlertDialog(
+              return PillDialog(
                 title: Text(
                   t.video_file_error,
                 ),
@@ -2551,7 +2551,7 @@ class _PlayerSourcePageState extends BaseSourcePageState<PlayerSourcePage>
             Color newColor = Color(appModel.dictionaryFontColor);
             await showDialog(
               context: context,
-              builder: (context) => AlertDialog(
+              builder: (context) => PillDialog(
                 content: SingleChildScrollView(
                   child: ColorPicker(
                     pickerColor: Color(appModel.dictionaryFontColor),
@@ -2596,7 +2596,7 @@ class _PlayerSourcePageState extends BaseSourcePageState<PlayerSourcePage>
                 text: appModel.dictionaryHeadingFontSize.toString());
             await showDialog(
               context: context,
-              builder: (context) => AlertDialog(
+              builder: (context) => PillDialog(
                 content: TextField(
                   controller: sizeController,
                   keyboardType: const TextInputType.numberWithOptions(decimal: true),
@@ -2641,7 +2641,7 @@ class _PlayerSourcePageState extends BaseSourcePageState<PlayerSourcePage>
                 text: appModel.dictionaryFontSize.toString());
             await showDialog(
               context: context,
-              builder: (context) => AlertDialog(
+              builder: (context) => PillDialog(
                 content: TextField(
                   controller: sizeController,
                   keyboardType: const TextInputType.numberWithOptions(decimal: true),

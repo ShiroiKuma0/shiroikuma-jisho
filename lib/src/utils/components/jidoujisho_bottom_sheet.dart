@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shiroikumanojisho/models.dart';
+import 'package:shiroikumanojisho/src/utils/components/pills.dart';
 
 /// An option to show in a bottom sheet.
 class JidoujishoBottomSheetOption {
@@ -93,7 +94,13 @@ class JidoujishoBottomSheet extends ConsumerWidget {
           leading: Icon(
             option.icon,
             size: 20,
-            color: option.iconColor ?? rowColor,
+            // Coloured by what the option does; the active row keeps
+            // its own colour throughout.
+            color: option.iconColor ??
+                (option.active
+                    ? rowColor
+                    : PillTheme.of(context)
+                        .role(menuRoleForIcon(option.icon))),
           ),
           title: Text(
             option.label,

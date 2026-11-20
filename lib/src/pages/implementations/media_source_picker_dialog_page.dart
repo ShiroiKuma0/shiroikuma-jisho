@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:shiroikumanojisho/src/utils/components/pills.dart';
 import 'package:spaces/spaces.dart';
 import 'package:shiroikumanojisho/media.dart';
 import 'package:shiroikumanojisho/pages.dart';
@@ -24,7 +25,7 @@ class _MediaSourcePickerDialogPageState
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
+    return PillDialog(
       contentPadding: MediaQuery.of(context).orientation == Orientation.portrait
           ? Spacing.of(context).insets.all.big
           : Spacing.of(context).insets.all.normal,
@@ -79,7 +80,7 @@ class _MediaSourcePickerDialogPageState
       child: ListTile(
         leading: Icon(
           mediaSource.icon,
-          color: theme.appBarTheme.foregroundColor,
+          color: PillTheme.of(context).role(menuRoleForIcon(mediaSource.icon)),
         ),
         selected: mediaSource.uniqueKey ==
             appModel

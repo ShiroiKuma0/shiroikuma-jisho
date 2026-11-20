@@ -24,6 +24,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   pill with a › and a bold, thick frame, its explanation beneath — it no
   longer reads like a heading. Rows with their own switch, swatch, slider
   or value stay plain rows.
+- **The black-yellow look, everywhere.** Every button in the app is an
+  outlined pill, never filled and never bare text. In a dialog the one
+  action the dialog is for has a thick frame and a bold label, the ways
+  out a thin one, and a button that deletes is red. Switches are an
+  outlined pill with a dot — right and bright when on, left and dim when
+  off. Every menu row is a pill as wide as the menu, with an icon
+  coloured by what the row does (green starts or loads, blue edits,
+  cyan is about profiles, orange copies or exports, magenta hides, red
+  deletes) and a › when it opens something. The icons of the option
+  sheets, the pickers and the reader's audio menu take the same colours.
+- **白い熊 辞書 UI page.** Every row has an icon; a row with an explanation
+  has a bold label and a thin rule down its left; Export / Import… hugs
+  its label instead of spanning the page. New colours under Colours: the
+  switch that is off, the explanations, and the six menu icon colours.
+  The two button shape sliders are gone — a button is always a pill.
 - **Regenerate is a pill.** The button beside the automation token on the
   UI page is an outlined pill like the other actions, no longer bare text.
 - **Log files end in “.txt”.** The app’s error log under

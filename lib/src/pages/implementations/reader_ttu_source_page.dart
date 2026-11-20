@@ -3311,7 +3311,7 @@ class _ReaderTtuSourcePageState extends BaseSourcePageState<ReaderTtuSourcePage>
         showDialog(
           context: context,
           builder: (context) {
-            return AlertDialog(
+            return PillDialog(
               insetPadding: Spacing.of(context).insets.all.big,
               contentPadding: EdgeInsets.zero,
               content: SizedBox(

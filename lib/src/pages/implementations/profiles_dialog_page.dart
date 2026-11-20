@@ -47,7 +47,7 @@ class _ProfilesDialogPageState extends BasePageState<ProfilesDialogPage>
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
+    return PillDialog(
       contentPadding: MediaQuery.of(context).orientation == Orientation.portrait
           ? Spacing.of(context).insets.exceptBottom.big
           : Spacing.of(context).insets.exceptBottom.normal.copyWith(
@@ -214,7 +214,7 @@ class _ProfilesDialogPageState extends BasePageState<ProfilesDialogPage>
           type: MaterialType.transparency,
           child: ListTile(
             selected: appModel.lastSelectedMapping.label == mapping.label,
-            leading: const Icon(Icons.account_box),
+            leading: RoleIcon(Icons.account_box),
             title: Row(
               children: [
                 Expanded(
@@ -289,25 +289,21 @@ class _ProfilesDialogPageState extends BasePageState<ProfilesDialogPage>
     required String label,
     required Function() action,
     IconData? icon,
+    // Kept for the call sites; a row's colours come from its role.
     Color? color,
+    bool opens = false,
+    MenuRole? role,
+    bool? checked,
+    bool iconColumn = true,
   }) {
-    return PopupMenuItem<VoidCallback>(
+    return PillMenuItem<VoidCallback>(
       value: action,
-      child: Row(
-        children: [
-          if (icon != null)
-            Icon(
-              icon,
-              size: textTheme.bodyMedium?.fontSize,
-              color: color,
-            ),
-          if (icon != null) const Space.normal(),
-          Text(
-            label,
-            style: TextStyle(color: color),
-          ),
-        ],
-      ),
+      label: label,
+      icon: icon,
+      role: role,
+      opens: opens,
+      checked: checked,
+      iconColumn: iconColumn,
     );
   }
 
@@ -333,6 +329,7 @@ class _ProfilesDialogPageState extends BasePageState<ProfilesDialogPage>
       buildPopupItem(
         label: t.options_edit,
         icon: Icons.edit,
+        opens: true,
         action: () async {
           await showMappingEditDialog(mapping);
         },
@@ -362,7 +359,7 @@ class _ProfilesDialogPageState extends BasePageState<ProfilesDialogPage>
   }
 
   Future<void> showMappingDeleteDialog(AnkiMapping mapping) async {
-    Widget alertDialog = AlertDialog(
+    Widget alertDialog = PillDialog(
       title: Text(mapping.label),
       content: Text(
         t.mappings_delete_confirmation,
@@ -479,7 +476,7 @@ class _ProfilesDialogPageState extends BasePageState<ProfilesDialogPage>
         ValueListenableBuilder<bool>(
           valueListenable: notifier,
           builder: (_, value, _) {
-            return Switch(
+            return PillSwitch(
               value: value,
               onChanged: (value) {
                 mappingClone.exportMediaTags = value;
@@ -502,7 +499,7 @@ class _ProfilesDialogPageState extends BasePageState<ProfilesDialogPage>
         ValueListenableBuilder<bool>(
           valueListenable: notifier,
           builder: (_, value, _) {
-            return Switch(
+            return PillSwitch(
               value: value,
               onChanged: (value) {
                 mappingClone.useBrTags = value;
@@ -525,7 +522,7 @@ class _ProfilesDialogPageState extends BasePageState<ProfilesDialogPage>
         ValueListenableBuilder<bool>(
           valueListenable: notifier,
           builder: (_, value, _) {
-            return Switch(
+            return PillSwitch(
               value: value,
               onChanged: (value) {
                 mappingClone.prependDictionaryNames = value;
@@ -631,7 +628,7 @@ class _ProfilesDialogPageState extends BasePageState<ProfilesDialogPage>
     final spacing = Spacing.of(context);
     List<String> modelFields = await appModel.getFieldList(mapping.model);
 
-    Widget alertDialog = AlertDialog(
+    Widget alertDialog = PillDialog(
       contentPadding: mediaQuery.orientation == Orientation.portrait
           ? spacing.insets.exceptBottom.big
           : spacing.insets.exceptBottom.normal.copyWith(
@@ -690,7 +687,7 @@ class _ProfilesDialogPageState extends BasePageState<ProfilesDialogPage>
         name != AnkiMapping.standardProfileName) {
       await showDialog(
         context: context,
-        builder: (context) => AlertDialog(
+        builder: (context) => PillDialog(
           title: Text(t.error_standard_profile_name),
           content: Text(
             t.error_standard_profile_name_content,
@@ -720,7 +717,7 @@ class _ProfilesDialogPageState extends BasePageState<ProfilesDialogPage>
           appModel.mappingNameHasDuplicate(newMapping)) {
         await showDialog(
           context: context,
-          builder: (context) => AlertDialog(
+          builder: (context) => PillDialog(
             title: Text(t.error_profile_name),
             content: Text(
               t.error_profile_name_content,

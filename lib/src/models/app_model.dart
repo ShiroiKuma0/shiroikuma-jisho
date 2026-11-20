@@ -567,6 +567,25 @@ class AppModel with ChangeNotifier {
         labelSmall: textStyle,
       );
 
+  /// Pill colours of the light theme: black frames on white, the role
+  /// colours darkened so a thin glyph still reads on a white ground.
+  static const PillTheme _lightPills = PillTheme(
+    frame: Colors.black,
+    label: Colors.black,
+    background: Colors.white,
+    switchOn: Colors.red,
+    switchOff: Color(0xFF8C8C8C),
+    roles: {
+      MenuRole.call: Color(0xFF008A00),
+      MenuRole.message: Color(0xFF1F5FCC),
+      MenuRole.contact: Color(0xFF008A8A),
+      MenuRole.share: Color(0xFFC25E00),
+      MenuRole.view: Colors.black,
+      MenuRole.block: Color(0xFFB000B0),
+      MenuRole.delete: Color(0xFFD00000),
+    },
+  );
+
   /// Shows when the current mode is a light theme.
   ThemeData get theme => ThemeData(
         // Material 3 opt-out (toolchain migration, decision 3): M3 has
@@ -613,9 +632,22 @@ class AppModel with ChangeNotifier {
           shape: RoundedRectangleBorder(),
         ),
         cardColor: Colors.white,
+        // The same shapes as the dark theme, in this theme's colours.
+        extensions: const [_lightPills],
         textButtonTheme: TextButtonThemeData(
-          style: TextButton.styleFrom(
-            foregroundColor: Colors.black,
+          style: pillButtonStyle(
+              pills: _lightPills, base: textTheme.labelLarge),
+        ),
+        outlinedButtonTheme: OutlinedButtonThemeData(
+          style: pillButtonStyle(
+              pills: _lightPills, base: textTheme.labelLarge),
+        ),
+        floatingActionButtonTheme: const FloatingActionButtonThemeData(
+          backgroundColor: Colors.white,
+          foregroundColor: Colors.black,
+          elevation: 0,
+          shape: StadiumBorder(
+            side: BorderSide(width: kPillMainWidth),
           ),
         ),
         listTileTheme: ListTileThemeData(
@@ -667,9 +699,22 @@ class AppModel with ChangeNotifier {
     final dialogSide = uiTheme.dialogBorderWidth <= 0
         ? BorderSide.none
         : BorderSide(color: border, width: uiTheme.dialogBorderWidth);
-    final buttonSide = uiTheme.buttonBorderWidth <= 0
-        ? BorderSide.none
-        : BorderSide(color: border, width: uiTheme.buttonBorderWidth);
+    final pills = PillTheme(
+      frame: border,
+      label: text,
+      background: background,
+      switchOn: accent,
+      switchOff: Color(uiTheme.switchOffColor),
+      roles: {
+        MenuRole.call: Color(uiTheme.menuCallColor),
+        MenuRole.message: Color(uiTheme.menuMessageColor),
+        MenuRole.contact: Color(uiTheme.menuContactColor),
+        MenuRole.share: Color(uiTheme.menuShareColor),
+        MenuRole.view: accent,
+        MenuRole.block: Color(uiTheme.menuBlockColor),
+        MenuRole.delete: Color(uiTheme.menuDeleteColor),
+      },
+    );
     return ThemeData(
         // Material 3 opt-out — see [theme].
         useMaterial3: false,
@@ -729,7 +774,10 @@ class AppModel with ChangeNotifier {
         ),
         popupMenuTheme: PopupMenuThemeData(
           color: background,
-          shape: const RoundedRectangleBorder(),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+            side: BorderSide(color: pills.divider),
+          ),
         ),
         // Long-press hints (the result cards' quick actions and every
         // other Tooltip) in the theme's own colours — text-coloured words
@@ -756,16 +804,32 @@ class AppModel with ChangeNotifier {
           ),
         ),
         cardColor: background,
+        // Every button is an outlined pill, never a filled one and
+        // never bare text (the black-yellow pill rule). PillDialog
+        // thickens the main action of a dialog.
+        extensions: [pills],
         textButtonTheme: TextButtonThemeData(
-          style: TextButton.styleFrom(
-            foregroundColor: text,
-            padding:
-                const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-            shape: RoundedRectangleBorder(
-              borderRadius:
-                  BorderRadius.circular(uiTheme.buttonCornerRadius),
-              side: buttonSide,
-            ),
+          style: pillButtonStyle(
+              pills: pills, base: darkTextTheme.labelLarge),
+        ),
+        outlinedButtonTheme: OutlinedButtonThemeData(
+          style: pillButtonStyle(
+              pills: pills, base: darkTextTheme.labelLarge),
+        ),
+        elevatedButtonTheme: ElevatedButtonThemeData(
+          style: pillButtonStyle(
+                  pills: pills, base: darkTextTheme.labelLarge, main: true)
+              .copyWith(
+            backgroundColor: WidgetStateProperty.all(Colors.transparent),
+            elevation: WidgetStateProperty.all(0),
+          ),
+        ),
+        floatingActionButtonTheme: FloatingActionButtonThemeData(
+          backgroundColor: background,
+          foregroundColor: text,
+          elevation: 0,
+          shape: StadiumBorder(
+            side: BorderSide(color: border, width: kPillMainWidth),
           ),
         ),
         listTileTheme: ListTileThemeData(
@@ -1499,7 +1563,7 @@ class AppModel with ChangeNotifier {
 
         await showDialog(
           context: _navigatorKey.currentContext!,
-          builder: (context) => AlertDialog(
+          builder: (context) => PillDialog(
             title: Text(t.info_standard_update),
             content: Text(
               t.info_standard_update_content,
@@ -3478,7 +3542,7 @@ class AppModel with ChangeNotifier {
 
     await showDialog(
       context: _navigatorKey.currentContext!,
-      builder: (context) => AlertDialog(
+      builder: (context) => PillDialog(
         title: Text(t.error_ankidroid_api),
         content: Text(
           t.error_ankidroid_api_content,
@@ -3518,7 +3582,7 @@ class AppModel with ChangeNotifier {
 
       await showDialog(
         context: _navigatorKey.currentContext!,
-        builder: (context) => AlertDialog(
+        builder: (context) => PillDialog(
           title: Text(t.info_standard_model),
           content: Text(
             t.info_standard_model_content,
@@ -3945,7 +4009,7 @@ class AppModel with ChangeNotifier {
       if (context.mounted) {
         await showDialog(
           context: context,
-          builder: (_) => AlertDialog(
+          builder: (_) => PillDialog(
             title: Text(t.error_model_missing),
             content: Text(
               t.error_model_missing_content,
@@ -3972,7 +4036,7 @@ class AppModel with ChangeNotifier {
       if (context.mounted) {
         await showDialog(
           context: context,
-          builder: (_) => AlertDialog(
+          builder: (_) => PillDialog(
             title: Text(t.error_model_changed),
             content: Text(
               t.error_model_changed_content,

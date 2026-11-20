@@ -36,7 +36,7 @@ class _OpenStashDialogPage extends BasePageState<OpenStashDialogPage> {
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
+    return PillDialog(
       contentPadding: MediaQuery.of(context).orientation == Orientation.portrait
           ? Spacing.of(context).insets.all.big
           : Spacing.of(context).insets.all.normal,
@@ -182,7 +182,7 @@ class _OpenStashDialogPage extends BasePageState<OpenStashDialogPage> {
   void executeClear() async {
     await showDialog(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (context) => PillDialog(
         title: Text(t.stash_clear_title),
         content: Text(t.stash_clear_description),
         actions: [

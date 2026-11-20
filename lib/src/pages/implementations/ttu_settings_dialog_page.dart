@@ -28,7 +28,7 @@ class _DictionaryDialogPageState extends BasePageState {
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
+    return PillDialog(
       contentPadding: MediaQuery.of(context).orientation == Orientation.portrait
           ? Spacing.of(context).insets.exceptBottom.big
           : Spacing.of(context).insets.exceptBottom.normal.copyWith(
@@ -99,7 +99,7 @@ class _DictionaryDialogPageState extends BasePageState {
         ValueListenableBuilder<bool>(
           valueListenable: notifier,
           builder: (_, value, _) {
-            return Switch(
+            return PillSwitch(
               value: value,
               onChanged: (value) {
                 source.toggleVolumePageTurningEnabled();
@@ -124,7 +124,7 @@ class _DictionaryDialogPageState extends BasePageState {
         ValueListenableBuilder<bool>(
           valueListenable: notifier,
           builder: (_, value, _) {
-            return Switch(
+            return PillSwitch(
               value: value,
               onChanged: (value) {
                 source.toggleVolumePageTurningInverted();
@@ -149,7 +149,7 @@ class _DictionaryDialogPageState extends BasePageState {
         ValueListenableBuilder<bool>(
           valueListenable: notifier,
           builder: (_, value, _) {
-            return Switch(
+            return PillSwitch(
               value: value,
               onChanged: (value) {
                 source.toggleExtendPageBeyondNavigationBar();
@@ -173,7 +173,7 @@ class _DictionaryDialogPageState extends BasePageState {
         ValueListenableBuilder<bool>(
           valueListenable: notifier,
           builder: (_, value, _) {
-            return Switch(
+            return PillSwitch(
               value: value,
               onChanged: (value) {
                 source.toggleAdaptTtuTheme();
@@ -197,7 +197,7 @@ class _DictionaryDialogPageState extends BasePageState {
         ValueListenableBuilder<bool>(
           valueListenable: notifier,
           builder: (_, value, _) {
-            return Switch(
+            return PillSwitch(
               value: value,
               onChanged: (value) {
                 source.toggleHighlightOnTap();
@@ -221,7 +221,7 @@ class _DictionaryDialogPageState extends BasePageState {
         ValueListenableBuilder<bool>(
           valueListenable: notifier,
           builder: (_, value, _) {
-            return Switch(
+            return PillSwitch(
               value: value,
               onChanged: (value) {
                 source.toggleConfirmExit();

@@ -151,7 +151,7 @@ abstract class BaseMediaSearchBarState<T extends BaseMediaSearchBar>
 
   /// Shows when the clear search history is shown.
   void showDeleteSearchHistoryPrompt() async {
-    Widget alertDialog = AlertDialog(
+    Widget alertDialog = PillDialog(
       title: Text(t.clear_search_title),
       content: Text(
         t.clear_search_description,

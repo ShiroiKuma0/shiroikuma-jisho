@@ -43,7 +43,7 @@ class _DictionaryDialogPageState extends BasePageState {
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
+    return PillDialog(
       // Tight: the dialog's own padding used to eat as much height
       // as two rows of settings.
       contentPadding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
@@ -111,10 +111,9 @@ class _DictionaryDialogPageState extends BasePageState {
       child: Row(
         children: [
           Expanded(child: Text(label, style: _labelStyle)),
-          Switch(
+          PillSwitch(
             value: value,
             onChanged: onChanged,
-            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
           ),
         ],
       ),

@@ -142,7 +142,7 @@ class ReaderWebsocketSource extends ReaderMediaSource {
       {required BuildContext context,
       required WidgetRef ref,
       required AppModel appModel}) async {
-    Widget alertDialog = AlertDialog(
+    Widget alertDialog = PillDialog(
       title: Text(t.clear_text_title),
       content: Text(t.clear_text_description),
       actions: <Widget>[
@@ -178,7 +178,7 @@ class ReaderWebsocketSource extends ReaderMediaSource {
       {required BuildContext context,
       required WidgetRef ref,
       required AppModel appModel}) async {
-    Widget alertDialog = AlertDialog(
+    Widget alertDialog = PillDialog(
       title: Text(t.close_connection_title),
       content: Text(
         t.close_connection_description,

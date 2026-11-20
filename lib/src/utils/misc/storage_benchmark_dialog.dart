@@ -3,6 +3,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:shiroikumanojisho/src/utils/components/pills.dart';
 import 'package:isar_community/isar.dart';
 import 'package:path/path.dart' as path;
 import 'package:share_plus/share_plus.dart';
@@ -192,7 +193,7 @@ class _StorageBenchmarkDialogState extends State<StorageBenchmarkDialog> {
           ? '(benchmark not yet run)'
           : _benchmarkResult);
 
-    return AlertDialog(
+    return PillDialog(
       title: const Text('Storage & Benchmark'),
       content: SingleChildScrollView(
         child: SelectableText(

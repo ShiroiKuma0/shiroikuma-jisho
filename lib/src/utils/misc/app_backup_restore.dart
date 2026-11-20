@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:shiroikumanojisho/src/utils/components/pills.dart';
 import 'package:flutter_archive/flutter_archive.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 import 'package:intl/intl.dart';
@@ -186,7 +187,7 @@ class AppBackupRestore {
       if (context.mounted) {
         showDialog(
           context: context,
-          builder: (ctx) => AlertDialog(
+          builder: (ctx) => PillDialog(
             title: const Text('Backup complete'),
             content: Text('Saved to:\n${zipFile.path}'),
             actions: [
@@ -214,7 +215,7 @@ class AppBackupRestore {
       if (context.mounted) {
         showDialog(
           context: context,
-          builder: (ctx) => AlertDialog(
+          builder: (ctx) => PillDialog(
             title: const Text('Backup failed'),
             content: Text('$e\n\nLog: ${log.path}'),
             actions: [
@@ -272,7 +273,7 @@ class AppBackupRestore {
       if (!context.mounted) return;
       final confirmed = await showDialog<bool>(
         context: context,
-        builder: (ctx) => AlertDialog(
+        builder: (ctx) => PillDialog(
           title: const Text('Restore backup'),
           content: Text(
               'Restore from:\n${path.basename(zipPath)}\n\n'
@@ -399,7 +400,7 @@ class AppBackupRestore {
         }
         showDialog(
           context: context,
-          builder: (ctx) => AlertDialog(
+          builder: (ctx) => PillDialog(
             title: const Text('Restore failed'),
             content: Text('$e\n\nLog: ${log.path}'),
             actions: [

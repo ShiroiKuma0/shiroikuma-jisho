@@ -702,7 +702,7 @@ class _CreatorPageState extends BasePageState<CreatorPage> {
   }
 
   void showClearPrompt() async {
-    Widget alertDialog = AlertDialog(
+    Widget alertDialog = PillDialog(
       title: Text(t.clear_creator_title),
       content: Text(t.clear_creator_description),
       actions: <Widget>[
@@ -1193,25 +1193,21 @@ class _CreatorPageState extends BasePageState<CreatorPage> {
     required String label,
     required Function() action,
     IconData? icon,
+    // Kept for the call sites; a row's colours come from its role.
     Color? color,
+    bool opens = false,
+    MenuRole? role,
+    bool? checked,
+    bool iconColumn = true,
   }) {
-    return PopupMenuItem<VoidCallback>(
+    return PillMenuItem<VoidCallback>(
       value: action,
-      child: Row(
-        children: [
-          if (icon != null)
-            Icon(
-              icon,
-              size: textTheme.bodyMedium?.fontSize,
-              color: color,
-            ),
-          if (icon != null) const Space.normal(),
-          Text(
-            label,
-            style: TextStyle(color: color),
-          ),
-        ],
-      ),
+      label: label,
+      icon: icon,
+      role: role,
+      opens: opens,
+      checked: checked,
+      iconColumn: iconColumn,
     );
   }
 
@@ -1242,6 +1238,7 @@ class _CreatorPageState extends BasePageState<CreatorPage> {
     return appModel.mappings.map((mapping) {
       return buildPopupItem(
         label: mapping.label,
+        iconColumn: false,
         action: () async {
           await appModel.setLastSelectedMapping(mapping);
           setState(() {});

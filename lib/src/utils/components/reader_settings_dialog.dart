@@ -446,7 +446,7 @@ class _ReaderSettingsDialogState extends State<ReaderSettingsDialog> {
     Color chosen = current;
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
+      builder: (ctx) => PillDialog(
         backgroundColor: Colors.grey[900],
         content: SingleChildScrollView(
           child: ColorPicker(
@@ -729,7 +729,7 @@ class _ReaderSettingsDialogState extends State<ReaderSettingsDialog> {
         return StatefulBuilder(
           builder: (ctx, setDialogState) {
             final rows = buildRows();
-            return AlertDialog(
+            return PillDialog(
               backgroundColor: Colors.black,
               title: const Text('Pick a font',
                   style: TextStyle(color: _y, fontSize: 14)),
@@ -838,7 +838,7 @@ class _ReaderSettingsDialogState extends State<ReaderSettingsDialog> {
   Future<bool> _confirmRemoveFont(String name) async {
     final result = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
+      builder: (ctx) => PillDialog(
         backgroundColor: Colors.black,
         title: const Text('Remove font?',
             style: TextStyle(color: _y, fontSize: 14)),

@@ -363,7 +363,7 @@ class _RecursiveDictionaryPageState
       final String? submitted = await showDialog<String>(
         context: context,
         builder: (dialogContext) {
-          return AlertDialog(
+          return PillDialog(
             title: Text(t.search),
             content: TextField(
               controller: editingController,
@@ -487,7 +487,7 @@ class _RecursiveDictionaryPageState
   }
 
   void showDeleteSearchHistoryPrompt() async {
-    Widget alertDialog = AlertDialog(
+    Widget alertDialog = PillDialog(
       title: Text(t.clear_search_title),
       content: Text(t.clear_browser_description),
       actions: <Widget>[

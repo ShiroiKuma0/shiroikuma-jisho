@@ -29,7 +29,7 @@ class _QuickActionsPickerDialogPageState
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
+    return PillDialog(
       contentPadding: MediaQuery.of(context).orientation == Orientation.portrait
           ? Spacing.of(context).insets.all.big
           : Spacing.of(context).insets.all.normal,
@@ -106,7 +106,7 @@ class _QuickActionsPickerDialogPageState
         leading: Icon(
           quickAction.icon,
           size: textTheme.titleLarge?.fontSize,
-          color: theme.appBarTheme.foregroundColor,
+          color: PillTheme.of(context).role(menuRoleForIcon(quickAction.icon)),
         ),
         title: Row(
           children: [

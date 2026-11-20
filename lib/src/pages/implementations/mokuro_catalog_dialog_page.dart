@@ -20,7 +20,7 @@ class _MokuroCatalogDialogPageState
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
+    return PillDialog(
       contentPadding: MediaQuery.of(context).orientation == Orientation.portrait
           ? Spacing.of(context).insets.exceptBottom.big
           : Spacing.of(context).insets.exceptBottom.normal.copyWith(
@@ -114,7 +114,7 @@ class _MokuroCatalogDialogPageState
       type: MaterialType.transparency,
       key: ValueKey(catalog.id),
       child: ListTile(
-        leading: const Icon(Icons.bookmark),
+        leading: RoleIcon(Icons.bookmark),
         title: Row(
           children: [
             Expanded(

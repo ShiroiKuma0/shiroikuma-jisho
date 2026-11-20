@@ -23,7 +23,7 @@ class _MokuroCatalogManageDialogPageState
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
+    return PillDialog(
       contentPadding: MediaQuery.of(context).orientation == Orientation.portrait
           ? Spacing.of(context).insets.exceptBottom.big
           : Spacing.of(context).insets.exceptBottom.normal.copyWith(
@@ -157,7 +157,7 @@ class _MokuroCatalogManageDialogPageState
           type: MaterialType.transparency,
           child: ListTile(
             selected: _selectedOrder == catalog.order,
-            leading: const Icon(Icons.bookmark),
+            leading: RoleIcon(Icons.bookmark),
             title: Row(
               children: [
                 Expanded(
@@ -225,25 +225,21 @@ class _MokuroCatalogManageDialogPageState
     required String label,
     required Function() action,
     IconData? icon,
+    // Kept for the call sites; a row's colours come from its role.
     Color? color,
+    bool opens = false,
+    MenuRole? role,
+    bool? checked,
+    bool iconColumn = true,
   }) {
-    return PopupMenuItem<VoidCallback>(
+    return PillMenuItem<VoidCallback>(
       value: action,
-      child: Row(
-        children: [
-          if (icon != null)
-            Icon(
-              icon,
-              size: textTheme.bodyMedium?.fontSize,
-              color: color,
-            ),
-          if (icon != null) const Space.normal(),
-          Text(
-            label,
-            style: TextStyle(color: color),
-          ),
-        ],
-      ),
+      label: label,
+      icon: icon,
+      role: role,
+      opens: opens,
+      checked: checked,
+      iconColumn: iconColumn,
     );
   }
 
@@ -267,6 +263,7 @@ class _MokuroCatalogManageDialogPageState
       buildPopupItem(
         label: t.options_edit,
         icon: Icons.edit,
+        opens: true,
         action: () async {
           await showDialog(
             context: context,
@@ -287,7 +284,7 @@ class _MokuroCatalogManageDialogPageState
   }
 
   Future<void> showCatalogDeleteDialog(MokuroCatalog catalog) async {
-    Widget alertDialog = AlertDialog(
+    Widget alertDialog = PillDialog(
       title: Text(catalog.name),
       content: Text(
         t.catalog_delete_confirmation,

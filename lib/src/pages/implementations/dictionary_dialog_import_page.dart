@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:shiroikumanojisho/src/utils/components/pills.dart';
 import 'package:multi_value_listenable_builder/multi_value_listenable_builder.dart';
 import 'package:spaces/spaces.dart';
 import 'package:shiroikumanojisho/i18n/strings.g.dart';
@@ -37,7 +38,7 @@ class _DictionaryDialogImportPageState
   Widget build(BuildContext context) {
     return PopScope(
       canPop: false,
-      child: AlertDialog(
+      child: PillDialog(
         contentPadding: Spacing.of(context).insets.all.big,
         content: Row(
           mainAxisSize: MainAxisSize.min,

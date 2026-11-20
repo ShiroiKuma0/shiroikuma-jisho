@@ -75,6 +75,62 @@ class UiThemeSettings {
     _notify();
   }
 
+  /// Explanations under a setting and the rule beside them: dim gold.
+  int get noteColor => _box.get('ui_note_color', defaultValue: 0xFFC8C800);
+  set noteColor(int value) {
+    _box.put('ui_note_color', value);
+    _notify();
+  }
+
+  /// A switch that is off: a darker, opaque shade of the accent.
+  int get switchOffColor => _box.get('ui_switch_off_color', defaultValue: 0xFF8C8C00);
+  set switchOffColor(int value) {
+    _box.put('ui_switch_off_color', value);
+    _notify();
+  }
+
+  /// Icon of a menu row that starts, loads or connects something.
+  int get menuCallColor => _box.get('ui_menu_call_color', defaultValue: 0xFF00FF00);
+  set menuCallColor(int value) {
+    _box.put('ui_menu_call_color', value);
+    _notify();
+  }
+
+  /// Icon of a menu row that edits, adds or marks.
+  int get menuMessageColor => _box.get('ui_menu_message_color', defaultValue: 0xFF4D94FF);
+  set menuMessageColor(int value) {
+    _box.put('ui_menu_message_color', value);
+    _notify();
+  }
+
+  /// Icon of a menu row about a profile.
+  int get menuContactColor => _box.get('ui_menu_contact_color', defaultValue: 0xFF00FFFF);
+  set menuContactColor(int value) {
+    _box.put('ui_menu_contact_color', value);
+    _notify();
+  }
+
+  /// Icon of a menu row that copies, shares, exports or backs up.
+  int get menuShareColor => _box.get('ui_menu_share_color', defaultValue: 0xFFFF8000);
+  set menuShareColor(int value) {
+    _box.put('ui_menu_share_color', value);
+    _notify();
+  }
+
+  /// Icon of a menu row that hides, mutes or stops.
+  int get menuBlockColor => _box.get('ui_menu_block_color', defaultValue: 0xFFFF00FF);
+  set menuBlockColor(int value) {
+    _box.put('ui_menu_block_color', value);
+    _notify();
+  }
+
+  /// A row or button that deletes: icon, frame and label.
+  int get menuDeleteColor => _box.get('ui_menu_delete_color', defaultValue: 0xFFFF0000);
+  set menuDeleteColor(int value) {
+    _box.put('ui_menu_delete_color', value);
+    _notify();
+  }
+
   // ─── Typography ───
 
   /// Font family name, '' = the target language's default family.

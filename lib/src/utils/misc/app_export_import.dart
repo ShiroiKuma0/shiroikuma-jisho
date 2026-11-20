@@ -6,6 +6,7 @@ import 'dart:io';
 import 'package:collection/collection.dart';
 import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:flutter/material.dart';
+import 'package:shiroikumanojisho/src/utils/components/pills.dart';
 import 'package:flutter_archive/flutter_archive.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:fluttertoast/fluttertoast.dart';
@@ -559,7 +560,7 @@ class AppExportImport {
       if (context.mounted) {
         showDialog(
           context: context,
-          builder: (ctx) => AlertDialog(
+          builder: (ctx) => PillDialog(
             title: const Text('Export complete'),
             content: Text(
                 'Saved to:\n${zipFile.path}\n\n'
@@ -603,7 +604,7 @@ class AppExportImport {
       if (context.mounted) {
         showDialog(
           context: context,
-          builder: (ctx) => AlertDialog(
+          builder: (ctx) => PillDialog(
             title: const Text('Export failed'),
             content: Text('$e\n\nLog: ${log.logPath}'),
             actions: [
@@ -686,7 +687,7 @@ class AppExportImport {
           ? true
           : await showDialog<bool>(
               context: context,
-              builder: (ctx) => AlertDialog(
+              builder: (ctx) => PillDialog(
                 title: const Text('Import bundle'),
                 content: Text(
                   'Import from:\n${path.basename(bundlePath!)}\n\n'
@@ -1173,7 +1174,7 @@ class AppExportImport {
         }
         showDialog(
           context: context,
-          builder: (ctx) => AlertDialog(
+          builder: (ctx) => PillDialog(
             title: const Text('Import failed'),
             content: Text('$e\n\nLog: ${log.logPath}'),
             actions: [
@@ -2458,7 +2459,7 @@ class AppExportImport {
             distinctParents.add(File(item.mediaIdentifier).parent.path);
           }
           final preview = distinctParents.take(5).join('\n');
-          return AlertDialog(
+          return PillDialog(
             title: const Text('Audio paths to remap'),
             content: SingleChildScrollView(
               child: Text(
@@ -2542,7 +2543,7 @@ class AppExportImport {
       if (context.mounted) {
         await showDialog(
           context: context,
-          builder: (ctx) => AlertDialog(
+          builder: (ctx) => PillDialog(
             title: const Text('Remap result'),
             content: Text(
                 'Resolved: ${updates.length}\n'
@@ -2611,7 +2612,7 @@ class AppExportImport {
     );
     return showDialog<String?>(
       context: context,
-      builder: (ctx) => AlertDialog(
+      builder: (ctx) => PillDialog(
         title: const Text('Audio base directory'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
@@ -2961,7 +2962,7 @@ class LongOpProgressDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
+    return PillDialog(
       title: ValueListenableBuilder<String>(
         valueListenable: titleNotifier,
         builder: (_, value, _) => Text(value),

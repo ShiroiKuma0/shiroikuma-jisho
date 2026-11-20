@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:async_zip/async_zip.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:shiroikumanojisho/src/utils/components/pills.dart';
 import 'package:flutter/services.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 import 'package:intl/intl.dart';
@@ -48,7 +49,7 @@ class _JishoUiSettingsPageState extends BasePageState<JishoUiSettingsPage> {
   static const Color _warnRed = Color(0xFFFF5252);
 
   Color get _accent => Color(ui.textColor);
-  Color get _dim => _accent.withValues(alpha: 0.7);
+  Color get _dim => Color(ui.noteColor);
   Color get _border => Color(ui.borderColor);
 
   /// Latest-export display, refreshed on open and after exports.
@@ -132,7 +133,7 @@ class _JishoUiSettingsPageState extends BasePageState<JishoUiSettingsPage> {
   void _regenerateToken() async {
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
+      builder: (dialogContext) => PillDialog(
         title: const Text('Regenerate token?'),
         content: const Text(
             'Pasted copies (自由作業盤\'s 保存復元の設定) must be '
@@ -181,6 +182,8 @@ class _JishoUiSettingsPageState extends BasePageState<JishoUiSettingsPage> {
             _buildLatestExportLine(insetLeft: _insetRow),
             _actionRow(
               title: 'Export / Import…',
+              icon: Icons.import_export,
+              role: MenuRole.share,
               summary:
                   'Save or load every setting — colours, fonts, player, '
                   'reader, dictionary — as selectable categories.',
@@ -190,9 +193,11 @@ class _JishoUiSettingsPageState extends BasePageState<JishoUiSettingsPage> {
             ),
             _row(
               title: 'Automation export',
+              icon: Icons.sync,
+              role: MenuRole.call,
               summary: 'Sister apps (応用管理, 自由作業盤 保存復元) may '
                   'trigger this app\'s export and back its data up.',
-              trailing: Switch(
+              trailing: PillSwitch(
                 value: _automationEnabled,
                 onChanged: (enabled) async {
                   await _automationChannel
@@ -203,11 +208,12 @@ class _JishoUiSettingsPageState extends BasePageState<JishoUiSettingsPage> {
             ),
             _row(
               title: 'Use authorization token?',
+              icon: Icons.lock_outline,
               summary: 'Off: any sister app may drive the automation. '
                   'On: a caller must also present the token below. '
                   'Either way the data door checks the caller\'s '
                   'identity and signature.',
-              trailing: Switch(
+              trailing: PillSwitch(
                 value: _automationRequireToken,
                 onChanged: (required) async {
                   await _automationChannel.invokeMethod(
@@ -223,16 +229,9 @@ class _JishoUiSettingsPageState extends BasePageState<JishoUiSettingsPage> {
               _row(
                 title: 'Automation token',
                 summary: _abbreviatedToken(),
+                icon: Icons.vpn_key,
                 trailing: OutlinedButton(
                   onPressed: _regenerateToken,
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: _accent,
-                    shape: const StadiumBorder(),
-                    side: BorderSide(color: _accent, width: 1.25),
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    textStyle: const TextStyle(
-                        fontSize: 17, fontWeight: FontWeight.normal),
-                  ),
                   child: const Text('Regenerate'),
                 ),
                 onTap: _copyToken,
@@ -240,10 +239,12 @@ class _JishoUiSettingsPageState extends BasePageState<JishoUiSettingsPage> {
             _sectionHeader('Toolbars'),
             _row(
               title: 'Anki card creator button',
+              icon: Icons.note_add,
+              role: MenuRole.share,
               summary: 'Show the card creator at the end of the source '
                   'bar. The app bar slot it used to hold now carries the '
                   "current Reader source's add button.",
-              trailing: Switch(
+              trailing: PillSwitch(
                 value: appModel.showCardCreatorButton,
                 onChanged: (enabled) {
                   appModel.showCardCreatorButton = enabled;
@@ -253,23 +254,55 @@ class _JishoUiSettingsPageState extends BasePageState<JishoUiSettingsPage> {
             ),
             _sectionHeader('Colours'),
             _colorRow('Background', () => ui.backgroundColor,
-                (color) => ui.backgroundColor = color),
+                (color) => ui.backgroundColor = color,
+                icon: Icons.format_color_fill),
             _colorRow(
-                'Text', () => ui.textColor, (color) => ui.textColor = color),
+                'Text', () => ui.textColor, (color) => ui.textColor = color,
+                icon: Icons.format_color_text),
             _colorRow(
-                'Icons', () => ui.iconColor, (color) => ui.iconColor = color),
-            _colorRow('Borders', () => ui.borderColor,
-                (color) => ui.borderColor = color),
-            _colorRow('Accent (switches · checkboxes)', () => ui.accentColor,
-                (color) => ui.accentColor = color),
+                'Icons', () => ui.iconColor, (color) => ui.iconColor = color,
+                icon: Icons.interests),
+            _colorRow('Borders · pill frames', () => ui.borderColor,
+                (color) => ui.borderColor = color,
+                icon: Icons.border_style),
+            _colorRow('Accent (switches · sliders)', () => ui.accentColor,
+                (color) => ui.accentColor = color,
+                icon: Icons.toggle_on_outlined),
+            _colorRow('Switch that is off', () => ui.switchOffColor,
+                (color) => ui.switchOffColor = color,
+                icon: Icons.toggle_off_outlined, own: true),
+            _colorRow('Explanations', () => ui.noteColor,
+                (color) => ui.noteColor = color,
+                icon: Icons.notes, own: true),
+            _subHeader('Menu icons'),
+            _colorRow('Start · load · play', () => ui.menuCallColor,
+                (color) => ui.menuCallColor = color,
+                icon: Icons.play_circle, own: true, inset: _insetRowL2),
+            _colorRow('Edit · add · mark', () => ui.menuMessageColor,
+                (color) => ui.menuMessageColor = color,
+                icon: Icons.edit, own: true, inset: _insetRowL2),
+            _colorRow('Profiles', () => ui.menuContactColor,
+                (color) => ui.menuContactColor = color,
+                icon: Icons.switch_account, own: true, inset: _insetRowL2),
+            _colorRow('Copy · share · export', () => ui.menuShareColor,
+                (color) => ui.menuShareColor = color,
+                icon: Icons.share, own: true, inset: _insetRowL2),
+            _colorRow('Hide · stop', () => ui.menuBlockColor,
+                (color) => ui.menuBlockColor = color,
+                icon: Icons.visibility_off, own: true, inset: _insetRowL2),
+            _colorRow('Delete · clear', () => ui.menuDeleteColor,
+                (color) => ui.menuDeleteColor = color,
+                icon: Icons.delete, own: true, inset: _insetRowL2),
             _sectionHeader('Typography'),
             _row(
               title: 'Font',
+              icon: Icons.font_download_outlined,
               summary: ui.fontFamily.isEmpty ? 'System default' : ui.fontFamily,
               onTap: _showFontPicker,
             ),
             _sliderRow(
               title: 'Weight',
+              icon: Icons.format_bold,
               inset: _insetRow,
               value: ui.fontWeight.toDouble(),
               min: 100,
@@ -281,6 +314,7 @@ class _JishoUiSettingsPageState extends BasePageState<JishoUiSettingsPage> {
             ),
             _sliderRow(
               title: 'Text size (%)',
+              icon: Icons.format_size,
               inset: _insetRow,
               value: ui.fontScale.toDouble(),
               min: 50,
@@ -293,6 +327,7 @@ class _JishoUiSettingsPageState extends BasePageState<JishoUiSettingsPage> {
             _subHeader('Fonts'),
             _dictionaryFontRow(
               title: 'Heading',
+              icon: Icons.font_download_outlined,
               summary: 'The term itself, with its furigana.',
               read: () => appModel.dictionaryHeadingFontFamily,
               write: (family) =>
@@ -300,6 +335,7 @@ class _JishoUiSettingsPageState extends BasePageState<JishoUiSettingsPage> {
             ),
             _dictionaryFontRow(
               title: 'Entry',
+              icon: Icons.font_download_outlined,
               summary: 'Definitions written in the target language '
                   '(国語辞典).',
               read: () => appModel.dictionaryEntryFontFamily,
@@ -307,6 +343,7 @@ class _JishoUiSettingsPageState extends BasePageState<JishoUiSettingsPage> {
             ),
             _dictionaryFontRow(
               title: 'Translation',
+              icon: Icons.font_download_outlined,
               summary: 'Glosses in another language (JMdict and other '
                   'bilingual dictionaries).',
               read: () => appModel.dictionaryTranslationFontFamily,
@@ -316,6 +353,7 @@ class _JishoUiSettingsPageState extends BasePageState<JishoUiSettingsPage> {
             _subHeader('Sizes'),
             _sliderRow(
               title: 'Heading',
+              icon: Icons.format_size,
               inset: _insetRowL2,
               value: appModel.dictionaryHeadingFontSize,
               min: 10,
@@ -328,6 +366,7 @@ class _JishoUiSettingsPageState extends BasePageState<JishoUiSettingsPage> {
             ),
             _sliderRow(
               title: 'Furigana',
+              icon: Icons.format_size,
               inset: _insetRowL2,
               value: appModel.dictionaryHeadingRubyFontSize,
               min: 6,
@@ -341,6 +380,7 @@ class _JishoUiSettingsPageState extends BasePageState<JishoUiSettingsPage> {
             ),
             _sliderRow(
               title: 'Entry',
+              icon: Icons.format_size,
               inset: _insetRowL2,
               value: appModel.dictionaryFontSize,
               min: 10,
@@ -353,6 +393,7 @@ class _JishoUiSettingsPageState extends BasePageState<JishoUiSettingsPage> {
             ),
             _sliderRow(
               title: 'Translation',
+              icon: Icons.format_size,
               inset: _insetRowL2,
               value: appModel.dictionaryTranslationFontSize,
               min: 10,
@@ -368,6 +409,7 @@ class _JishoUiSettingsPageState extends BasePageState<JishoUiSettingsPage> {
             _subHeader('Dialogs'),
             _sliderRow(
               title: 'Border width',
+              icon: Icons.border_outer,
               inset: _insetRowL2,
               value: ui.dialogBorderWidth,
               min: 0,
@@ -378,33 +420,13 @@ class _JishoUiSettingsPageState extends BasePageState<JishoUiSettingsPage> {
             ),
             _sliderRow(
               title: 'Corner radius',
+              icon: Icons.rounded_corner,
               inset: _insetRowL2,
               value: ui.dialogCornerRadius,
               min: 0,
               max: 24,
               display: (value) => value.round().toString(),
               onChanged: (value) => ui.dialogCornerRadius = value.roundToDouble(),
-            ),
-            _subHeader('Buttons'),
-            _sliderRow(
-              title: 'Border width',
-              inset: _insetRowL2,
-              value: ui.buttonBorderWidth,
-              min: 0,
-              max: 8,
-              display: (value) => value.toStringAsFixed(1),
-              onChanged: (value) =>
-                  ui.buttonBorderWidth = (value * 2).round() / 2,
-            ),
-            _sliderRow(
-              title: 'Corner radius',
-              inset: _insetRowL2,
-              value: ui.buttonCornerRadius,
-              min: 0,
-              max: 50,
-              display: (value) => value.round().toString(),
-              onChanged: (value) =>
-                  ui.buttonCornerRadius = value.roundToDouble(),
             ),
             _buildShapeSample(),
             const SizedBox(height: 24),
@@ -428,7 +450,7 @@ class _JishoUiSettingsPageState extends BasePageState<JishoUiSettingsPage> {
             Container(
               height: 1,
               margin: const EdgeInsets.only(top: 6),
-              color: _accent.withValues(alpha: 0.35),
+              color: PillTheme.of(context).divider,
             ),
           Padding(
             padding: const EdgeInsets.only(
@@ -486,35 +508,74 @@ class _JishoUiSettingsPageState extends BasePageState<JishoUiSettingsPage> {
     );
   }
 
+  /// The page's one icon column: every row keeps it, so labels share
+  /// an edge. The icon is coloured by what its row is about.
+  Widget _leading(IconData? icon, MenuRole role, [Color? color]) {
+    return SizedBox(
+      width: 30,
+      child: icon == null
+          ? null
+          : Align(
+              alignment: Alignment.centerLeft,
+              child: Icon(icon,
+                  size: 21, color: color ?? PillTheme.of(context).role(role)),
+            ),
+    );
+  }
+
+  /// A plain row: a label, perhaps an explanation, and its own control
+  /// at the right. An explained row has a bold label and a thin dim
+  /// rule down its left edge; [note] false marks a summary that is a
+  /// value (a colour, a font name), not an explanation.
   Widget _row({
     required String title,
     String? summary,
     Widget? trailing,
     VoidCallback? onTap,
     double inset = _insetRow,
+    IconData? icon,
+    MenuRole role = MenuRole.view,
+    Color? iconColor,
+    bool note = true,
   }) {
+    final explained = summary != null && note;
     return InkWell(
       onTap: onTap,
       child: Padding(
         padding:
-            EdgeInsets.only(left: inset, right: 16, top: 1, bottom: 1),
+            EdgeInsets.only(left: inset, right: 16, top: 2, bottom: 2),
         child: Row(
           children: [
+            _leading(icon, role, iconColor),
             Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(title,
-                      style: TextStyle(
-                          fontSize: 19, height: 1.1, color: _accent)),
-                  if (summary != null)
-                    Text(summary,
+              child: Container(
+                decoration: explained
+                    ? BoxDecoration(
+                        border: Border(
+                            left: BorderSide(color: _dim, width: 2)),
+                      )
+                    : null,
+                padding: EdgeInsets.only(left: explained ? 10 : 0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(title,
                         style: TextStyle(
-                            fontSize: 15, height: 1.1, color: _dim)),
-                ],
+                            fontSize: 19,
+                            height: 1.1,
+                            fontWeight: explained
+                                ? FontWeight.bold
+                                : FontWeight.normal,
+                            color: _accent)),
+                    if (summary != null)
+                      Text(summary,
+                          style: TextStyle(
+                              fontSize: 15, height: 1.1, color: _dim)),
+                  ],
+                ),
               ),
             ),
-            if (trailing != null) trailing,
+            if (trailing != null) ...[const SizedBox(width: 8), trailing],
           ],
         ),
       ),
@@ -522,13 +583,13 @@ class _JishoUiSettingsPageState extends BasePageState<JishoUiSettingsPage> {
   }
 
   /// A row that does something when tapped — opens a screen, picker or
-  /// panel, or runs an action — drawn as a full-width outlined pill so
-  /// it never reads as a heading or a note. [main] (the section's one
-  /// panel) gets the thick 3 dp frame and a bold label; [opens] adds
-  /// the › of a row that leads somewhere. The explanation sits beneath
-  /// the pill, aligned with the label, and is not part of the target.
-  /// Rows with their own control (switch, swatch, slider, value) stay
-  /// plain [_row]s.
+  /// panel, or runs an action — drawn as an outlined pill that hugs its
+  /// label, so it never reads as a heading, a note or a banner. [main]
+  /// (the section's one panel) gets the thick 3 dp frame and a bold
+  /// label; [opens] adds the › of a row that leads somewhere. The
+  /// explanation sits beneath the pill, aligned with the label, and is
+  /// not part of the target. Rows with their own control (switch,
+  /// swatch, slider, value) stay plain [_row]s.
   Widget _actionRow({
     required String title,
     required VoidCallback onTap,
@@ -536,52 +597,73 @@ class _JishoUiSettingsPageState extends BasePageState<JishoUiSettingsPage> {
     bool main = false,
     bool opens = false,
     double inset = _insetRow,
+    IconData? icon,
+    MenuRole role = MenuRole.view,
   }) {
     const double labelInset = 16;
+    final frame = Color(ui.borderColor);
     final shape = StadiumBorder(
-      side: BorderSide(color: _accent, width: main ? 3 : 1.25),
+      side: BorderSide(
+          color: frame, width: main ? kPillMainWidth : kPillRegularWidth),
     );
     return Padding(
-      padding: EdgeInsets.only(left: inset, right: 16, top: 4, bottom: 2),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+      padding: EdgeInsets.only(left: inset, right: 16, top: 3, bottom: 3),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Material(
-            type: MaterialType.transparency,
-            shape: shape,
-            clipBehavior: Clip.antiAlias,
-            child: InkWell(
-              onTap: onTap,
-              customBorder: shape,
-              child: Padding(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: labelInset, vertical: 8),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Text(title,
-                          style: TextStyle(
-                              fontSize: 19,
-                              height: 1.1,
-                              fontWeight:
-                                  main ? FontWeight.bold : FontWeight.normal,
-                              color: _accent)),
+          Padding(
+            padding: const EdgeInsets.only(top: 9),
+            child: _leading(icon, role),
+          ),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Material(
+                  type: MaterialType.transparency,
+                  shape: shape,
+                  clipBehavior: Clip.antiAlias,
+                  child: InkWell(
+                    onTap: onTap,
+                    customBorder: const StadiumBorder(),
+                    splashColor: _accent.withValues(alpha: 0.3),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: labelInset, vertical: 9),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Flexible(
+                            child: Text(title,
+                                style: TextStyle(
+                                    fontSize: 19,
+                                    height: 1.1,
+                                    fontWeight: main
+                                        ? FontWeight.bold
+                                        : FontWeight.normal,
+                                    color: _accent)),
+                          ),
+                          if (opens) ...[
+                            const SizedBox(width: 10),
+                            Text('›',
+                                style: TextStyle(
+                                    fontSize: 24, height: 1, color: _accent)),
+                          ],
+                        ],
+                      ),
                     ),
-                    if (opens)
-                      Text('›',
-                          style: TextStyle(
-                              fontSize: 24, height: 1, color: _accent)),
-                  ],
+                  ),
                 ),
-              ),
+                if (summary != null)
+                  Padding(
+                    padding: const EdgeInsets.only(left: labelInset, top: 2),
+                    child: Text(summary,
+                        style:
+                            TextStyle(fontSize: 15, height: 1.1, color: _dim)),
+                  ),
+              ],
             ),
           ),
-          if (summary != null)
-            Padding(
-              padding: const EdgeInsets.only(left: labelInset, top: 2),
-              child: Text(summary,
-                  style: TextStyle(fontSize: 15, height: 1.1, color: _dim)),
-            ),
         ],
       ),
     );
@@ -596,14 +678,23 @@ class _JishoUiSettingsPageState extends BasePageState<JishoUiSettingsPage> {
     required String Function(double) display,
     required ValueChanged<double> onChanged,
     int? divisions,
+    IconData? icon,
   }) {
     return Padding(
       padding: EdgeInsets.only(left: inset, right: 16, top: 0, bottom: 0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(title,
-              style: TextStyle(fontSize: 19, height: 1.1, color: _accent)),
+          Row(
+            children: [
+              _leading(icon, MenuRole.view),
+              Expanded(
+                child: Text(title,
+                    style: TextStyle(
+                        fontSize: 19, height: 1.1, color: _accent)),
+              ),
+            ],
+          ),
           Row(
             children: [
               Expanded(
@@ -662,11 +753,18 @@ class _JishoUiSettingsPageState extends BasePageState<JishoUiSettingsPage> {
   String _hex(int color) =>
       '#${color.toRadixString(16).toUpperCase().padLeft(8, '0')}';
 
+  /// [own] colours the row's icon with the colour the row sets — for
+  /// the roles that are themselves icon or note colours.
   Widget _colorRow(
-      String title, int Function() getter, ValueChanged<int> setter) {
+      String title, int Function() getter, ValueChanged<int> setter,
+      {IconData? icon, bool own = false, double inset = _insetRow}) {
     return _row(
       title: title,
       summary: _hex(getter()),
+      note: false,
+      inset: inset,
+      icon: icon,
+      iconColor: own ? Color(getter()) : null,
       trailing: Container(
         width: 38,
         height: 38,
@@ -719,10 +817,12 @@ class _JishoUiSettingsPageState extends BasePageState<JishoUiSettingsPage> {
     required String summary,
     required String Function() read,
     required void Function(String family) write,
+    IconData? icon,
   }) {
     final String family = read();
     return _row(
       title: title,
+      icon: icon,
       summary: summary,
       inset: _insetRowL2,
       onTap: () => _showFontPicker(
@@ -763,7 +863,7 @@ class _JishoUiSettingsPageState extends BasePageState<JishoUiSettingsPage> {
       context: context,
       builder: (context) {
         final families = ['', ...ui.externalFontFamilies];
-        return AlertDialog(
+        return PillDialog(
           title: Text(title),
           contentPadding: const EdgeInsets.symmetric(vertical: 12),
           content: SizedBox(
@@ -1017,7 +1117,7 @@ class _ExportImportPanelState extends State<_ExportImportPanel> {
   Widget build(BuildContext context) {
     final latest =
         UiSettingsExport.latestAnyExport(ui.exportDirectory);
-    return AlertDialog(
+    return PillDialog(
       contentPadding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
       content: SizedBox(
         width: double.maxFinite,
@@ -1280,7 +1380,7 @@ class _ExportImportPanelState extends State<_ExportImportPanel> {
       await showDialog(
         context: context,
         barrierDismissible: false,
-        builder: (dialogContext) => AlertDialog(
+        builder: (dialogContext) => PillDialog(
           title: Text(
             '✓ Export complete',
             style: TextStyle(
@@ -1347,7 +1447,7 @@ class _ExportImportPanelState extends State<_ExportImportPanel> {
       } else
       file = await showDialog<File>(
         context: context,
-        builder: (dialogContext) => AlertDialog(
+        builder: (dialogContext) => PillDialog(
           title: const Text('Import which export?'),
           contentPadding: const EdgeInsets.symmetric(vertical: 12),
           content: SizedBox(
@@ -1474,7 +1574,7 @@ class _ExportImportPanelState extends State<_ExportImportPanel> {
     await showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (dialogContext) => AlertDialog(
+      builder: (dialogContext) => PillDialog(
         title: Text(
           '✓ Import — 100% success',
           style: TextStyle(
@@ -1545,7 +1645,7 @@ class _RgbaColorPickerDialogState extends State<_RgbaColorPickerDialog> {
     final previewTextColor =
         (luminance < 128 || _alpha < 128) ? Colors.white : Colors.black;
 
-    return AlertDialog(
+    return PillDialog(
       title: const Text('Pick a colour'),
       contentPadding:
           const EdgeInsets.symmetric(horizontal: 20, vertical: 10),

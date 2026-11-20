@@ -37,7 +37,7 @@ class _BrowserBookmarkDialogPageState
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
+    return PillDialog(
       contentPadding: Spacing.of(context).insets.all.big,
       content: buildContent(),
       actions: actions,

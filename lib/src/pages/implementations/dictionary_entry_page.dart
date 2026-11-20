@@ -250,7 +250,7 @@ class _DictionaryEntryTagsWrap extends ConsumerWidget {
 
     return [
       ...filteredActions.map((quickAction) {
-        return PopupMenuItem<VoidCallback>(
+        return PillMenuItem<VoidCallback>(
           value: () async {
             await quickAction.executeAction(
               context: context,
@@ -263,19 +263,9 @@ class _DictionaryEntryTagsWrap extends ConsumerWidget {
 
             ref.invalidate(quickActionColorProvider(heading));
           },
-          child: Row(
-            children: [
-              Icon(
-                quickAction.icon,
-                size: Theme.of(context).textTheme.bodyMedium?.fontSize,
-              ),
-              const Space.normal(),
-              Text(
-                quickAction.getLocalisedLabel(appModel),
-                style: Theme.of(context).textTheme.bodyMedium,
-              ),
-            ],
-          ),
+          label: quickAction.getLocalisedLabel(appModel),
+          icon: quickAction.icon,
+          opens: quickAction is CardCreatorAction,
         );
       }),
     ];

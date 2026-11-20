@@ -112,7 +112,7 @@ class BaseSourcePageState<T extends BaseSourcePage> extends BasePageState<T> {
       return true;
     }
 
-    Widget alertDialog = AlertDialog(
+    Widget alertDialog = PillDialog(
       // Shape inherited from the dialog theme (yellow rounded border in
       // dark mode).
       title: Text(t.exit_media_title),

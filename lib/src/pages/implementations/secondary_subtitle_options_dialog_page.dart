@@ -64,7 +64,7 @@ class _SecondarySubtitleOptionsDialogPage
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
+    return PillDialog(
       contentPadding: MediaQuery.of(context).orientation == Orientation.portrait
           ? Spacing.of(context).insets.exceptBottom.big
           : Spacing.of(context).insets.exceptBottom.normal.copyWith(
@@ -427,7 +427,7 @@ class _SecondarySubtitleOptionsDialogPage
     showDialog(
         context: context,
         builder: (context) {
-          return AlertDialog(
+          return PillDialog(
             content: SingleChildScrollView(
               child: ColorPicker(
                 pickerColor: target == 'Font'

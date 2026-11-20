@@ -48,7 +48,7 @@ class _SwitchSettingsPageState<T> extends BasePageState<SwitchSettingsPage<T>> {
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
+    return PillDialog(
       contentPadding: MediaQuery.of(context).orientation == Orientation.portrait
           ? Spacing.of(context).insets.all.big
           : Spacing.of(context).insets.all.normal,
@@ -83,7 +83,7 @@ class _SwitchSettingsPageState<T> extends BasePageState<SwitchSettingsPage<T>> {
                     ValueListenableBuilder<bool>(
                       valueListenable: notifier,
                       builder: (_, value, _) {
-                        return Switch(
+                        return PillSwitch(
                           value: value,
                           onChanged: (value) {
                             notifier.value = !notifier.value;

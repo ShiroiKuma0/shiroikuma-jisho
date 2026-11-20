@@ -34,7 +34,7 @@ class _CropImageDialogPageState extends BasePageState<CropImageDialogPage> {
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
+    return PillDialog(
       contentPadding: Spacing.of(context).insets.all.normal,
       actionsPadding: Spacing.of(context).insets.horizontal.normal,
       content: SizedBox(

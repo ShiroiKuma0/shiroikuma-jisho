@@ -55,7 +55,7 @@ class _DictionaryDownloadDialogPageState
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
+    return PillDialog(
       title: Text(widget.isFirstTimeSetup
           ? t.download_dictionaries_first_time
           : t.download_dictionaries),

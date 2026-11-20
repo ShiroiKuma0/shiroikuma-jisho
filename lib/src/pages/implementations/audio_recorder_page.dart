@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:audio_session/audio_session.dart';
 import 'package:flutter/material.dart';
+import 'package:shiroikumanojisho/src/utils/components/pills.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:multi_value_listenable_builder/multi_value_listenable_builder.dart';
@@ -48,7 +49,7 @@ class _AudioRecorderDialogPageState
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
+    return PillDialog(
       contentPadding: Spacing.of(context).insets.all.small,
       content: buildContent(),
       actions: [

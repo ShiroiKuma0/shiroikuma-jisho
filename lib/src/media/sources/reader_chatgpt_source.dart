@@ -119,7 +119,7 @@ class ReaderChatgptSource extends ReaderMediaSource {
       {required BuildContext context,
       required WidgetRef ref,
       required AppModel appModel}) async {
-    Widget alertDialog = AlertDialog(
+    Widget alertDialog = PillDialog(
       title: Text(t.clear_message_title),
       content: Text(t.clear_message_description),
       actions: <Widget>[

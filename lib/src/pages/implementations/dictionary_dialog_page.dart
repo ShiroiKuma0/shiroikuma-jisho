@@ -26,7 +26,7 @@ class _DictionaryDialogPageState extends BasePageState with ChangeNotifier {
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
+    return PillDialog(
       contentPadding: MediaQuery.of(context).orientation == Orientation.portrait
           ? Spacing.of(context).insets.exceptBottom.big
           : Spacing.of(context).insets.exceptBottom.normal.copyWith(
@@ -51,7 +51,7 @@ class _DictionaryDialogPageState extends BasePageState with ChangeNotifier {
       ];
 
   Future<void> showDictionaryClearDialog() async {
-    Widget alertDialog = AlertDialog(
+    Widget alertDialog = PillDialog(
       title: Text(t.dialog_title_dictionary_clear),
       content: Text(
         t.dialog_content_dictionary_clear,
@@ -130,7 +130,7 @@ class _DictionaryDialogPageState extends BasePageState with ChangeNotifier {
   }
 
   Future<void> showDictionaryDeleteDialog(Dictionary dictionary) async {
-    Widget alertDialog = AlertDialog(
+    Widget alertDialog = PillDialog(
       title: Text(t.dialog_title_dictionary_delete(name: dictionary.name)),
       content: Text(
         t.dialog_content_dictionary_delete,
@@ -572,25 +572,21 @@ class _DictionaryDialogPageState extends BasePageState with ChangeNotifier {
     required String label,
     required Function() action,
     IconData? icon,
+    // Kept for the call sites; a row's colours come from its role.
     Color? color,
+    bool opens = false,
+    MenuRole? role,
+    bool? checked,
+    bool iconColumn = true,
   }) {
-    return PopupMenuItem<VoidCallback>(
+    return PillMenuItem<VoidCallback>(
       value: action,
-      child: Row(
-        children: [
-          if (icon != null)
-            Icon(
-              icon,
-              size: textTheme.bodyMedium?.fontSize,
-              color: color,
-            ),
-          if (icon != null) const Space.normal(),
-          Text(
-            label,
-            style: TextStyle(color: color),
-          ),
-        ],
-      ),
+      label: label,
+      icon: icon,
+      role: role,
+      opens: opens,
+      checked: checked,
+      iconColumn: iconColumn,
     );
   }
 

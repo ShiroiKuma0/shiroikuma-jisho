@@ -514,18 +514,11 @@ class _DictionaryTabs extends ConsumerWidget {
       color: Theme.of(context).popupMenuTheme.color,
       items: actions
           .map(
-            (action) => PopupMenuItem<QuickAction>(
+            (action) => PillMenuItem<QuickAction>(
               value: action,
-              child: Row(
-                children: [
-                  Icon(
-                    action.icon,
-                    size: Theme.of(context).textTheme.bodyMedium?.fontSize,
-                  ),
-                  const Space.normal(),
-                  Text(action.getLocalisedLabel(appModel)),
-                ],
-              ),
+              label: action.getLocalisedLabel(appModel),
+              icon: action.icon,
+              opens: action is CardCreatorAction,
             ),
           )
           .toList(),

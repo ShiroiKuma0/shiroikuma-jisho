@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:shiroikumanojisho/src/utils/components/pills.dart';
 import 'package:spaces/spaces.dart';
 import 'package:shiroikumanojisho/i18n/strings.g.dart';
 import 'package:shiroikumanojisho/pages.dart';
@@ -26,7 +27,7 @@ class _DictionaryDialogDeletePageState
   Widget build(BuildContext context) {
     return PopScope(
       canPop: false,
-      child: AlertDialog(
+      child: PillDialog(
         contentPadding: Spacing.of(context).insets.all.big,
         content: Row(
           mainAxisSize: MainAxisSize.min,

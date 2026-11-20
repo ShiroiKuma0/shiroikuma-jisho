@@ -339,27 +339,12 @@ class _HomePageState extends BasePageState<HomePage>
       },
       itemBuilder: (context) => candidates.map((lang) {
         final bool selected = lang.languageCode == current.languageCode;
-        return PopupMenuItem<Language>(
+        // A list of choices: the current one carries the tick.
+        return PillMenuItem<Language>(
           value: lang,
-          child: Row(
-            children: [
-              Icon(
-                selected ? Icons.check : Icons.language,
-                size: textTheme.bodyMedium?.fontSize,
-                color: selected ? theme.colorScheme.primary : null,
-              ),
-              const Space.normal(),
-              Expanded(
-                child: Text(
-                  lang.languageName,
-                  style: TextStyle(
-                    fontWeight:
-                        selected ? FontWeight.bold : FontWeight.normal,
-                  ),
-                ),
-              ),
-            ],
-          ),
+          label: lang.languageName,
+          icon: selected ? Icons.check : Icons.language,
+          role: selected ? MenuRole.call : MenuRole.view,
         );
       }).toList(),
     );
@@ -433,34 +418,21 @@ class _HomePageState extends BasePageState<HomePage>
     required String label,
     required Function() action,
     IconData? icon,
+    // Kept for the call sites; a row's colours come from its role.
     Color? color,
+    bool opens = true,
+    MenuRole? role,
+    bool? checked,
+    bool iconColumn = true,
   }) {
-    return PopupMenuItem<VoidCallback>(
+    return PillMenuItem<VoidCallback>(
       value: action,
-      child: Row(
-        children: [
-          if (icon != null)
-            Icon(
-              icon,
-              size: textTheme.bodyMedium?.fontSize,
-              color: color,
-            ),
-          if (icon != null) const Space.normal(),
-          // Flexible + soft wrap so long labels (e.g. "Reader audio
-          // toolbar height", "Import data (cross-device)") wrap to a
-          // second line within the menu's width rather than running
-          // off the right edge of the screen and clipping. Without
-          // this the Text reports its full single-line intrinsic
-          // width and the Row overflows the popup menu's box.
-          Flexible(
-            child: Text(
-              label,
-              style: TextStyle(color: color),
-              softWrap: true,
-            ),
-          ),
-        ],
-      ),
+      label: label,
+      icon: icon,
+      role: role,
+      opens: opens,
+      checked: checked,
+      iconColumn: iconColumn,
     );
   }
 
@@ -507,7 +479,7 @@ class _HomePageState extends BasePageState<HomePage>
     );
     final saved = await showDialog<String?>(
       context: context,
-      builder: (ctx) => AlertDialog(
+      builder: (ctx) => PillDialog(
         title: const Text('Custom storage path'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
@@ -567,7 +539,7 @@ class _HomePageState extends BasePageState<HomePage>
     );
     final saved = await showDialog<int?>(
       context: context,
-      builder: (ctx) => AlertDialog(
+      builder: (ctx) => PillDialog(
         title: const Text('Home tabs bar height'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
@@ -628,7 +600,7 @@ class _HomePageState extends BasePageState<HomePage>
     );
     final saved = await showDialog<int?>(
       context: context,
-      builder: (ctx) => AlertDialog(
+      builder: (ctx) => PillDialog(
         title: const Text('Reader audio toolbar height'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
@@ -705,7 +677,7 @@ class _HomePageState extends BasePageState<HomePage>
     Color newColor = Color(appModel.darkThemeTextColor);
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (context) => PillDialog(
         content: SingleChildScrollView(
           child: ColorPicker(
             pickerColor: Color(appModel.darkThemeTextColor),
@@ -748,7 +720,7 @@ class _HomePageState extends BasePageState<HomePage>
 
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
+      builder: (ctx) => PillDialog(
         title: const Text('Clear reader cache'),
         content: Text(
             'This will free roughly ${formatBytes(estimate)} of WebView '
@@ -773,7 +745,7 @@ class _HomePageState extends BasePageState<HomePage>
     if (!context.mounted) return;
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
+      builder: (ctx) => PillDialog(
         title: const Text('Cache cleared'),
         content: Text('Freed ${formatBytes(freed)}.'),
         actions: [
@@ -828,7 +800,7 @@ class _HomePageState extends BasePageState<HomePage>
     }
     await showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
+      builder: (ctx) => PillDialog(
         title: const Text('OCR test'),
         content: SingleChildScrollView(
           child: SelectableText(resultText),
@@ -855,6 +827,7 @@ class _HomePageState extends BasePageState<HomePage>
             appModel.isDarkMode ? t.options_theme_light : t.options_theme_dark,
         icon: appModel.isDarkMode ? Icons.light_mode : Icons.dark_mode,
         action: appModel.toggleDarkMode,
+        opens: false,
       ),
       // if ((appModel.androidDeviceInfo.version.sdkInt ?? 0) >= 33)
       //   buildPopupItem(
@@ -939,6 +912,7 @@ class _HomePageState extends BasePageState<HomePage>
         label: 'Clear reader cache',
         icon: Icons.cleaning_services,
         action: clearReaderCacheAction,
+        opens: false,
       ),
       buildPopupItem(
         label: t.options_attribution,

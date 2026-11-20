@@ -17,7 +17,7 @@ Future<String?> _askName(BuildContext context,
   final controller = TextEditingController(text: initial);
   return showDialog<String>(
     context: context,
-    builder: (context) => AlertDialog(
+    builder: (context) => PillDialog(
       title: Text(title),
       content: TextField(
         controller: controller,
@@ -77,7 +77,7 @@ class _WordListPickerDialogState extends ConsumerState<WordListPickerDialog> {
         ? widget.term
         : '${widget.term}【${widget.reading}】';
 
-    return AlertDialog(
+    return PillDialog(
       title: Text(heading),
       contentPadding: const EdgeInsets.fromLTRB(12, 16, 12, 0),
       content: SizedBox(
@@ -167,7 +167,7 @@ class _WordListsPageState extends ConsumerState<WordListsPage> {
       body: ListView(
         children: lists
             .map((list) => ListTile(
-                  leading: const Icon(Icons.star),
+                  leading: RoleIcon(Icons.star),
                   title: Text(list.name),
                   trailing: Text('${WordLists.count(db, list)}'),
                   onTap: () async {
@@ -224,13 +224,31 @@ class _WordListPageState extends ConsumerState<WordListPage> {
           PopupMenuButton<_Menu>(
             onSelected: _onMenu,
             itemBuilder: (context) => [
-              PopupMenuItem(value: _Menu.csv, child: Text(t.word_list_csv)),
-              PopupMenuItem(value: _Menu.tsv, child: Text(t.word_list_tsv)),
-              PopupMenuItem(value: _Menu.anki, child: Text(t.word_list_anki)),
-              PopupMenuItem(
-                  value: _Menu.rename, child: Text(t.word_list_rename)),
-              PopupMenuItem(
-                  value: _Menu.delete, child: Text(t.word_list_delete)),
+              PillMenuItem(
+                  value: _Menu.csv,
+                  label: t.word_list_csv,
+                  icon: Icons.table_rows,
+                  opens: true),
+              PillMenuItem(
+                  value: _Menu.tsv,
+                  label: t.word_list_tsv,
+                  icon: Icons.table_chart,
+                  opens: true),
+              PillMenuItem(
+                  value: _Menu.anki,
+                  label: t.word_list_anki,
+                  icon: Icons.style,
+                  opens: true),
+              const PillMenuDivider(),
+              PillMenuItem(
+                  value: _Menu.rename,
+                  label: t.word_list_rename,
+                  icon: Icons.drive_file_rename_outline,
+                  opens: true),
+              PillMenuItem(
+                  value: _Menu.delete,
+                  label: t.word_list_delete,
+                  icon: Icons.delete),
             ],
           ),
         ],
@@ -315,7 +333,7 @@ class _WordListPageState extends ConsumerState<WordListPage> {
       case _Menu.delete:
         final confirmed = await showDialog<bool>(
           context: context,
-          builder: (context) => AlertDialog(
+          builder: (context) => PillDialog(
             title: Text(t.word_list_delete),
             content: Text(t.word_list_delete_description(
                 name: widget.list.name,
@@ -351,7 +369,7 @@ class _WordListPageState extends ConsumerState<WordListPage> {
       barrierDismissible: false,
       builder: (context) => PopScope(
         canPop: false,
-        child: AlertDialog(
+        child: PillDialog(
           content: ValueListenableBuilder<int>(
             valueListenable: done,
             builder: (context, value, _) => Column(
@@ -414,7 +432,7 @@ class _WordListPageState extends ConsumerState<WordListPage> {
     if (entries.isEmpty) return;
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (context) => PillDialog(
         title: Text(t.word_list_anki),
         content: Text(t.word_list_anki_description(
           count: entries.length,
