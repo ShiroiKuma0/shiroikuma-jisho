@@ -1418,8 +1418,7 @@ class ReaderAudioToolbarState extends State<ReaderAudioToolbar> {
               children: [
                 _navHeader(hasSecondary ? 'Primary book' : 'Book'),
                 ListTile(
-                  leading: const Icon(Icons.arrow_back,
-                      color: Color(0xFFFFFF00)),
+                  leading: const RoleIcon(Icons.arrow_back),
                   title: const Text('Previous chapter',
                       style: TextStyle(color: Color(0xFFFFFF00))),
                   onTap: () {
@@ -1431,8 +1430,7 @@ class ReaderAudioToolbarState extends State<ReaderAudioToolbar> {
                   },
                 ),
                 ListTile(
-                  leading: const Icon(Icons.arrow_forward,
-                      color: Color(0xFFFFFF00)),
+                  leading: const RoleIcon(Icons.arrow_forward),
                   title: const Text('Next chapter',
                       style: TextStyle(color: Color(0xFFFFFF00))),
                   onTap: () {
@@ -1444,8 +1442,7 @@ class ReaderAudioToolbarState extends State<ReaderAudioToolbar> {
                   },
                 ),
                 ListTile(
-                  leading: const Icon(Icons.search,
-                      color: Color(0xFFFFFF00)),
+                  leading: const RoleIcon(Icons.search),
                   title: const Text('Go to page…',
                       style: TextStyle(color: Color(0xFFFFFF00))),
                   onTap: () {
@@ -1457,8 +1454,7 @@ class ReaderAudioToolbarState extends State<ReaderAudioToolbar> {
                   const Divider(color: Color(0xFFFFFF00), height: 1),
                   _navHeader('Translation book'),
                   ListTile(
-                    leading: const Icon(Icons.arrow_back,
-                        color: Color(0xFFFFFF00)),
+                    leading: const RoleIcon(Icons.arrow_back),
                     title: const Text('Previous chapter',
                         style: TextStyle(color: Color(0xFFFFFF00))),
                     onTap: () {
@@ -1470,8 +1466,7 @@ class ReaderAudioToolbarState extends State<ReaderAudioToolbar> {
                     },
                   ),
                   ListTile(
-                    leading: const Icon(Icons.arrow_forward,
-                        color: Color(0xFFFFFF00)),
+                    leading: const RoleIcon(Icons.arrow_forward),
                     title: const Text('Next chapter',
                         style: TextStyle(color: Color(0xFFFFFF00))),
                     onTap: () {
@@ -1483,8 +1478,7 @@ class ReaderAudioToolbarState extends State<ReaderAudioToolbar> {
                     },
                   ),
                   ListTile(
-                    leading: const Icon(Icons.search,
-                        color: Color(0xFFFFFF00)),
+                    leading: const RoleIcon(Icons.search),
                     title: const Text('Go to page…',
                         style: TextStyle(color: Color(0xFFFFFF00))),
                     onTap: () {
@@ -1497,8 +1491,7 @@ class ReaderAudioToolbarState extends State<ReaderAudioToolbar> {
                   const Divider(color: Color(0xFFFFFF00), height: 1),
                   _navHeader('Audio'),
                   ListTile(
-                    leading: const Icon(Icons.access_time,
-                        color: Color(0xFFFFFF00)),
+                    leading: const RoleIcon(Icons.access_time),
                     title: const Text('Go to time…',
                         style: TextStyle(color: Color(0xFFFFFF00))),
                     onTap: () {
@@ -2069,7 +2062,8 @@ class _AudioTimeJumpPageState extends State<_AudioTimeJumpPage> {
             const SizedBox(height: 16),
             Text(
               'Maximum: ${_formatDuration(widget.maxDuration)}',
-              style: const TextStyle(fontSize: 12, color: Colors.grey),
+              style: TextStyle(
+                  fontSize: 12, color: PillTheme.of(context).note),
             ),
           ],
         ),

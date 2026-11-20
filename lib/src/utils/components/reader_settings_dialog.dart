@@ -447,7 +447,6 @@ class _ReaderSettingsDialogState extends State<ReaderSettingsDialog> {
     showDialog(
       context: context,
       builder: (ctx) => PillDialog(
-        backgroundColor: Colors.grey[900],
         content: SingleChildScrollView(
           child: ColorPicker(
             pickerColor: current,
@@ -546,7 +545,7 @@ class _ReaderSettingsDialogState extends State<ReaderSettingsDialog> {
               const SizedBox(height: 4),
               DropdownButton<String>(
                 value: _s.fontWeight,
-                dropdownColor: Colors.grey[900],
+                dropdownColor: Theme.of(context).scaffoldBackgroundColor,
                 style: const TextStyle(color: _y),
                 isExpanded: true,
                 items: _fontWeights
@@ -570,7 +569,7 @@ class _ReaderSettingsDialogState extends State<ReaderSettingsDialog> {
               const SizedBox(height: 4),
               DropdownButton<String>(
                 value: _s.writingMode,
-                dropdownColor: Colors.grey[900],
+                dropdownColor: Theme.of(context).scaffoldBackgroundColor,
                 style: const TextStyle(color: _y),
                 isExpanded: true,
                 items: const [

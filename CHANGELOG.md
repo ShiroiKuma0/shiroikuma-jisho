@@ -19,6 +19,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Changed
 
+- The 白い熊 辞書 UI page is now a folding page with an index. Every section is folded when the page opens, and a tap on its heading folds or unfolds it. A row of small chips at the top names every section: a tap on a chip unfolds that section and scrolls to it, and a long-press drags the chip to move the section. The order and what is unfolded are remembered and travel in the export. A new Maintenance section has “Reset section order”.
+- The warning red on the UI page follows the “Delete · clear” colour, the colour swatches are smaller, and the font and export lists carry icons.
 - **Export / Import… looks like a button.** On the 白い熊 辞書 UI page the
   row that opens the Export / Import panel is now a full-width outlined
   pill with a › and a bold, thick frame, its explanation beneath — it no

@@ -38,7 +38,9 @@ class JishoUiSettingsPage extends BasePage {
 }
 
 class _JishoUiSettingsPageState extends BasePageState<JishoUiSettingsPage> {
-  UiThemeSettings get ui => appModel.uiTheme;
+  /// Read, not watched: [initState] reads it too, and [build] does the
+  /// watching.
+  UiThemeSettings get ui => appModelNoUpdate.uiTheme;
 
   /// kxkb indent ladder.
   static const double _insetHeading = 36;
@@ -46,7 +48,7 @@ class _JishoUiSettingsPageState extends BasePageState<JishoUiSettingsPage> {
   static const double _insetRow = 72;
   static const double _insetRowL2 = 90;
 
-  static const Color _warnRed = Color(0xFFFF5252);
+  Color get _warnRed => Color(ui.menuDeleteColor);
 
   Color get _accent => Color(ui.textColor);
   Color get _dim => Color(ui.noteColor);
@@ -89,14 +91,12 @@ class _JishoUiSettingsPageState extends BasePageState<JishoUiSettingsPage> {
     if (section == null) {
       return;
     }
-    final BuildContext? target = _sectionKeys[section]?.currentContext;
-    if (target == null) {
-      return;
+    for (final entry in _sections().entries) {
+      if (entry.value.title == section) {
+        _jumpToSection(entry.key, section);
+        return;
+      }
     }
-    Scrollable.ensureVisible(
-      target,
-      duration: const Duration(milliseconds: 250),
-    );
   }
 
   void _loadAutomationState() async {
@@ -169,6 +169,8 @@ class _JishoUiSettingsPageState extends BasePageState<JishoUiSettingsPage> {
 
   @override
   Widget build(BuildContext context) {
+    // Rebuild with the model even while every section is folded.
+    ref.watch(appProvider);
     return Scaffold(
       appBar: AppBar(
         title: const Text('白い熊 辞書 UI'),
@@ -176,8 +178,17 @@ class _JishoUiSettingsPageState extends BasePageState<JishoUiSettingsPage> {
       body: SingleChildScrollView(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            _sectionHeader('Export / Import', first: true),
+          children: _pageChildren(),
+        ),
+      ),
+    );
+  }
+
+  /// Every top-level section of the page, in its default order. The
+  /// rows are built only for a section that is unfolded.
+  Map<String, _UiSection> _sections() {
+    return {
+      'export': _UiSection('Export / Import', () => [
             _buildDirectoryBox(insetLeft: _insetRow),
             _buildLatestExportLine(insetLeft: _insetRow),
             _actionRow(
@@ -236,7 +247,8 @@ class _JishoUiSettingsPageState extends BasePageState<JishoUiSettingsPage> {
                 ),
                 onTap: _copyToken,
               ),
-            _sectionHeader('Toolbars'),
+          ]),
+      'toolbars': _UiSection('Toolbars', () => [
             _row(
               title: 'Anki card creator button',
               icon: Icons.note_add,
@@ -252,7 +264,8 @@ class _JishoUiSettingsPageState extends BasePageState<JishoUiSettingsPage> {
                 },
               ),
             ),
-            _sectionHeader('Colours'),
+          ]),
+      'colours': _UiSection('Colours', () => [
             _colorRow('Background', () => ui.backgroundColor,
                 (color) => ui.backgroundColor = color,
                 icon: Icons.format_color_fill),
@@ -293,7 +306,8 @@ class _JishoUiSettingsPageState extends BasePageState<JishoUiSettingsPage> {
             _colorRow('Delete · clear', () => ui.menuDeleteColor,
                 (color) => ui.menuDeleteColor = color,
                 icon: Icons.delete, own: true, inset: _insetRowL2),
-            _sectionHeader('Typography'),
+          ]),
+      'typography': _UiSection('Typography', () => [
             _row(
               title: 'Font',
               icon: Icons.font_download_outlined,
@@ -323,7 +337,8 @@ class _JishoUiSettingsPageState extends BasePageState<JishoUiSettingsPage> {
               onChanged: (value) => ui.fontScale = value.round(),
             ),
             _buildFontSample(),
-            _sectionHeader('Dictionary'),
+          ]),
+      'dictionary': _UiSection('Dictionary', () => [
             _subHeader('Fonts'),
             _dictionaryFontRow(
               title: 'Heading',
@@ -405,7 +420,8 @@ class _JishoUiSettingsPageState extends BasePageState<JishoUiSettingsPage> {
                 setState(() {});
               },
             ),
-            _sectionHeader('Shapes & borders'),
+          ]),
+      'shapes': _UiSection('Shapes & borders', () => [
             _subHeader('Dialogs'),
             _sliderRow(
               title: 'Border width',
@@ -429,20 +445,104 @@ class _JishoUiSettingsPageState extends BasePageState<JishoUiSettingsPage> {
               onChanged: (value) => ui.dialogCornerRadius = value.roundToDouble(),
             ),
             _buildShapeSample(),
-            const SizedBox(height: 24),
-          ],
-        ),
+          ]),
+      'maintenance': _UiSection('Maintenance', () => [
+            _actionRow(
+              title: 'Reset section order',
+              icon: Icons.restart_alt,
+              summary: 'Put the sections of this page back in their '
+                  'original order. Long-press a chip at the top to '
+                  'move a section.',
+              onTap: () {
+                ui.sectionOrder = const [];
+                setState(() {});
+                Fluttertoast.showToast(msg: 'Section order reset.');
+              },
+            ),
+          ]),
+    };
+  }
+
+  /// The stored section order, limited to sections that exist, with
+  /// any section it does not name yet appended in its default place.
+  List<String> _order(Iterable<String> known) {
+    final order = [
+      for (final key in ui.sectionOrder)
+        if (known.contains(key)) key,
+    ];
+    for (final key in known) {
+      if (!order.contains(key)) {
+        order.add(key);
+      }
+    }
+    return order;
+  }
+
+  List<Widget> _pageChildren() {
+    final sections = _sections();
+    final order = _order(sections.keys);
+    final open = ui.openSections;
+    return [
+      _SectionIndex(
+        order: order,
+        labels: {
+          for (final entry in sections.entries) entry.key: entry.value.title,
+        },
+        frame: _border,
+        label: _accent,
+        onJump: (key) => _jumpToSection(key, sections[key]!.title),
+        onReordered: (newOrder) {
+          ui.sectionOrder = newOrder;
+          setState(() {});
+        },
       ),
-    );
+      for (final key in order) ...[
+        _sectionHeader(
+          sections[key]!.title,
+          sectionKey: key,
+          open: open.contains(key),
+          first: key == order.first,
+        ),
+        if (open.contains(key)) ...sections[key]!.rows(),
+      ],
+      const SizedBox(height: 24),
+    ];
+  }
+
+  void _setSectionOpen(String key, bool open) {
+    final now = ui.openSections;
+    if (open ? now.add(key) : now.remove(key)) {
+      ui.openSections = now;
+    }
+    setState(() {});
+  }
+
+  /// A tap on an index chip: unfold the section and scroll to it.
+  void _jumpToSection(String key, String title) {
+    _setSectionOpen(key, true);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final BuildContext? target = _sectionKeys[title]?.currentContext;
+      if (target != null) {
+        Scrollable.ensureVisible(
+          target,
+          duration: const Duration(milliseconds: 250),
+        );
+      }
+    });
   }
 
   // ─── kxkb building blocks ───
 
-  Widget _sectionHeader(String title, {bool first = false}) {
-    return Padding(
-      // The key is what [widget.initialSection] scrolls to.
+  /// A section heading. A tap folds or unfolds the section's rows; the
+  /// thin line above it stays either way.
+  Widget _sectionHeader(String title,
+      {required String sectionKey, required bool open, bool first = false}) {
+    return InkWell(
+      // The key is what a chip, or [widget.initialSection], scrolls to.
       key: _sectionKeys.putIfAbsent(title, () => GlobalKey()),
-      padding: EdgeInsets.only(top: first ? 8 : 0),
+      onTap: () => _setSectionOpen(sectionKey, !open),
+      child: Padding(
+      padding: EdgeInsets.only(top: first ? 2 : 0, bottom: open ? 0 : 6),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -454,29 +554,41 @@ class _JishoUiSettingsPageState extends BasePageState<JishoUiSettingsPage> {
             ),
           Padding(
             padding: const EdgeInsets.only(
-                left: _insetHeading, top: 4, bottom: 0),
-            child: IntrinsicWidth(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Text(
-                    title,
-                    style: TextStyle(
-                      fontSize: 23,
-                      fontWeight: FontWeight.bold,
-                      color: _accent,
-                    ),
+                left: _insetHeading, right: 12, top: 4, bottom: 0),
+            child: Row(
+              children: [
+                Expanded(
+                    child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: IntrinsicWidth(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Text(
+                        title,
+                        style: TextStyle(
+                          fontSize: 23,
+                          fontWeight: FontWeight.bold,
+                          color: _accent,
+                        ),
+                      ),
+                      Container(
+                        height: 2.5,
+                        margin: const EdgeInsets.only(top: 2),
+                        color: _accent,
+                      ),
+                    ],
                   ),
-                  Container(
-                    height: 2.5,
-                    margin: const EdgeInsets.only(top: 2),
-                    color: _accent,
-                  ),
-                ],
-              ),
+                ),
+                )),
+                const SizedBox(width: 8),
+                Icon(open ? Icons.expand_more : Icons.chevron_right,
+                    size: 28, color: _accent),
+              ],
             ),
           ),
         ],
+      ),
       ),
     );
   }
@@ -485,7 +597,9 @@ class _JishoUiSettingsPageState extends BasePageState<JishoUiSettingsPage> {
     return Padding(
       padding: const EdgeInsets.only(
           left: _insetSubHeading, top: 4, bottom: 0),
-      child: IntrinsicWidth(
+      child: Align(
+        alignment: Alignment.centerLeft,
+        child: IntrinsicWidth(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -504,6 +618,7 @@ class _JishoUiSettingsPageState extends BasePageState<JishoUiSettingsPage> {
             ),
           ],
         ),
+      ),
       ),
     );
   }
@@ -766,8 +881,8 @@ class _JishoUiSettingsPageState extends BasePageState<JishoUiSettingsPage> {
       icon: icon,
       iconColor: own ? Color(getter()) : null,
       trailing: Container(
-        width: 38,
-        height: 38,
+        width: 28,
+        height: 28,
         decoration: BoxDecoration(
           color: Color(getter()),
           borderRadius: BorderRadius.circular(4),
@@ -880,15 +995,30 @@ class _JishoUiSettingsPageState extends BasePageState<JishoUiSettingsPage> {
                     child: Padding(
                       padding: const EdgeInsets.symmetric(
                           horizontal: 20, vertical: 10),
-                      child: Text(
-                        '${current() == family ? '✓  ' : ''}'
-                        '${family.isEmpty ? 'System default' : family}',
-                        style: TextStyle(
-                          fontSize: 18,
-                          color: _accent,
-                          fontFamily: family.isEmpty ? null : family,
+                      child: Row(children: [
+                        Icon(
+                            current() == family
+                                ? Icons.check_circle
+                                : Icons.font_download_outlined,
+                            size: 21,
+                            color: current() == family
+                                ? PillTheme.of(context).role(MenuRole.call)
+                                : _accent),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            family.isEmpty ? 'System default' : family,
+                            style: TextStyle(
+                              fontSize: 18,
+                              color: _accent,
+                              fontWeight: current() == family
+                                  ? FontWeight.bold
+                                  : FontWeight.normal,
+                              fontFamily: family.isEmpty ? null : family,
+                            ),
+                          ),
                         ),
-                      ),
+                      ]),
                     ),
                   ),
               ],
@@ -980,7 +1110,9 @@ class _JishoUiSettingsPageState extends BasePageState<JishoUiSettingsPage> {
     return Padding(
       padding: EdgeInsets.only(
           left: insetLeft, right: 16, top: 6, bottom: 6),
-      child: InkWell(
+      child: Row(children: [
+        _leading(Icons.folder_open, MenuRole.share),
+        Expanded(child: InkWell(
         onTap: _pickExportDirectory,
         child: Container(
           width: double.infinity,
@@ -1006,7 +1138,8 @@ class _JishoUiSettingsPageState extends BasePageState<JishoUiSettingsPage> {
             ],
           ),
         ),
-      ),
+      )),
+      ]),
     );
   }
 
@@ -1027,7 +1160,7 @@ class _JishoUiSettingsPageState extends BasePageState<JishoUiSettingsPage> {
       warn = false;
     }
     return Padding(
-      padding: EdgeInsets.only(left: insetLeft + 2, right: 16, bottom: 8),
+      padding: EdgeInsets.only(left: insetLeft + 32, right: 16, bottom: 8),
       child: Text(
         text,
         style: TextStyle(
@@ -1091,7 +1224,7 @@ class _ExportImportPanel extends StatefulWidget {
 class _ExportImportPanelState extends State<_ExportImportPanel> {
   UiThemeSettings get ui => widget.appModel.uiTheme;
 
-  static const Color _warnRed = Color(0xFFFF5252);
+  Color get _warnRed => Color(ui.menuDeleteColor);
 
   Color get _accent => Color(ui.textColor);
   Color get _border => Color(ui.borderColor);
@@ -1461,10 +1594,17 @@ class _ExportImportPanelState extends State<_ExportImportPanel> {
                     child: Padding(
                       padding: const EdgeInsets.symmetric(
                           horizontal: 20, vertical: 8),
-                      child: Text(
-                        path.basename(candidate.path),
-                        style: TextStyle(fontSize: 14, color: _accent),
-                      ),
+                      child: Row(children: [
+                        const RoleIcon(Icons.archive_outlined,
+                            role: MenuRole.share, size: 21),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            path.basename(candidate.path),
+                            style: TextStyle(fontSize: 14, color: _accent),
+                          ),
+                        ),
+                      ]),
                     ),
                   ),
               ],
@@ -1760,6 +1900,159 @@ class _RgbaColorPickerDialogState extends State<_RgbaColorPickerDialog> {
           child: const Text('OK'),
         ),
       ],
+    );
+  }
+}
+
+/// One top-level section of the UI page: its heading and its rows.
+class _UiSection {
+  const _UiSection(this.title, this.rows);
+
+  final String title;
+  final List<Widget> Function() rows;
+}
+
+/// The chip index at the top of the UI page: one small outlined chip
+/// per section. A tap jumps to the section; a long-press lifts the chip
+/// into a drag, the chips reorder live under the finger, and the
+/// sections follow on drop.
+class _SectionIndex extends StatefulWidget {
+  const _SectionIndex({
+    required this.order,
+    required this.labels,
+    required this.frame,
+    required this.label,
+    required this.onJump,
+    required this.onReordered,
+  });
+
+  final List<String> order;
+  final Map<String, String> labels;
+  final Color frame;
+  final Color label;
+  final ValueChanged<String> onJump;
+  final ValueChanged<List<String>> onReordered;
+
+  @override
+  State<_SectionIndex> createState() => _SectionIndexState();
+}
+
+class _SectionIndexState extends State<_SectionIndex> {
+  /// The order while a chip is in the air; null otherwise.
+  List<String>? _live;
+  String? _dragging;
+
+  List<String> get _order => _live ?? widget.order;
+
+  /// The chip the dragged one last changed places with. The finger is
+  /// still over it right after the move, and must leave it before it
+  /// can trade places with it again — otherwise the two would flap.
+  String? _lastTarget;
+
+  void _moveTo(String target) {
+    final dragged = _dragging;
+    final live = _live;
+    if (dragged == null || live == null) {
+      return;
+    }
+    if (dragged == target) {
+      _lastTarget = null;
+      return;
+    }
+    if (target == _lastTarget) {
+      return;
+    }
+    _lastTarget = target;
+    final to = live.indexOf(target);
+    setState(() {
+      live
+        ..remove(dragged)
+        ..insert(to, dragged);
+    });
+  }
+
+  void _drop() {
+    final live = _live;
+    setState(() {
+      _live = null;
+      _dragging = null;
+      _lastTarget = null;
+    });
+    if (live != null && live.join('\n') != widget.order.join('\n')) {
+      widget.onReordered(live);
+    }
+  }
+
+  Widget _chip(String key, {bool lifted = false, bool ghost = false}) {
+    final frame = ghost ? widget.frame.withValues(alpha: 0.38) : widget.frame;
+    final label = ghost ? widget.label.withValues(alpha: 0.38) : widget.label;
+    return Material(
+      type: lifted ? MaterialType.canvas : MaterialType.transparency,
+      color: lifted ? Theme.of(context).scaffoldBackgroundColor : null,
+      elevation: lifted ? 6 : 0,
+      shape: StadiumBorder(
+        side: BorderSide(
+            color: frame, width: lifted ? kPillMainWidth : kPillRegularWidth),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: lifted || ghost ? null : () => widget.onJump(key),
+        customBorder: const StadiumBorder(),
+        splashColor: widget.label.withValues(alpha: 0.3),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+          child: Text(
+            widget.labels[key] ?? key,
+            style: TextStyle(
+              fontSize: 12,
+              height: 1.1,
+              color: label,
+              fontWeight: FontWeight.normal,
+              decoration: TextDecoration.none,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(left: 16, right: 16, top: 10, bottom: 8),
+      child: Wrap(
+        spacing: 6,
+        runSpacing: 6,
+        children: [
+          for (final key in _order)
+            DragTarget<String>(
+              key: ValueKey<String>(key),
+              onWillAcceptWithDetails: (details) {
+                _moveTo(key);
+                return true;
+              },
+              onMove: (details) => _moveTo(key),
+              onLeave: (data) {
+                if (_lastTarget == key) {
+                  _lastTarget = null;
+                }
+              },
+              builder: (context, candidates, rejected) =>
+                  LongPressDraggable<String>(
+                data: key,
+                delay: const Duration(milliseconds: 350),
+                feedback: _chip(key, lifted: true),
+                childWhenDragging: _chip(key, ghost: true),
+                onDragStarted: () => setState(() {
+                  _live = [...widget.order];
+                  _dragging = key;
+                }),
+                onDragEnd: (details) => _drop(),
+                child: _chip(key),
+              ),
+            ),
+        ],
+      ),
     );
   }
 }

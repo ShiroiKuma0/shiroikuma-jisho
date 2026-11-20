@@ -75,6 +75,24 @@ class UiThemeSettings {
     _notify();
   }
 
+  /// The order of the UI page's sections, by section key. Empty means
+  /// the page's own order. Travels in the export like every `ui_` key.
+  List<String> get sectionOrder =>
+      (_box.get('ui_section_order', defaultValue: const <String>[]) as List)
+          .cast<String>()
+          .toList();
+  set sectionOrder(List<String> value) =>
+      _box.put('ui_section_order', List<String>.of(value));
+
+  /// The UI page's sections that are unfolded; every other is folded,
+  /// which is how a fresh install starts.
+  Set<String> get openSections =>
+      (_box.get('ui_sections_open', defaultValue: const <String>[]) as List)
+          .cast<String>()
+          .toSet();
+  set openSections(Set<String> value) =>
+      _box.put('ui_sections_open', value.toList());
+
   /// Explanations under a setting and the rule beside them: dim gold.
   int get noteColor => _box.get('ui_note_color', defaultValue: 0xFFC8C800);
   set noteColor(int value) {

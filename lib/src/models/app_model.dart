@@ -203,6 +203,14 @@ class AppModel with ChangeNotifier {
   /// 白い熊 辞書 UI settings page.
   late final UiThemeSettings uiTheme;
 
+  /// Give a model that was never initialised its preferences, so a
+  /// widget test can draw a settings page without the databases.
+  @visibleForTesting
+  void attachPreferencesForTest(Box box) {
+    _preferences = box;
+    uiTheme = UiThemeSettings(box: box, notify: notifyListeners);
+  }
+
   /// Public access to preferences box for custom language config.
   Box get preferences => _preferences;
 
@@ -705,6 +713,7 @@ class AppModel with ChangeNotifier {
       background: background,
       switchOn: accent,
       switchOff: Color(uiTheme.switchOffColor),
+      noteColor: Color(uiTheme.noteColor),
       roles: {
         MenuRole.call: Color(uiTheme.menuCallColor),
         MenuRole.message: Color(uiTheme.menuMessageColor),

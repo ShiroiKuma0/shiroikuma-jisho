@@ -44,6 +44,7 @@ class PillTheme extends ThemeExtension<PillTheme> {
     required this.switchOn,
     required this.switchOff,
     required this.roles,
+    this.noteColor,
   });
 
   /// Pill outlines.
@@ -60,6 +61,12 @@ class PillTheme extends ThemeExtension<PillTheme> {
 
   /// A switch that is off: a darker, opaque shade — never a faded one.
   final Color switchOff;
+
+  /// Explanations and notes; a dimmer label when not given.
+  final Color? noteColor;
+
+  /// The colour of an explanation or a note.
+  Color get note => noteColor ?? Color.lerp(background, label, 0.78)!;
 
   /// Icon colour per role.
   final Map<MenuRole, Color> roles;
