@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [1.6.0+036] - 2026-11-20
+
 ### Added
 
 - **Lookup door for 自由作業盤.** 白い熊 自由作業盤 can ask this app about up
