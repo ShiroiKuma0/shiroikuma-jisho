@@ -2872,13 +2872,13 @@ class AppModel with ChangeNotifier {
   /// first write, reused for the rest of the process lifetime.
   ///
   /// We try these paths in order, using the first that accepts a write:
-  ///   1. `/sdcard/tmp/jidoujisho-search-perf.log`
+  ///   1. `/sdcard/tmp/jidoujisho-search-perf.txt`
   ///      — requires MANAGE_EXTERNAL_STORAGE to be granted; the app
   ///        declares this in its manifest and typically has it because
   ///        it's used for dictionary import, so this usually works.
   ///      — trivially `adb pull`-able.
   ///   2. App's external-files directory
-  ///      (`/sdcard/Android/data/<package>/files/search-perf.log`)
+  ///      (`/sdcard/Android/data/<package>/files/search-perf.txt`)
   ///      — accessible even under scoped-storage restrictions; also
   ///        `adb pull`-able on non-rooted devices.
   ///   3. App's private documents directory
@@ -2901,17 +2901,17 @@ class AppModel with ChangeNotifier {
 
       // Build candidate paths, most pullable first.
       final List<String> candidates = [];
-      candidates.add('/sdcard/tmp/jidoujisho-search-perf.log');
+      candidates.add('/sdcard/tmp/jidoujisho-search-perf.txt');
       try {
         // ApplicationDocumentsDirectory is initialised during startup.
         // If we're called before init somehow, skip silently.
         final appDir = _appDirectory.path;
-        candidates.add('$appDir/search-perf.log');
+        candidates.add('$appDir/search-perf.txt');
       } catch (_) {}
       // External-files path computed from the package name. If the
       // directory doesn't exist, we'll try to create it below.
       candidates.add(
-          '/sdcard/Android/data/shiroikuma.jisho/files/search-perf.log');
+          '/sdcard/Android/data/shiroikuma.jisho/files/search-perf.txt');
 
       for (final path in candidates) {
         try {

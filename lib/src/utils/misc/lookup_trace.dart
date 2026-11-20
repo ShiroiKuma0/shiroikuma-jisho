@@ -8,7 +8,7 @@ const bool kLookupTrace = false;
 /// lifecycle callbacks) to the same file, so one `adb pull` shows the
 /// whole path from the intent to the drawn result. Wall-clock
 /// milliseconds on both sides, so the lines interleave correctly.
-const String lookupTracePath = '/sdcard/tmp/jisho-lookup-trace.log';
+const String lookupTracePath = '/sdcard/tmp/jisho-lookup-trace.txt';
 
 /// Append one timestamped [event] line to [lookupTracePath]. Synchronous
 /// on purpose — an IOSink buffers, and an un-awaited flush loses lines

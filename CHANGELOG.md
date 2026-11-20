@@ -24,6 +24,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   pill with a › and a bold, thick frame, its explanation beneath — it no
   longer reads like a heading. Rows with their own switch, swatch, slider
   or value stay plain rows.
+- **Regenerate is a pill.** The button beside the automation token on the
+  UI page is an outlined pill like the other actions, no longer bare text.
+- **Log files end in “.txt”.** The app’s error log under
+  `Android/data/shiroikuma.jisho/files/Logs` is written as `.txt`, and
+  older `.log` files there are renamed on start — the phone’s nightly
+  clean-up deletes `.log` files as junk.
+
+### Fixed
+
+- **The app no longer freezes on the 白 splash.** When the phone started
+  the app in the background for its media service — after a restart, for
+  instance — and the app was opened later, it stayed on the splash until
+  it was force-stopped. It now waits for its own screen before starting
+  up, so that launch behaves like any other.
 
 ## [1.6.0+032] - 2026-11-02
 

@@ -82,7 +82,7 @@ public class MainActivity extends AudioServiceActivity {
             return;
         }
         try (java.io.FileWriter w = new java.io.FileWriter(
-                "/sdcard/tmp/jisho-lookup-trace.log", true)) {
+                "/sdcard/tmp/jisho-lookup-trace.txt", true)) {
             w.write(System.currentTimeMillis() + " java " + event + "\n");
         } catch (Exception ignored) {
         }
@@ -335,6 +335,11 @@ public class MainActivity extends AudioServiceActivity {
                     final AddContentApi api = new AddContentApi(context);
 
                     switch (call.method) {
+                        case "ping":
+                            // Dart's main() waits for this before it
+                            // initialises: see _waitForActivity.
+                            result.success(true);
+                            break;
                         case "addNote":
                             addNote(model, deck, fields, tags);
                             result.success("Added note");

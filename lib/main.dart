@@ -26,6 +26,8 @@ import 'package:shiroikumanojisho/utils.dart';
 import 'package:shiroikumanojisho/src/utils/ui_settings/state_export.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+import 'package:path/path.dart' as path;
+import 'package:path_provider/path_provider.dart';
 
 /// Relay progress to 応用管理, re-sending the last figure every few
 /// seconds for as long as [body] runs.
@@ -434,6 +436,63 @@ Future<void> jishoLookupMain() async {
   await channel.invokeMethod('ready');
 }
 
+/// Completes once MainActivity has configured this engine.
+///
+/// `AudioService` is an exported media service; when the system binds it
+/// with the app not running, audio_service creates the engine itself,
+/// caches it and runs [main] in it — with no activity, so none of the
+/// channels MainActivity registers. Initialising there threw a
+/// MissingPluginException on the first of them, [main] ended before
+/// `runApp`, and the activity that later opened was handed that same
+/// cached engine: the splash, forever.
+///
+/// So [main] waits here instead, for as long as it takes. A headless
+/// start then costs an idle isolate rather than an open database, and
+/// the launch that follows runs exactly like a cold one.
+Future<void> _waitForActivity() async {
+  while (true) {
+    try {
+      await AppModel.methodChannel.invokeMethod('ping');
+      return;
+    } on MissingPluginException {
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+    }
+  }
+}
+
+/// Renames the "*.log" files of builds up to 1.6.0+033 to "*.txt", out
+/// of reach of EMUI's nightly clean-up. A day that already has the new
+/// file keeps both texts, the old one first.
+Future<void> _renameOldLogFiles() async {
+  try {
+    final external = await getExternalStorageDirectory();
+    if (external == null) {
+      return;
+    }
+    final logs = Directory(path.join(external.path, 'Logs'));
+    if (!logs.existsSync()) {
+      return;
+    }
+    for (final entity in logs.listSync(recursive: true)) {
+      if (entity is! File || !entity.path.endsWith('.log')) {
+        continue;
+      }
+      final target = File(
+          '${entity.path.substring(0, entity.path.length - 4)}.txt');
+      if (target.existsSync()) {
+        final newer = target.readAsBytesSync();
+        target.writeAsBytesSync(entity.readAsBytesSync(), flush: true);
+        target.writeAsBytesSync(newer, mode: FileMode.append, flush: true);
+        entity.deleteSync();
+      } else {
+        entity.renameSync(target.path);
+      }
+    }
+  } catch (e) {
+    print('[startup] renaming old log files failed: $e');
+  }
+}
+
 /// Application execution starts here.
 void main() {
   /// Run and handle an error zone to customise the action performed upon
@@ -470,9 +529,19 @@ void main() {
       timeStampFormat: TimeStampFormat.DATE_FORMAT_1,
       directoryStructure: DirectoryStructure.FOR_DATE,
       logTypesEnabled: ['device', 'network', 'errors'],
-      logFileExtension: LogFileExtension.LOG,
+      // Never LOG: EMUI's nightly clean-up deletes every "*.log" file
+      // under Android/data as junk.
+      logFileExtension: LogFileExtension.TXT,
     );
     print('[startup] initLogs done');
+    await _renameOldLogFiles();
+
+    // audio_service starts this entry point without MainActivity when
+    // the system binds its media service — at boot, say. Everything
+    // below assumes the activity: its channels, the permission prompts,
+    // the launch intent.
+    await _waitForActivity();
+    print('[startup] activity attached');
 
     /// Ensure no pop-in for the app icon.
     binding.addPostFrameCallback((_) async {

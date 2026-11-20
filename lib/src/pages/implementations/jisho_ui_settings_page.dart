@@ -223,8 +223,16 @@ class _JishoUiSettingsPageState extends BasePageState<JishoUiSettingsPage> {
               _row(
                 title: 'Automation token',
                 summary: _abbreviatedToken(),
-                trailing: TextButton(
+                trailing: OutlinedButton(
                   onPressed: _regenerateToken,
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: _accent,
+                    shape: const StadiumBorder(),
+                    side: BorderSide(color: _accent, width: 1.25),
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    textStyle: const TextStyle(
+                        fontSize: 17, fontWeight: FontWeight.normal),
+                  ),
                   child: const Text('Regenerate'),
                 ),
                 onTap: _copyToken,
