@@ -6,6 +6,25 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Fixed
+
+- **Importing a book no longer fails with “One of the specified object
+  stores was not found”.** On a language whose reader library had never
+  been opened, the app's own look into the library could create the
+  reader's database empty, and the reader could then never set it up:
+  every import failed, for good. The app no longer creates that
+  database, and a library already left in this state is repaired by
+  itself the next time the reader opens (it held no books).
+- **A translation link to a book that is gone from the library is
+  dropped.** When a book opens and its stored translation book no longer
+  exists in the reader's library, the link is removed and the split
+  closes, with a short notice, instead of showing the library list in
+  the lower half on every open.
+- **The reader's own dialogs follow the black-yellow look.** The “Close”,
+  “Cancel” and “Confirm” buttons of the reader's messages are outlined
+  pills, and the dialog takes the ground, corners and frame of the app's
+  other dialogs.
+
 ## [1.6.0+038] - 2026-11-22
 
 ### Added

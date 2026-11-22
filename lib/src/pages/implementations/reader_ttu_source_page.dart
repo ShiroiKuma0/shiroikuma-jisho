@@ -11,6 +11,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
+import 'package:flutter_logs/flutter_logs.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 import 'package:hive/hive.dart';
@@ -392,7 +393,87 @@ class _ReaderTtuSourcePageState extends BaseSourcePageState<ReaderTtuSourcePage>
     // resurrect an empty split pane on reopen.
     bool shown = (_readerBox.get('secondary_shown_$key') as bool?) ?? false;
     _secondaryShown = shown && _hasSecondary;
+    _splitTrace('reload storedShown=$shown');
     if (mounted) setState(() {});
+    final String? attached = _secondaryUrl;
+    if (attached != null) {
+      unawaited(_dropSecondaryIfMissing(key, attached));
+    }
+  }
+
+  /// One line in the app's own log file about a decision that opens,
+  /// restores or attaches the translation pane. Dart `print` never
+  /// reaches logcat on the test phone, so this is the only record of
+  /// why a book opened split.
+  void _splitTrace(String what) {
+    try {
+      FlutterLogs.logInfo('jidoujisho', 'split',
+          '$what | id=$_currentBookId title=$_currentBookTitle '
+          'key=${_safeBookKey()} item=${widget.item?.uniqueKey} '
+          'url=$_secondaryUrl has=$_hasSecondary shown=$_secondaryShown');
+    } catch (_) {}
+  }
+
+  /// Detach a translation book that is no longer in the library.
+  ///
+  /// The association is stored as the translation's ッツ URL, i.e. its
+  /// book id. Per-book state outlives the library — it is keyed by the
+  /// primary's title and travels in the export bundle — so a library
+  /// that was lost or rebuilt leaves associations pointing at ids that
+  /// no longer exist. Restoring one opens the split with the ッツ
+  /// manager in the translation pane, on every open of the book.
+  ///
+  /// Only a definite "the library is readable and has no such id"
+  /// detaches; a library that cannot be read proves nothing.
+  Future<void> _dropSecondaryIfMissing(String key, String url) async {
+    final String? id = Uri.tryParse(url)?.queryParameters['id'];
+    if (id == null || !_controllerInitialised) return;
+    String? verdict;
+    try {
+      final result = await _controller.callAsyncJavaScript(
+        arguments: {'id': id},
+        functionBody: '''
+return await new Promise((resolve) => {
+  let req;
+  try { req = indexedDB.open("books"); } catch (e) { resolve("unknown"); return; }
+  // Never create the database from here — see the repair UserScript.
+  req.onupgradeneeded = (e) => { try { e.target.transaction.abort(); } catch (x) {} };
+  req.onerror = () => resolve("unknown");
+  req.onblocked = () => resolve("unknown");
+  req.onsuccess = () => {
+    const db = req.result;
+    try {
+      if (!db.objectStoreNames.contains("data")) { db.close(); resolve("unknown"); return; }
+      const get = db.transaction(["data"], "readonly").objectStore("data").getKey(Number(id));
+      get.onsuccess = () => { const hit = get.result !== undefined; db.close(); resolve(hit ? "present" : "missing"); };
+      get.onerror = () => { db.close(); resolve("unknown"); };
+    } catch (e) { try { db.close(); } catch (x) {} resolve("unknown"); }
+  };
+});
+''',
+      );
+      verdict = result?.value?.toString();
+    } catch (_) {
+      return;
+    }
+    _splitTrace('translation lookup verdict=$verdict for $url');
+    if (verdict != 'missing' || !mounted) return;
+    // The page may have moved to another book, or the user may have
+    // picked a new translation, while the lookup ran.
+    if (key != _safeBookKey() || _secondaryUrl != url) return;
+    await _readerBox.delete('secondary_url_$key');
+    await _readerBox.delete('secondary_title_$key');
+    await _readerBox.delete('secondary_shown_$key');
+    if (!mounted) return;
+    setState(() {
+      _secondaryUrl = null;
+      _secondaryTitle = null;
+      _hasSecondary = false;
+      _secondaryShown = false;
+    });
+    Fluttertoast.showToast(
+      msg: 'The translation book is no longer in the library — detached.',
+    );
   }
 
   /// Inspect the primary WebView's current URL; if it exposes a TTU
@@ -569,6 +650,7 @@ class _ReaderTtuSourcePageState extends BaseSourcePageState<ReaderTtuSourcePage>
       }
     }
     if (migrated) {
+      _splitTrace('migrated $legacyKey -> $newKey');
       debugPrint(
           'reader_ttu: migrated per-book Hive entries $legacyKey → $newKey');
     }
@@ -1108,6 +1190,7 @@ class _ReaderTtuSourcePageState extends BaseSourcePageState<ReaderTtuSourcePage>
       key: ValueKey('secondary_$_secondaryForcedWritingMode'),
       initialUrlRequest: URLRequest(url: WebUri(url)),
       initialUserScripts: UnmodifiableListView<UserScript>([
+        ReaderTtuSource.booksDbRepairUserScript(reload: true),
         _buildWritingModeUserScript(_secondaryForcedWritingMode),
         _buildFontSizeUserScript(
             _fontSizeForPaneAtBuild(isSecondary: true)),
@@ -1224,6 +1307,7 @@ class _ReaderTtuSourcePageState extends BaseSourcePageState<ReaderTtuSourcePage>
           _hasSecondary = true;
           String key = _safeBookKey();
           await _readerBox.put('secondary_url_$key', saveUrl);
+          _splitTrace('translation pane adopted $saveUrl');
         }
         // Format title as "MainBook ⇨ SecondaryBook"
         if (title != null && title.isNotEmpty) {
@@ -1253,6 +1337,11 @@ class _ReaderTtuSourcePageState extends BaseSourcePageState<ReaderTtuSourcePage>
                 (async function() {
                   try {
                     var req = indexedDB.open('books');
+                    // Never create the database from here: an empty
+                    // version-1 one cannot be upgraded by the reader.
+                    req.onupgradeneeded = function(e) {
+                      try { e.target.transaction.abort(); } catch (x) {}
+                    };
                     req.onsuccess = function() {
                       var db = req.result;
                       var tx = db.transaction('data', 'readwrite');
@@ -1284,6 +1373,7 @@ class _ReaderTtuSourcePageState extends BaseSourcePageState<ReaderTtuSourcePage>
       _secondaryShown = !_secondaryShown;
     });
     _readerBox.put('secondary_shown_${_safeBookKey()}', _secondaryShown);
+    _splitTrace('toolbar toggle');
   }
 
   void _openSecondaryManager() {
@@ -1293,6 +1383,7 @@ class _ReaderTtuSourcePageState extends BaseSourcePageState<ReaderTtuSourcePage>
       _secondaryShown = true;
     });
     _readerBox.put('secondary_shown_${_safeBookKey()}', true);
+    _splitTrace('toolbar opened the translation manager');
   }
 
   void _removeSecondary() {
@@ -2528,9 +2619,69 @@ class _ReaderTtuSourcePageState extends BaseSourcePageState<ReaderTtuSourcePage>
     button.bg-gray-700 svg { fill: #000 !important; color: #000 !important; }
   ''';
 
+  /// `#RRGGBB` for CSS.
+  static String _cssColor(Color color) {
+    final rgb = color.toARGB32() & 0xFFFFFF;
+    return '#${rgb.toRadixString(16).padLeft(6, '0')}';
+  }
+
+  /// CSS that gives the reader's own dialogs (import errors,
+  /// confirmations) the look of the app's dialogs: the panel takes the
+  /// dialog theme's ground, corner and frame, and every button is an
+  /// outlined pill — the last of several being the main one (the
+  /// reader puts Cancel first), a lone Close a regular one. Colours
+  /// come from the theme's roles, never from literals.
+  String _dialogPillCss() {
+    final theme = Theme.of(context);
+    final pills = PillTheme.of(context);
+    final dialog = theme.dialogTheme;
+    final ground = _cssColor(dialog.backgroundColor ?? pills.background);
+    final frame = _cssColor(pills.frame);
+    final label = _cssColor(pills.label);
+    String panelFrame = 'none';
+    String panelRadius = '4px';
+    final shape = dialog.shape;
+    if (shape is RoundedRectangleBorder) {
+      if (shape.side.style != BorderStyle.none && shape.side.width > 0) {
+        panelFrame = '${shape.side.width}px solid '
+            '${_cssColor(shape.side.color)}';
+      }
+      final radius = shape.borderRadius.resolve(TextDirection.ltr);
+      panelRadius = '${radius.topLeft.x}px';
+    }
+    // The reader's button base class; `rounded` + `leading-9` tell it
+    // from its other inline-block elements.
+    const button = 'button.inline-block.no-underline.font-medium'
+        '.rounded.leading-9.cursor-pointer';
+    return '''
+      .mdc-elevation--z24 {
+        background-color: $ground !important;
+        color: $label !important;
+        border: $panelFrame !important;
+        border-radius: $panelRadius !important;
+      }
+      .mdc-elevation--z24 * { color: $label !important; }
+      $button {
+        background-color: transparent !important;
+        color: $label !important;
+        border: 1.25px solid $frame !important;
+        border-radius: 9999px !important;
+        font-weight: 400 !important;
+        margin: 5px 4px !important;
+        overflow: hidden !important;
+      }
+      $button:last-child:not(:only-child) {
+        border-width: 3px !important;
+        font-weight: 700 !important;
+      }
+    '''
+        .replaceAll('\n', ' ');
+  }
+
   /// Inject the yellow-on-black UI theme CSS.
   Future<void> _injectUiTheme(InAppWebViewController controller) async {
-    String css = _uiThemeCss.replaceAll('\n', ' ');
+    String css =
+        '${_uiThemeCss.replaceAll('\n', ' ')} ${_dialogPillCss()}';
     String js = '''
       (function() {
         var el = document.getElementById('ttu-ui-theme');
@@ -3252,6 +3403,7 @@ class _ReaderTtuSourcePageState extends BaseSourcePageState<ReaderTtuSourcePage>
         ),
       ),
       initialUserScripts: UnmodifiableListView<UserScript>([
+        ReaderTtuSource.booksDbRepairUserScript(reload: true),
         _buildWritingModeUserScript(_primaryForcedWritingMode),
         _buildFontSizeUserScript(
             _fontSizeForPaneAtBuild(isSecondary: false)),

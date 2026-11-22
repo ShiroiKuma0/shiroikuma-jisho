@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:collection';
 import 'dart:convert';
 import 'dart:ffi';
 import 'dart:io';
@@ -2171,6 +2172,9 @@ class AppExportImport {
       initialUrlRequest: URLRequest(
         url: WebUri('http://localhost:$port/'),
       ),
+      initialUserScripts: UnmodifiableListView<UserScript>([
+        ReaderTtuSource.booksDbRepairUserScript(reload: false),
+      ]),
       onLoadStop: (controller, url) async {
         try {
           await controller.evaluateJavascript(
@@ -2313,6 +2317,11 @@ class AppExportImport {
       initialUrlRequest: URLRequest(
         url: WebUri('http://localhost:$port/'),
       ),
+      initialUserScripts: UnmodifiableListView<UserScript>([
+        // Reload, so that the reader here recreates the database the
+        // import is about to fill.
+        ReaderTtuSource.booksDbRepairUserScript(reload: true),
+      ]),
       onLoadStop: (controller, url) async {
         if (!readyCompleter.isCompleted) {
           readyCompleter.complete(controller);

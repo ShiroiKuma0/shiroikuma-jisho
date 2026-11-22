@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:collection';
 import 'dart:convert';
 import 'dart:io';
 
@@ -750,6 +751,66 @@ class ReaderTtuSource extends ReaderMediaSource {
     }
   }
 
+  /// The DOCUMENT_START UserScript that repairs a `books` database
+  /// with no object stores. Every webview that loads ッツ must carry it.
+  ///
+  /// The reader opens `books` at version 4 behind a
+  /// `switch (oldVersion)` whose only cases are 0, 2 and 3. A database
+  /// that some version-less `indexedDB.open('books')` created empty at
+  /// version 1 therefore gets "upgraded" to 4 without a single store,
+  /// and every import then fails with "One of the specified object
+  /// stores was not found" — for good, since no later upgrade runs.
+  ///
+  /// Such a database holds nothing, so when the reader's own open
+  /// returns one, its connection is closed and the database deleted;
+  /// the next open creates it properly from version 0. With [reload]
+  /// the page reloads once the delete has gone through, so the reader
+  /// in this webview is the one that recreates it.
+  ///
+  /// The close is what matters most: the reader keeps its connection
+  /// open for the life of the page, and a delete waits for every
+  /// connection on the origin. One webview without this script — the
+  /// library scanner sits on the same origin — blocks the delete
+  /// forever, and the page that asked for it hangs on "Loading…".
+  static UserScript booksDbRepairUserScript({required bool reload}) {
+    return UserScript(
+      source: '''
+        (function() {
+          if (window.__skBooksRepairInstalled) return;
+          window.__skBooksRepairInstalled = true;
+          var reloadAfter = $reload;
+          var origOpen = IDBFactory.prototype.open;
+          IDBFactory.prototype.open = function(name, version) {
+            var req = origOpen.apply(this, arguments);
+            if (name !== 'books' || version === undefined) return req;
+            // Registered before the reader's own handlers, so it runs
+            // first and can keep them from using the broken database.
+            req.addEventListener('success', function(ev) {
+              var db = req.result;
+              if (!db || db.objectStoreNames.length > 0) return;
+              // Never hold an empty database open, whatever follows.
+              try { db.close(); } catch (e) {}
+              var tries = 0;
+              try {
+                tries = Number(sessionStorage.getItem('skBooksRepair')) || 0;
+                sessionStorage.setItem('skBooksRepair', String(tries + 1));
+              } catch (e) {}
+              // Bounded: never a reload loop.
+              if (tries >= 3) return;
+              ev.stopImmediatePropagation();
+              var del = indexedDB.deleteDatabase('books');
+              if (reloadAfter) {
+                del.onsuccess = function() { location.reload(); };
+              }
+            });
+            return req;
+          };
+        })();
+      ''',
+      injectionTime: UserScriptInjectionTime.AT_DOCUMENT_START,
+    );
+  }
+
   /// A loaded webview on this language's ッツ origin, shared by every
   /// caller that needs to talk to its IndexedDB (library scans, book
   /// deletes). One per port, created on demand and disposed once
@@ -777,6 +838,9 @@ class ReaderTtuSource extends ReaderMediaSource {
 
     final HeadlessInAppWebView webView = HeadlessInAppWebView(
       initialUrlRequest: URLRequest(url: WebUri('http://localhost:$port/')),
+      initialUserScripts: UnmodifiableListView<UserScript>([
+        booksDbRepairUserScript(reload: false),
+      ]),
       onLoadStop: (controller, url) {
         if (!ready.isCompleted) {
           ready.complete(controller);
@@ -955,6 +1019,9 @@ indexedDB.databases().then((databases) => {
           };
 
           dbRequest.onupgradeneeded = function(event) {
+            // Abort, or this open leaves an empty version-1 database
+            // behind that the reader can never upgrade.
+            try { event.target.transaction.abort(); } catch (e) {}
             reject(Error('Not found'));
           };
 
@@ -1063,6 +1130,11 @@ indexedDB.databases().then((databases) => {
   static const String clearStoresJsBody = '''
 return await new Promise((resolve, reject) => {
   const req = indexedDB.open("books");
+  // Never let this open CREATE the database: a version-less open of a
+  // missing database makes an empty one at version 1, which the reader
+  // can never upgrade into a working library. Aborting the upgrade
+  // leaves no database behind and lands in onerror.
+  req.onupgradeneeded = (e) => { try { e.target.transaction.abort(); } catch (x) {} };
   req.onsuccess = () => {
     try {
       const db = req.result;
@@ -1109,6 +1181,7 @@ while (Date.now() < deadline) {
     const ready = await new Promise((resolve) => {
       let req;
       try { req = indexedDB.open("books"); } catch (e) { resolve(false); return; }
+      req.onupgradeneeded = (e) => { try { e.target.transaction.abort(); } catch (x) {} };
       req.onsuccess = () => {
         let ok = false;
         try {
@@ -1163,6 +1236,11 @@ if (book && book.blobs && typeof book.blobs === "object") {
 }
 return await new Promise((resolve, reject) => {
   const req = indexedDB.open("books");
+  // Never let this open CREATE the database: a version-less open of a
+  // missing database makes an empty one at version 1, which the reader
+  // can never upgrade into a working library. Aborting the upgrade
+  // leaves no database behind and lands in onerror.
+  req.onupgradeneeded = (e) => { try { e.target.transaction.abort(); } catch (x) {} };
   req.onsuccess = () => {
     try {
       const db = req.result;
@@ -1216,7 +1294,22 @@ return await new Promise((resolve) => {
 
   let req;
   try { req = indexedDB.open("books"); } catch (e) { fail(e); return; }
-  req.onerror = () => fail("could not open the books database");
+  // A version-less open of a database that does not exist yet would
+  // create an empty one at version 1, which the reader can never
+  // upgrade into a working library (its upgrade has no case for 1).
+  // Abort that creation: no database means an empty library.
+  let missing = false;
+  req.onupgradeneeded = (e) => {
+    missing = true;
+    try { e.target.transaction.abort(); } catch (x) {}
+  };
+  req.onerror = () => {
+    if (missing) {
+      resolve(JSON.stringify({ok: true, books: [], bookmarks: []}));
+    } else {
+      fail("could not open the books database");
+    }
+  };
   req.onsuccess = async () => {
     try {
       const db = req.result;
@@ -1255,6 +1348,11 @@ return await new Promise((resolve) => {
   static const String deleteBookJsBody = '''
 return await new Promise((resolve, reject) => {
   const req = indexedDB.open("books");
+  // Never let this open CREATE the database: a version-less open of a
+  // missing database makes an empty one at version 1, which the reader
+  // can never upgrade into a working library. Aborting the upgrade
+  // leaves no database behind and lands in onerror.
+  req.onupgradeneeded = (e) => { try { e.target.transaction.abort(); } catch (x) {} };
   req.onsuccess = () => {
     try {
       const db = req.result;
@@ -1291,6 +1389,11 @@ return await new Promise((resolve, reject) => {
 if (!items || items.length === 0) return true;
 return await new Promise((resolve, reject) => {
   const req = indexedDB.open("books");
+  // Never let this open CREATE the database: a version-less open of a
+  // missing database makes an empty one at version 1, which the reader
+  // can never upgrade into a working library. Aborting the upgrade
+  // leaves no database behind and lands in onerror.
+  req.onupgradeneeded = (e) => { try { e.target.transaction.abort(); } catch (x) {} };
   req.onsuccess = () => {
     try {
       const db = req.result;
@@ -1314,6 +1417,11 @@ return await new Promise((resolve, reject) => {
 if (!items || items.length === 0) return true;
 return await new Promise((resolve, reject) => {
   const req = indexedDB.open("books");
+  // Never let this open CREATE the database: a version-less open of a
+  // missing database makes an empty one at version 1, which the reader
+  // can never upgrade into a working library. Aborting the upgrade
+  // leaves no database behind and lands in onerror.
+  req.onupgradeneeded = (e) => { try { e.target.transaction.abort(); } catch (x) {} };
   req.onsuccess = () => {
     try {
       const db = req.result;
@@ -1360,6 +1468,9 @@ indexedDB.databases().then((databases) => {
           };
 
           dbRequest.onupgradeneeded = function(event) {
+            // Abort, or this open leaves an empty version-1 database
+            // behind that the reader can never upgrade.
+            try { event.target.transaction.abort(); } catch (e) {}
             reject(Error('Not found'));
           };
 
