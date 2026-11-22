@@ -447,6 +447,7 @@ final Set<IconData> _shareIcons = <IconData>{
   Icons.send,
   Icons.note_add,
   Icons.sd_card,
+  Icons.mobile_screen_share,
   Icons.table_rows,
   Icons.table_chart,
   Icons.style,
@@ -467,6 +468,9 @@ final Set<IconData> _callIcons = <IconData>{
   Icons.record_voice_over,
   Icons.code,
   Icons.document_scanner,
+  Icons.play_circle_outline,
+  Icons.perm_media,
+  Icons.skip_next,
 };
 
 final Set<IconData> _messageIcons = <IconData>{
@@ -486,6 +490,11 @@ final Set<IconData> _messageIcons = <IconData>{
   Icons.text_fields,
   Icons.format_color_text,
   Icons.auto_stories_rounded,
+  Icons.text_fields_outlined,
+  Icons.title,
+  Icons.comment_outlined,
+  Icons.timer,
+  Icons.swipe_left,
 };
 
 final Set<IconData> _contactIcons = <IconData>{
@@ -506,6 +515,11 @@ final Set<IconData> _blockIcons = <IconData>{
   Icons.cancel,
   Icons.unfold_less,
   Icons.timer_off,
+  Icons.subtitles_off_outlined,
+  Icons.blur_circular_sharp,
+  Icons.blur_off,
+  Icons.hearing_disabled,
+  Icons.pause,
 };
 
 /// A menu row. An action row is an outlined pill as wide as the menu,

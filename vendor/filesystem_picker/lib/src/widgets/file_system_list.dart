@@ -26,6 +26,10 @@ class FilesystemList extends StatelessWidget {
   final List<String>? usedFiles;
   final String? currentActiveFile;
 
+  /// shiroikuma-jisho patch: files the caller expects to be picked.
+  /// They are listed first — above the directories — and highlighted.
+  final bool Function(String path)? isSuggested;
+
   FilesystemList({
     Key? key,
     required this.items,
@@ -36,6 +40,7 @@ class FilesystemList extends StatelessWidget {
     this.allowedExtensions,
     required this.usedFiles,
     required this.currentActiveFile,
+    this.isSuggested,
     required this.onChange,
     required this.onSelect,
     required this.selectedItems,
@@ -124,10 +129,19 @@ class FilesystemList extends StatelessWidget {
               // }
             });
 
+            // The sort above is stable for our purpose: taking the
+            // suggested files out keeps each group in name order.
+            var suggested = <FileSystemEntity>[];
+            if (isSuggested != null) {
+              suggested = files.where((fse) => isSuggested!(fse.path)).toList();
+              files.removeWhere(suggested.contains);
+            }
+
             //symbolicLinks.followedBy(dirs).
-            dirs.followedBy(files).forEach((fse) {
+            suggested.followedBy(dirs).followedBy(files).forEach((fse) {
               chs.add(
                 FilesystemListTile(
+                  isSuggested: suggested.contains(fse),
                   isActive: currentActiveFile == fse.path,
                   isUsed: usedFiles != null && usedFiles!.contains(fse.path),
                   fsType: fsType,

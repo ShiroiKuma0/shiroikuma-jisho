@@ -318,8 +318,11 @@ class PlayerLocalMediaSource extends PlayerMediaSource {
     required WidgetRef ref,
     required MediaItem item,
   }) async {
+    // "Within ten seconds of the end" only means something once a
+    // duration is known. With none recorded (zero), every saved position
+    // read as past the end and the video restarted from the beginning.
     int startTime = item.position;
-    if (item.duration - item.position < 10) {
+    if (item.duration > 0 && item.duration - item.position < 10) {
       startTime = 0;
     }
 

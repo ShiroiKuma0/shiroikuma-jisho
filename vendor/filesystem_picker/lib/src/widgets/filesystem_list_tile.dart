@@ -14,6 +14,9 @@ class FilesystemListTile extends StatelessWidget {
   final ValueChanged<Directory> onChange;
   final bool isUsed;
   final bool isActive;
+
+  /// shiroikuma-jisho patch: see [FilesystemList.isSuggested].
+  final bool isSuggested;
   final bool multiSelect;
   final bool isSelected;
   final bool subItemsSelected;
@@ -28,6 +31,7 @@ class FilesystemListTile extends StatelessWidget {
       this.folderIconColor,
       required this.isUsed,
       required this.isActive,
+      this.isSuggested = false,
       required this.onChange,
       required this.multiSelect,
       required this.isSelected,
@@ -53,9 +57,11 @@ class FilesystemListTile extends StatelessWidget {
           item.path,
           isActive
               ? Colors.red
-              : isUsed
-                  ? Colors.grey
-                  : col);
+              : isSuggested
+                  ? (themeData ?? Theme.of(context)).colorScheme.primary
+                  : isUsed
+                      ? Colors.grey
+                      : col);
     }
 
     return ic;
@@ -111,6 +117,8 @@ class FilesystemListTile extends StatelessWidget {
       item.path,
       isUsed: isUsed,
       isActive: isActive,
+      isSuggested: isSuggested,
+      suggestedColor: (themeData ?? Theme.of(context)).colorScheme.primary,
       isDirectory: item is Directory,
       textStyle: isSelected
           ? (themeData ?? Theme.of(context)).primaryTextTheme.bodyLarge

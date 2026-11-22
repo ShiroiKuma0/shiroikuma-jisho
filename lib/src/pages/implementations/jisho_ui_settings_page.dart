@@ -188,7 +188,7 @@ class _JishoUiSettingsPageState extends BasePageState<JishoUiSettingsPage> {
   /// rows are built only for a section that is unfolded.
   Map<String, _UiSection> _sections() {
     return {
-      'export': _UiSection('Export / Import', () => [
+      'export': _UiSection('Export / Import', Icons.import_export, MenuRole.share, () => [
             _buildDirectoryBox(insetLeft: _insetRow),
             _buildLatestExportLine(insetLeft: _insetRow),
             _actionRow(
@@ -248,7 +248,7 @@ class _JishoUiSettingsPageState extends BasePageState<JishoUiSettingsPage> {
                 onTap: _copyToken,
               ),
           ]),
-      'toolbars': _UiSection('Toolbars', () => [
+      'toolbars': _UiSection('Toolbars', Icons.space_dashboard, MenuRole.message, () => [
             _row(
               title: 'Anki card creator button',
               icon: Icons.note_add,
@@ -265,7 +265,7 @@ class _JishoUiSettingsPageState extends BasePageState<JishoUiSettingsPage> {
               ),
             ),
           ]),
-      'colours': _UiSection('Colours', () => [
+      'colours': _UiSection('Colours', Icons.palette, MenuRole.contact, () => [
             _colorRow('Background', () => ui.backgroundColor,
                 (color) => ui.backgroundColor = color,
                 icon: Icons.format_color_fill),
@@ -307,7 +307,7 @@ class _JishoUiSettingsPageState extends BasePageState<JishoUiSettingsPage> {
                 (color) => ui.menuDeleteColor = color,
                 icon: Icons.delete, own: true, inset: _insetRowL2),
           ]),
-      'typography': _UiSection('Typography', () => [
+      'typography': _UiSection('Typography', Icons.text_fields, MenuRole.message, () => [
             _row(
               title: 'Font',
               icon: Icons.font_download_outlined,
@@ -338,7 +338,7 @@ class _JishoUiSettingsPageState extends BasePageState<JishoUiSettingsPage> {
             ),
             _buildFontSample(),
           ]),
-      'dictionary': _UiSection('Dictionary', () => [
+      'dictionary': _UiSection('Dictionary', Icons.menu_book, MenuRole.call, () => [
             _subHeader('Fonts'),
             _dictionaryFontRow(
               title: 'Heading',
@@ -421,7 +421,7 @@ class _JishoUiSettingsPageState extends BasePageState<JishoUiSettingsPage> {
               },
             ),
           ]),
-      'shapes': _UiSection('Shapes & borders', () => [
+      'shapes': _UiSection('Shapes & borders', Icons.rounded_corner, MenuRole.view, () => [
             _subHeader('Dialogs'),
             _sliderRow(
               title: 'Border width',
@@ -446,7 +446,7 @@ class _JishoUiSettingsPageState extends BasePageState<JishoUiSettingsPage> {
             ),
             _buildShapeSample(),
           ]),
-      'maintenance': _UiSection('Maintenance', () => [
+      'maintenance': _UiSection('Maintenance', Icons.build, MenuRole.delete, () => [
             _actionRow(
               title: 'Reset section order',
               icon: Icons.restart_alt,
@@ -488,6 +488,13 @@ class _JishoUiSettingsPageState extends BasePageState<JishoUiSettingsPage> {
         labels: {
           for (final entry in sections.entries) entry.key: entry.value.title,
         },
+        icons: {
+          for (final entry in sections.entries) entry.key: entry.value.icon,
+        },
+        iconColors: {
+          for (final entry in sections.entries)
+            entry.key: PillTheme.of(context).role(entry.value.role),
+        },
         frame: _border,
         label: _accent,
         onJump: (key) => _jumpToSection(key, sections[key]!.title),
@@ -499,6 +506,8 @@ class _JishoUiSettingsPageState extends BasePageState<JishoUiSettingsPage> {
       for (final key in order) ...[
         _sectionHeader(
           sections[key]!.title,
+          icon: sections[key]!.icon,
+          role: sections[key]!.role,
           sectionKey: key,
           open: open.contains(key),
           first: key == order.first,
@@ -533,10 +542,17 @@ class _JishoUiSettingsPageState extends BasePageState<JishoUiSettingsPage> {
 
   // ─── kxkb building blocks ───
 
+  /// Text size of a section heading; its icon is sized from it.
+  static const double _sectionHeadingSize = 23;
+
   /// A section heading. A tap folds or unfolds the section's rows; the
   /// thin line above it stays either way.
   Widget _sectionHeader(String title,
-      {required String sectionKey, required bool open, bool first = false}) {
+      {required IconData icon,
+      required MenuRole role,
+      required String sectionKey,
+      required bool open,
+      bool first = false}) {
     return InkWell(
       // The key is what a chip, or [widget.initialSection], scrolls to.
       key: _sectionKeys.putIfAbsent(title, () => GlobalKey()),
@@ -557,6 +573,11 @@ class _JishoUiSettingsPageState extends BasePageState<JishoUiSettingsPage> {
                 left: _insetHeading, right: 12, top: 4, bottom: 0),
             child: Row(
               children: [
+                // Sized by the heading: 1.25 × its text size.
+                Icon(icon,
+                    size: _sectionHeadingSize * 1.25,
+                    color: PillTheme.of(context).role(role)),
+                const SizedBox(width: 10),
                 Expanded(
                     child: Align(
                   alignment: Alignment.centerLeft,
@@ -567,7 +588,7 @@ class _JishoUiSettingsPageState extends BasePageState<JishoUiSettingsPage> {
                       Text(
                         title,
                         style: TextStyle(
-                          fontSize: 23,
+                          fontSize: _sectionHeadingSize,
                           fontWeight: FontWeight.bold,
                           color: _accent,
                         ),
@@ -1906,9 +1927,14 @@ class _RgbaColorPickerDialogState extends State<_RgbaColorPickerDialog> {
 
 /// One top-level section of the UI page: its heading and its rows.
 class _UiSection {
-  const _UiSection(this.title, this.rows);
+  const _UiSection(this.title, this.icon, this.role, this.rows);
 
   final String title;
+
+  /// The group's icon, shown on its heading and its index chip and
+  /// coloured by [role] — a page is found by colour before by word.
+  final IconData icon;
+  final MenuRole role;
   final List<Widget> Function() rows;
 }
 
@@ -1920,6 +1946,8 @@ class _SectionIndex extends StatefulWidget {
   const _SectionIndex({
     required this.order,
     required this.labels,
+    required this.icons,
+    required this.iconColors,
     required this.frame,
     required this.label,
     required this.onJump,
@@ -1928,6 +1956,10 @@ class _SectionIndex extends StatefulWidget {
 
   final List<String> order;
   final Map<String, String> labels;
+
+  /// Each section's icon and its role colour, shown before the label.
+  final Map<String, IconData> icons;
+  final Map<String, Color> iconColors;
   final Color frame;
   final Color label;
   final ValueChanged<String> onJump;
@@ -2001,15 +2033,29 @@ class _SectionIndexState extends State<_SectionIndex> {
         splashColor: widget.label.withValues(alpha: 0.3),
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-          child: Text(
-            widget.labels[key] ?? key,
-            style: TextStyle(
-              fontSize: 12,
-              height: 1.1,
-              color: label,
-              fontWeight: FontWeight.normal,
-              decoration: TextDecoration.none,
-            ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (widget.icons[key] != null) ...[
+                Icon(
+                  widget.icons[key],
+                  size: 15,
+                  color: (widget.iconColors[key] ?? label)
+                      .withValues(alpha: ghost ? 0.38 : 1),
+                ),
+                const SizedBox(width: 5),
+              ],
+              Text(
+                widget.labels[key] ?? key,
+                style: TextStyle(
+                  fontSize: 12,
+                  height: 1.1,
+                  color: label,
+                  fontWeight: FontWeight.normal,
+                  decoration: TextDecoration.none,
+                ),
+              ),
+            ],
           ),
         ),
       ),

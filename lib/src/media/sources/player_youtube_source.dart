@@ -346,8 +346,10 @@ class PlayerYoutubeSource extends PlayerMediaSource {
     String dataSource = await getDataSource(item);
     String audioUrl = await getAudioUrl(item, dataSource);
 
+    // See [PlayerLocalMediaSource.preparePlayerController]: an unknown
+    // (zero) duration must not count as "at the end".
     int startTime = item.position;
-    if (item.duration - item.position < 10) {
+    if (item.duration > 0 && item.duration - item.position < 10) {
       startTime = 0;
     }
 

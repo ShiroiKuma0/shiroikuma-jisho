@@ -8,6 +8,11 @@ class FilenameText extends StatelessWidget {
   final bool isDirectory;
   final bool isUsed;
   final bool isActive;
+
+  /// shiroikuma-jisho patch: a file the caller expects to be picked is
+  /// written bold in [suggestedColor].
+  final bool isSuggested;
+  final Color? suggestedColor;
   final TextStyle? textStyle;
 
   const FilenameText(
@@ -15,6 +20,8 @@ class FilenameText extends StatelessWidget {
     required this.isDirectory,
     required this.isUsed,
     required this.isActive,
+    this.isSuggested = false,
+    this.suggestedColor,
     this.textStyle,
     Key? key,
   }) : super(key: key);
@@ -22,6 +29,16 @@ class FilenameText extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final txTheme = textStyle ?? Theme.of(context).textTheme.bodyLarge;
+    final style = txTheme?.copyWith(
+      color: isActive
+          ? Colors.red
+          : isSuggested
+              ? suggestedColor
+              : isUsed
+                  ? Colors.grey
+                  : null,
+      fontWeight: isSuggested ? FontWeight.bold : null,
+    );
     final fseName = path.basename(filename);
     final extension = path.extension(fseName);
     final hasExtension = extension.isNotEmpty;
@@ -33,14 +50,14 @@ class FilenameText extends StatelessWidget {
             text: isDirectory == false && hasExtension
                 ? fseName.split(extension)[0]
                 : fseName,
-            style: txTheme?.copyWith(color: isActive ? Colors.red : isUsed ? Colors.grey : null),
+            style: style,
           ),
         ),
         Text(
           extension,
           maxLines: 1,
           overflow: TextOverflow.visible,
-          style: txTheme?.copyWith(color: isActive ? Colors.red : isUsed ? Colors.grey : null),
+          style: style,
         ),
       ],
     );

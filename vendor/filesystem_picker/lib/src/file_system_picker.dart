@@ -38,6 +38,8 @@ class FilesystemPicker extends StatefulWidget {
   /// * [allowedExtensions] specifies a list of file extensions that will be displayed for selection, if empty - files with any extension are displayed. Example: `['.jpg', '.jpeg']`
   /// * [fileTileSelectMode] specifies how to files can be selected (either tapping on the whole tile or only on trailing button). (default depends on [fsType])
   /// * [requestPermission] if specified will be called on initialization to request storage permission. callers can use e.g. [permission_handler](https://pub.dev/packages/permission_handler).
+  /// * [isSuggested] (shiroikuma-jisho patch) marks the files the caller expects to be picked — e.g. the subtitles of the playing video. They are listed first, above the directories, in the accent colour.
+  /// * [opaque] (shiroikuma-jisho patch) set to false to keep the page underneath painted while the picker is open. The picker still covers the whole screen; the difference is that an opaque route takes the page below offstage, which detaches any platform view on it (the VLC video surface in the player).
   static Future<Iterable<String>?> open({
     required BuildContext context,
     required List<Directory> rootDirectories,
@@ -55,9 +57,10 @@ class FilesystemPicker extends StatefulWidget {
     RequestPermission? requestPermission,
     ThemeData? themeData,
     TextDirection? textDirection,
+    bool Function(String path)? isSuggested,
+    bool opaque = true,
   }) async {
-    return Navigator.of(context).push<Iterable<String>>(
-      MaterialPageRoute(builder: (BuildContext context) {
+    Widget buildPicker(BuildContext context) {
         return FilesystemPicker(
           rootDirectories: rootDirectories,
           rootNames: rootNames,
@@ -75,8 +78,21 @@ class FilesystemPicker extends StatefulWidget {
           requestPermission: requestPermission,
           themeData: themeData,
           textDirection: textDirection,
+          isSuggested: isSuggested,
         );
-      }),
+    }
+
+    return Navigator.of(context).push<Iterable<String>>(
+      opaque
+          ? MaterialPageRoute(builder: buildPicker)
+          : PageRouteBuilder(
+              opaque: false,
+              pageBuilder: (context, animation, secondaryAnimation) =>
+                  buildPicker(context),
+              transitionsBuilder:
+                  (context, animation, secondaryAnimation, child) =>
+                      FadeTransition(opacity: animation, child: child),
+            ),
     );
   }
 
@@ -97,6 +113,7 @@ class FilesystemPicker extends StatefulWidget {
   final RequestPermission? requestPermission;
   final ThemeData? themeData;
   final TextDirection? textDirection;
+  final bool Function(String path)? isSuggested;
 
   FilesystemPicker({
     Key? key,
@@ -115,6 +132,7 @@ class FilesystemPicker extends StatefulWidget {
     this.requestPermission,
     this.themeData,
     this.textDirection,
+    this.isSuggested,
   }) : super(key: key);
 
   @override
@@ -474,6 +492,7 @@ class _FilesystemPickerState extends State<FilesystemPicker> {
         rootDirectories: widget.rootDirectories,
         usedFiles: widget.usedFiles,
         currentActiveFile: widget.currentActiveFile,
+        isSuggested: widget.isSuggested,
         multiSelect: widget.multiSelect,
         fsType: widget.fsType,
         folderIconColor: widget.folderIconColor,

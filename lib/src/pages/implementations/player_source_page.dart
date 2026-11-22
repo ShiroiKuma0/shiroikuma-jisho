@@ -1067,11 +1067,12 @@ class _PlayerSourcePageState extends BaseSourcePageState<PlayerSourcePage>
   /// Where playback is meant to begin for this item — the same figure
   /// each source hands VLC as `--start-time` in its
   /// `preparePlayerController`: the saved resume position in seconds, or
-  /// zero when that is within ten seconds of the end. Kept in step with
+  /// zero when that is within ten seconds of a known end. Kept in step with
   /// those by hand; it is two lines in each.
   Duration get _holdOpenPosition {
     MediaItem? item = widget.item;
-    if (item == null || item.duration - item.position < 10) {
+    if (item == null ||
+        (item.duration > 0 && item.duration - item.position < 10)) {
       return Duration.zero;
     }
     return Duration(seconds: item.position);
@@ -2207,6 +2208,8 @@ class _PlayerSourcePageState extends BaseSourcePageState<PlayerSourcePage>
           await showModalBottomSheet(
             context: context,
             isScrollControlled: true,
+            backgroundColor: Colors.transparent,
+            elevation: 0,
             useRootNavigator: true,
             builder: (context) => JidoujishoBottomSheet(
               options: getQualityOptions(
@@ -2317,6 +2320,7 @@ class _PlayerSourcePageState extends BaseSourcePageState<PlayerSourcePage>
   Widget buildAudioSubtitlesButton() {
     JidoujishoBottomSheetOption audioOption = JidoujishoBottomSheetOption(
       label: t.player_option_select_audio,
+      opens: true,
       icon: Icons.music_note_outlined,
       action: () async {
         Map<int, String> audioEmbeddedTracks =
@@ -2326,6 +2330,8 @@ class _PlayerSourcePageState extends BaseSourcePageState<PlayerSourcePage>
           await showModalBottomSheet(
             context: context,
             isScrollControlled: true,
+            backgroundColor: Colors.transparent,
+            elevation: 0,
             useRootNavigator: true,
             builder: (_) => JidoujishoBottomSheet(
               options: getAudioDialogOptions(
@@ -2344,6 +2350,7 @@ class _PlayerSourcePageState extends BaseSourcePageState<PlayerSourcePage>
     options.addAll([
       JidoujishoBottomSheetOption(
         label: t.player_option_select_subtitle,
+        opens: true,
         icon: Icons.subtitles_outlined,
         action: () async {
           Map<int, String> subtitleEmbeddedTracks =
@@ -2356,6 +2363,8 @@ class _PlayerSourcePageState extends BaseSourcePageState<PlayerSourcePage>
             await showModalBottomSheet(
               context: context,
               isScrollControlled: true,
+              backgroundColor: Colors.transparent,
+              elevation: 0,
               useRootNavigator: true,
               builder: (_) => ValueListenableBuilder(
                 valueListenable: _subtitleItemNotifier,
@@ -2374,6 +2383,7 @@ class _PlayerSourcePageState extends BaseSourcePageState<PlayerSourcePage>
       ),
       JidoujishoBottomSheetOption(
         label: t.player_option_select_secondary_subtitle,
+        opens: true,
         icon: Icons.subtitles,
         action: () async {
           Map<int, String> subtitleEmbeddedTracks =
@@ -2383,6 +2393,8 @@ class _PlayerSourcePageState extends BaseSourcePageState<PlayerSourcePage>
             await showModalBottomSheet(
               context: context,
               isScrollControlled: true,
+              backgroundColor: Colors.transparent,
+              elevation: 0,
               useRootNavigator: true,
               builder: (_) => ValueListenableBuilder(
                 valueListenable: _subtitleItemNotifier,
@@ -2399,6 +2411,7 @@ class _PlayerSourcePageState extends BaseSourcePageState<PlayerSourcePage>
       ),
       JidoujishoBottomSheetOption(
         label: t.player_align_subtitle_transcript,
+        opens: true,
         icon: Icons.timer,
         action: () async {
           final navigator = Navigator.of(context);
@@ -2477,6 +2490,7 @@ class _PlayerSourcePageState extends BaseSourcePageState<PlayerSourcePage>
       ),
       JidoujishoBottomSheetOption(
         label: t.seek_control,
+        opens: true,
         icon: Icons.swipe_left,
         action: () async {
           bool shouldResume = !_dialogSmartPaused;
@@ -2503,6 +2517,7 @@ class _PlayerSourcePageState extends BaseSourcePageState<PlayerSourcePage>
       ),
       JidoujishoBottomSheetOption(
         label: t.player_option_subtitle_appearance,
+        opens: true,
         icon: Icons.text_fields,
         action: () async {
           bool shouldResume = !_dialogSmartPaused;
@@ -2523,6 +2538,7 @@ class _PlayerSourcePageState extends BaseSourcePageState<PlayerSourcePage>
       ),
       JidoujishoBottomSheetOption(
         label: t.player_option_secondary_subtitle_appearance,
+        opens: true,
         icon: Icons.text_fields_outlined,
         action: () async {
           bool shouldResume = !_dialogSmartPaused;
@@ -2543,6 +2559,7 @@ class _PlayerSourcePageState extends BaseSourcePageState<PlayerSourcePage>
       ),
       JidoujishoBottomSheetOption(
         label: t.player_option_dictionary_font_color,
+        opens: true,
         icon: Icons.format_color_text,
         action: () async {
           bool shouldResume = !_dialogSmartPaused;
@@ -2587,6 +2604,7 @@ class _PlayerSourcePageState extends BaseSourcePageState<PlayerSourcePage>
       ),
       JidoujishoBottomSheetOption(
         label: t.player_option_dictionary_heading_size,
+        opens: true,
         icon: Icons.title,
         action: () async {
           bool shouldResume = !_dialogSmartPaused;
@@ -2632,6 +2650,7 @@ class _PlayerSourcePageState extends BaseSourcePageState<PlayerSourcePage>
       ),
       JidoujishoBottomSheetOption(
         label: t.player_option_dictionary_entry_size,
+        opens: true,
         icon: Icons.text_fields,
         action: () async {
           bool shouldResume = !_dialogSmartPaused;
@@ -2677,11 +2696,14 @@ class _PlayerSourcePageState extends BaseSourcePageState<PlayerSourcePage>
       ),
       JidoujishoBottomSheetOption(
         label: t.player_option_blur_preferences,
+        opens: true,
         icon: Icons.blur_circular_sharp,
         action: () async {
           await showModalBottomSheet(
             context: context,
             isScrollControlled: true,
+            backgroundColor: Colors.transparent,
+            elevation: 0,
             useRootNavigator: true,
             builder: (context) => JidoujishoBottomSheet(
               options: getBlurOptions(),
@@ -2691,6 +2713,7 @@ class _PlayerSourcePageState extends BaseSourcePageState<PlayerSourcePage>
       ),
       JidoujishoBottomSheetOption(
         label: t.player_option_load_subtitles,
+        opens: true,
         icon: Icons.upload_file,
         action: () async {
           bool shouldResume = !_dialogSmartPaused;
@@ -2703,6 +2726,7 @@ class _PlayerSourcePageState extends BaseSourcePageState<PlayerSourcePage>
       ),
       JidoujishoBottomSheetOption(
         label: 'OCR image subtitles',
+        opens: true,
         icon: Icons.document_scanner,
         action: () async {
           await dialogSmartPause();
@@ -2727,6 +2751,8 @@ class _PlayerSourcePageState extends BaseSourcePageState<PlayerSourcePage>
             await showModalBottomSheet(
               context: context,
               isScrollControlled: true,
+              backgroundColor: Colors.transparent,
+              elevation: 0,
               useRootNavigator: true,
               builder: (_) => JidoujishoBottomSheet(
                 options: options,
@@ -2744,6 +2770,7 @@ class _PlayerSourcePageState extends BaseSourcePageState<PlayerSourcePage>
     List<JidoujishoBottomSheetOption> options = [
       JidoujishoBottomSheetOption(
         label: t.player_option_blur_use,
+        toggle: true,
         active: appModel.blurOptions.visible,
         icon: appModel.blurOptions.visible
             ? Icons.blur_on_outlined
@@ -2757,6 +2784,7 @@ class _PlayerSourcePageState extends BaseSourcePageState<PlayerSourcePage>
       ),
       JidoujishoBottomSheetOption(
         label: t.player_option_blur_options,
+        opens: true,
         icon: Icons.blur_circular_sharp,
         action: () async {
           bool shouldResume = !_dialogSmartPaused;
@@ -3055,6 +3083,8 @@ class _PlayerSourcePageState extends BaseSourcePageState<PlayerSourcePage>
           await showModalBottomSheet(
             context: context,
             isScrollControlled: true,
+            backgroundColor: Colors.transparent,
+            elevation: 0,
             useRootNavigator: true,
             builder: (context) => JidoujishoBottomSheet(
               options: getOptions(),
@@ -3162,11 +3192,14 @@ class _PlayerSourcePageState extends BaseSourcePageState<PlayerSourcePage>
     List<JidoujishoBottomSheetOption> options = [
       JidoujishoBottomSheetOption(
         label: t.player_option_change_mode,
+        opens: true,
         icon: Icons.play_circle_outline,
         action: () async {
           await showModalBottomSheet(
             context: context,
             isScrollControlled: true,
+            backgroundColor: Colors.transparent,
+            elevation: 0,
             useRootNavigator: true,
             builder: (context) => JidoujishoBottomSheet(
               options: getPlaybackModeOptions(),
@@ -3177,6 +3210,7 @@ class _PlayerSourcePageState extends BaseSourcePageState<PlayerSourcePage>
       ),
       JidoujishoBottomSheetOption(
         label: t.player_option_listening_comprehension,
+        toggle: true,
         icon: appModel.isPlayerListeningComprehensionMode
             ? Icons.hearing
             : Icons.hearing_disabled,
@@ -3189,6 +3223,7 @@ class _PlayerSourcePageState extends BaseSourcePageState<PlayerSourcePage>
       if (source is PlayerLocalMediaSource)
         JidoujishoBottomSheetOption(
           label: t.pick_video_file,
+          opens: true,
           icon: Icons.perm_media,
           action: () async {
             PlayerLocalMediaSource localMediaSource = source;
@@ -3227,6 +3262,7 @@ class _PlayerSourcePageState extends BaseSourcePageState<PlayerSourcePage>
       if (source is PlayerYoutubeSource)
         JidoujishoBottomSheetOption(
           label: t.comments,
+          opens: true,
           icon: Icons.comment_outlined,
           action: () async {
             clearDictionaryResult();
@@ -3274,6 +3310,7 @@ class _PlayerSourcePageState extends BaseSourcePageState<PlayerSourcePage>
       if (source is PlayerYoutubeSource)
         JidoujishoBottomSheetOption(
           label: t.change_quality,
+          opens: true,
           icon: Icons.video_settings,
           action: () async {
             PlayerYoutubeSource youtubeSource = source;
@@ -3283,6 +3320,8 @@ class _PlayerSourcePageState extends BaseSourcePageState<PlayerSourcePage>
             await showModalBottomSheet(
               context: context,
               isScrollControlled: true,
+              backgroundColor: Colors.transparent,
+              elevation: 0,
               useRootNavigator: true,
               builder: (context) => JidoujishoBottomSheet(
                 options: getQualityOptions(
@@ -3294,6 +3333,7 @@ class _PlayerSourcePageState extends BaseSourcePageState<PlayerSourcePage>
         ),
       JidoujishoBottomSheetOption(
         label: t.player_option_pin_bottom_bar,
+        toggle: true,
         icon: _isMenuShownPermanent.value
             ? Icons.push_pin
             : Icons.push_pin_outlined,
@@ -3318,6 +3358,7 @@ class _PlayerSourcePageState extends BaseSourcePageState<PlayerSourcePage>
       ),
       JidoujishoBottomSheetOption(
         label: t.player_option_fullscreen_mode,
+        toggle: true,
         icon: _playerBasicOptionsNotifier.value.keepSysNavbarShown
             ? Icons.bolt
             : Icons.bolt_outlined,
@@ -3331,6 +3372,7 @@ class _PlayerSourcePageState extends BaseSourcePageState<PlayerSourcePage>
       ),
       JidoujishoBottomSheetOption(
         label: t.player_change_player_orientation,
+        opens: true,
         icon: appModel.playerOrientationMode == 'portrait'
             ? Icons.stay_current_portrait
             : appModel.playerOrientationMode == 'landscape'
@@ -3340,6 +3382,8 @@ class _PlayerSourcePageState extends BaseSourcePageState<PlayerSourcePage>
           await showModalBottomSheet(
             context: context,
             isScrollControlled: true,
+            backgroundColor: Colors.transparent,
+            elevation: 0,
             useRootNavigator: true,
             builder: (context) => JidoujishoBottomSheet(
               options: getOrientationOptions(),
@@ -3349,6 +3393,7 @@ class _PlayerSourcePageState extends BaseSourcePageState<PlayerSourcePage>
       ),
       JidoujishoBottomSheetOption(
         label: t.stretch_to_fill_screen,
+        toggle: true,
         icon: appModel.isStretchToFill
             ? Icons.fit_screen
             : Icons.fit_screen_outlined,
@@ -3371,6 +3416,7 @@ class _PlayerSourcePageState extends BaseSourcePageState<PlayerSourcePage>
       ),
       JidoujishoBottomSheetOption(
         label: t.player_option_share_subtitle,
+        opens: true,
         icon: Icons.share,
         action: () async {
           await SharePlus.instance.share(ShareParams(text: getNearestSubtitle()?.data ?? ''));
@@ -3378,6 +3424,7 @@ class _PlayerSourcePageState extends BaseSourcePageState<PlayerSourcePage>
       ),
       JidoujishoBottomSheetOption(
         label: t.player_option_export,
+        opens: true,
         icon: Icons.mobile_screen_share,
         action: () async {
           List<Subtitle> subtitles = [];
@@ -3415,6 +3462,7 @@ class _PlayerSourcePageState extends BaseSourcePageState<PlayerSourcePage>
       ),
       JidoujishoBottomSheetOption(
         label: t.player_option_volume_brightness,
+        opens: true,
         icon: Icons.volume_up,
         action: () async {
           bool shouldResume = !_dialogSmartPaused;
@@ -4668,21 +4716,92 @@ class _PlayerSourcePageState extends BaseSourcePageState<PlayerSourcePage>
     _dialogSmartPaused = false;
   }
 
+  /// Extensions the external-subtitle picker lists.
+  static const List<String> _externalSubtitleExtensions = ['.ass', '.srt'];
+
+  /// The name external subtitles are matched against: the path of a
+  /// local video, or the title of anything else (a download, a stream).
+  String? get _subtitleMatchName {
+    MediaItem? item = widget.item;
+    if (item == null) {
+      return null;
+    }
+    if (source is PlayerLocalMediaSource) {
+      return item.mediaIdentifier;
+    }
+    if (item.title.trim().isEmpty) {
+      return null;
+    }
+
+    // [SubtitleMatcher] reads file names: give the title the shape of
+    // one, so a slash is not taken for a directory nor the text after
+    // its last full stop for an extension.
+    return '${item.title.replaceAll('/', ' ')}.video';
+  }
+
+  /// Whether [directory] holds a subtitle that [SubtitleMatcher] pairs
+  /// with [matchName]. One flat listing, no recursion.
+  bool _hasMatchingSubtitle(Directory directory, String matchName) {
+    try {
+      return directory.listSync().whereType<File>().any((file) =>
+          _externalSubtitleExtensions
+              .contains(path.extension(file.path).toLowerCase()) &&
+          SubtitleMatcher.matches(
+              videoPath: matchName, subtitlePath: file.path));
+    } on FileSystemException {
+      return false;
+    }
+  }
+
   /// Shows the dialog for importing an external subtitle.
   Future<void> importExternalSubtitle() async {
     final themeData = Theme.of(context);
+    final String? matchName = _subtitleMatchName;
+
+    List<Directory> rootDirectories = await appModel
+        .getFilePickerDirectoriesForMediaType(PlayerMediaType.instance);
+
+    // Open in the directory of a local video when its subtitle is
+    // sitting right there, or when nothing was ever picked; otherwise
+    // the last-picked directory keeps the lead, since that is where
+    // someone who files subtitles apart from videos will want to be.
+    if (source is PlayerLocalMediaSource && matchName != null) {
+      Directory videoDirectory = Directory(path.dirname(matchName));
+      if (videoDirectory.existsSync() &&
+          (appModel.getLastPickedDirectory(PlayerMediaType.instance) == null ||
+              _hasMatchingSubtitle(videoDirectory, matchName))) {
+        rootDirectories
+          ..removeWhere((e) => e.path == videoDirectory.path)
+          ..insert(0, videoDirectory);
+      }
+    }
+
+    if (!mounted) {
+      return;
+    }
 
     Iterable<String>? filePaths = await FilesystemPicker.open(
       title: '',
-      allowedExtensions: ['.ass', '.srt'],
+      allowedExtensions: _externalSubtitleExtensions,
       pickText: t.dialog_select,
       cancelText: t.dialog_cancel,
       context: context,
-      rootDirectories: await appModel
-          .getFilePickerDirectoriesForMediaType(PlayerMediaType.instance),
+      rootDirectories: rootDirectories,
       fsType: FilesystemType.file,
       folderIconColor: Theme.of(context).colorScheme.primary,
       themeData: themeData,
+      // The subtitles of this video — same name, or same episode — are
+      // listed first and highlighted.
+      isSuggested: matchName == null
+          ? null
+          : (subtitlePath) => SubtitleMatcher.matches(
+              videoPath: matchName, subtitlePath: subtitlePath),
+      // An opaque route takes the player offstage, and Flutter then
+      // detaches the hybrid-composition platform view VLC draws into.
+      // On some devices the video output never re-attaches: the picture
+      // stays frozen while audio and subtitles run on (issue #26).
+      // Non-opaque keeps the player painted under the picker.
+      opaque: false,
     );
 
     if (filePaths == null || filePaths.isEmpty) {
@@ -4794,6 +4913,8 @@ class _PlayerSourcePageState extends BaseSourcePageState<PlayerSourcePage>
     await showModalBottomSheet(
       context: context,
       isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      elevation: 0,
       useRootNavigator: true,
       builder: (_) => JidoujishoBottomSheet(
         options: tracks

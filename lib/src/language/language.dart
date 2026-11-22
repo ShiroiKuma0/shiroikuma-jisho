@@ -323,10 +323,17 @@ abstract class Language {
   int getGuessHighlightLength({
     required String searchTerm,
   }) {
-    return textToWords(searchTerm)
-        .firstWhere((e) => e.trim().isNotEmpty)
-        .trim()
-        .length;
+    // A term with no non-blank word (empty, or only whitespace) used to
+    // throw `Bad state: No element` out of a bare `firstWhere` and take
+    // the lookup down with it. Fall back to the trimmed term, and to one
+    // character when even that is empty, so there is always a highlight.
+    final String? word =
+        textToWords(searchTerm).firstWhereOrNull((e) => e.trim().isNotEmpty);
+    if (word != null) {
+      return word.trim().length;
+    }
+
+    return max(searchTerm.trim().length, 1);
   }
 
   /// Get final highlight length after a dictionary search.

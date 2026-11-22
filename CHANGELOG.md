@@ -6,6 +6,45 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- **The player's subtitle picker finds the subtitle of the video.** In
+  “Load external subtitles”, the files that belong to the playing video
+  — the same name, or the same episode number under another name — are
+  listed first, above the directories, bold and in the accent colour.
+  When such a file sits beside a local video the picker opens in the
+  video's directory; otherwise it opens where a subtitle was last picked,
+  as before.
+
+### Changed
+
+- **The groups of the 白い熊 辞書 UI page have colour icons.** Each
+  section heading and its chip in the index carries the group's icon,
+  coloured by what the group is for: Export / Import orange, Toolbars and
+  Typography blue, Colours cyan, Dictionary green, Shapes & borders in the
+  accent, Maintenance red.
+- **The player's option sheets follow the black-yellow look.** The two
+  sheets behind ⋮ and the track button, and every sheet they open, are no
+  longer a column of plain lines across the whole screen: the sheet is
+  only as wide as its longest row, every action is an outlined pill with
+  an icon coloured by what it does and a › when it opens something, and a
+  setting that is on or off (pin the bottom bar, full-screen mode, stretch
+  to fill, listening comprehension, the blur widget) is a plain row with
+  the outlined switch. A tap beside the sheet closes it.
+
+### Fixed
+
+- **Loading an external subtitle no longer freezes the picture.** On some
+  devices the video stayed on one frame after a subtitle was picked while
+  audio and subtitles ran on (issue #26). The picker used to take the
+  player off the screen entirely, and the video output did not always
+  come back; the player now stays in place underneath it.
+- **A lookup of blank text no longer fails.** Searching a selection that
+  held no word — only spaces or a line break — threw
+  `Bad state: No element` instead of showing a result.
+- **A video without a recorded length resumes where it stopped.** It was
+  treated as being at its end and restarted from the beginning.
+
 ## [1.6.0+036] - 2026-11-20
 
 ### Added
