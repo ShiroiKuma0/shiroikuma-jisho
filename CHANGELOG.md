@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [1.6.0+038] - 2026-11-22
+
 ### Added
 
 - **The player's subtitle picker finds the subtitle of the video.** In
